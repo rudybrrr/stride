@@ -12,6 +12,12 @@ import { motion } from "framer-motion";
 
 import { useData } from "~/components/data-provider";
 
+interface ProfileUpdatePayload {
+    id: string;
+    username: string;
+    full_name: string;
+}
+
 export function ProfileForm({ userId }: { userId: string }) {
     const { profile, loading, refreshData } = useData();
     const supabase = createSupabaseBrowserClient();
@@ -21,8 +27,8 @@ export function ProfileForm({ userId }: { userId: string }) {
 
     useEffect(() => {
         if (profile) {
-            setUsername(profile.username || "");
-            setFullName(profile.full_name || "");
+            setUsername(profile.username ?? "");
+            setFullName(profile.full_name ?? "");
         }
     }, [profile]);
 
@@ -37,9 +43,7 @@ export function ProfileForm({ userId }: { userId: string }) {
         try {
             setSaving(true);
 
-            // Defensively update only what we need. 
-            // We removed updated_at because it might not exist in your table.
-            const profileUpdate: any = {
+            const profileUpdate: ProfileUpdatePayload = {
                 id: userId,
                 username: username.toLowerCase().replace(/\s+/g, "_"),
                 full_name: fullName,
@@ -52,7 +56,7 @@ export function ProfileForm({ userId }: { userId: string }) {
                     code: error.code,
                     message: error.message,
                     details: error.details,
-                    hint: error.hint
+                    hint: error.hint,
                 });
 
                 if (error.code === "23505") {
@@ -64,14 +68,13 @@ export function ProfileForm({ userId }: { userId: string }) {
                 toast.success("Profile updated successfully!");
                 void refreshData();
             }
-        } catch (error: any) {
-            const errMsg = error.message || error.code || "Unknown Error";
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Unknown Error";
             console.error("Profile update logic failed:", {
-                message: error.message,
-                stack: error.stack,
-                userId
+                message,
+                userId,
             });
-            toast.error(`Update Error: ${errMsg}`);
+            toast.error(`Update Error: ${message}`);
         } finally {
             setSaving(false);
         }
@@ -117,7 +120,7 @@ export function ProfileForm({ userId }: { userId: string }) {
                                     id="username"
                                     placeholder="your_handle"
                                     value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
+                                    onChange={(event) => setUsername(event.target.value)}
                                     className="pl-8 rounded-xl border-border/40 bg-background/50 focus:ring-primary shadow-sm h-11 font-medium"
                                     required
                                 />
@@ -135,7 +138,7 @@ export function ProfileForm({ userId }: { userId: string }) {
                                 id="fullName"
                                 placeholder="Display Name"
                                 value={fullName}
-                                onChange={(e) => setFullName(e.target.value)}
+                                onChange={(event) => setFullName(event.target.value)}
                                 className="rounded-xl border-border/40 bg-background/50 focus:ring-primary shadow-sm h-11 font-medium"
                             />
                         </div>

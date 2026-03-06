@@ -3,43 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { toast } from "sonner";
-import {
-  Plus,
-  Trash2,
-  LogOut,
-  ClipboardList,
-  Image as ImageIcon,
-  CheckCircle2,
-  Circle,
-  TrendingUp,
-  Target,
-  Layout,
-  Menu,
-  Hash,
-  Flag,
-  Calendar as CalendarIcon
-} from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Layout, Menu, Flag, Calendar as CalendarIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { ModeToggle } from "~/components/mode-toggle";
 import { ListSidebar } from "./list-sidebar";
 import { FocusTimer } from "./focus-timer";
 import { useFocus } from "~/components/focus-provider";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "~/components/ui/sheet";
 import { Separator } from "~/components/ui/separator";
 import { TodoImageUpload } from "./todo-image-upload";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle
-} from "~/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -56,7 +32,7 @@ import {
 } from "~/components/ui/popover";
 import { Calendar } from "~/components/ui/calendar";
 import { format, isToday, isTomorrow, isYesterday, differenceInCalendarDays } from "date-fns";
-import type { TodoList, TodoRow, TodoImageRow } from "~/lib/types";
+import type { TodoRow, TodoImageRow } from "~/lib/types";
 
 const BUCKET = "todo-images";
 
@@ -64,6 +40,14 @@ import { useData } from "~/components/data-provider";
 
 type StatusFilter = "all" | "active" | "done";
 type PriorityFilter = "all" | "high" | "medium" | "low";
+
+interface ProfileLookupRow {
+  id: string;
+}
+
+interface ListIdRow {
+  id: string;
+}
 
 function getRelativeDueDateLabel(dateStr: string) {
   const date = new Date(dateStr);
@@ -126,7 +110,7 @@ export default function TodosClient({ userId }: { userId: string, username?: str
     } else if (lists.length > 0 && !listId) {
       setListId(lists[0]!.id);
     }
-  }, [searchParams, lists, dataLoading]);
+  }, [searchParams, lists, dataLoading, listId]);
 
   // Sync state to URL
   const handleListSelect = useCallback((id: string) => {
@@ -186,7 +170,7 @@ export default function TodosClient({ userId }: { userId: string, username?: str
       .channel(`todos-rt-${listId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "todos" },
+        { event: "*", schema: "public", table: "todos", filter: `list_id=eq.${listId}` },
         () => void loadTodos(listId),
       )
       .subscribe();
@@ -195,7 +179,7 @@ export default function TodosClient({ userId }: { userId: string, username?: str
       .channel(`todo-images-rt-${listId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "todo_images" },
+        { event: "*", schema: "public", table: "todo_images", filter: `list_id=eq.${listId}` },
         () => void loadImages(listId),
       )
       .subscribe();
@@ -210,25 +194,26 @@ export default function TodosClient({ userId }: { userId: string, username?: str
     const handle = prompt("Enter the @username of the student you want to invite:");
     if (!handle) return;
 
-    // clean up handle just in case they added @ 
-    const cleanUsername = handle.replace('@', '').toLowerCase().trim();
+    const cleanUsername = handle.replace("@", "").toLowerCase().trim();
 
-    // 1. Find user by username in profiles
-    const { data: profile, error: profErr } = await supabase
+    const { data: profileData, error: profErr } = await supabase
       .from("profiles")
       .select("id")
       .ilike("username", cleanUsername)
       .maybeSingle();
 
     if (profErr) return toast.error(profErr.message);
-    if (!profile) return toast.error(`No student found with username @${cleanUsername}.`);
 
-    // 2. Add to todo_list_members
+    const invitedProfile = profileData as ProfileLookupRow | null;
+    if (!invitedProfile) {
+      return toast.error(`No student found with username @${cleanUsername}.`);
+    }
+
     const { error: memErr } = await supabase
       .from("todo_list_members")
       .insert({
         list_id: lid,
-        user_id: profile.id,
+        user_id: invitedProfile.id,
         role: "editor"
       });
 
@@ -248,29 +233,63 @@ export default function TodosClient({ userId }: { userId: string, username?: str
     const name = prompt("Enter list name:");
     if (!name) return;
 
-    const { data: newList, error: listErr } = await supabase
-      .from("todo_lists")
-      .insert({ owner_id: userId, name })
-      .select("id")
-      .single();
-
-    if (listErr) {
-      toast.error(listErr.message);
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      toast.error("List name cannot be empty.");
       return;
     }
 
-    const { error: mErr } = await supabase
-      .from("todo_list_members")
-      .insert({ list_id: newList.id, user_id: userId, role: "owner" });
+    let createdListId: string | null = null;
 
-    if (mErr) {
-      toast.error(mErr.message);
-      return;
+    const { data: rpcData, error: rpcErr } = await supabase
+      .rpc("create_list_with_owner", { list_name: trimmedName })
+      .single();
+
+    if (rpcErr) {
+      if (rpcErr.code !== "42883") {
+        toast.error(rpcErr.message);
+        return;
+      }
+
+      const { data: fallbackList, error: listErr } = await supabase
+        .from("todo_lists")
+        .insert({ owner_id: userId, name: trimmedName })
+        .select("id")
+        .single();
+
+      if (listErr) {
+        toast.error(listErr.message);
+        return;
+      }
+
+      const fallbackData = fallbackList as ListIdRow | null;
+      if (!fallbackData?.id) {
+        toast.error("Failed to read created list ID.");
+        return;
+      }
+
+      const { error: mErr } = await supabase
+        .from("todo_list_members")
+        .insert({ list_id: fallbackData.id, user_id: userId, role: "owner" });
+
+      if (mErr) {
+        toast.error(mErr.message);
+        return;
+      }
+
+      createdListId = fallbackData.id;
+    } else {
+      const createdList = rpcData as ListIdRow | null;
+      if (!createdList?.id) {
+        toast.error("Project created but list ID was not returned.");
+        return;
+      }
+      createdListId = createdList.id;
     }
 
     toast.success("Project created!");
     void refreshData();
-    setListId(newList.id);
+    setListId(createdListId);
   }, [supabase, userId, refreshData]);
 
   const deleteList = useCallback(async (lid: string) => {
@@ -412,9 +431,9 @@ export default function TodosClient({ userId }: { userId: string, username?: str
   const handleExpandTodo = useCallback((t: TodoRow) => {
     if (expandedTodoId === t.id) return;
     setExpandedTodoId(t.id);
-    setEditDesc(t.description || "");
+    setEditDesc(t.description ?? "");
     setEditPriority(t.priority as "high" | "medium" | "low" | null);
-    setEditDate(t.due_date ? t.due_date.split('T')[0] || null : null);
+    setEditDate(t.due_date ? (t.due_date.split('T')[0] ?? null) : null);
   }, [expandedTodoId]);
 
   const handleSaveExpandedTodo = useCallback((id: string) => {
@@ -466,7 +485,7 @@ export default function TodosClient({ userId }: { userId: string, username?: str
       })
       .sort((a, b) => {
         if (a.is_done !== b.is_done) return a.is_done ? 1 : -1;
-        return (b.inserted_at || "").localeCompare(a.inserted_at || "");
+        return (b.inserted_at ?? "").localeCompare(a.inserted_at ?? "");
       });
   }, [todos, statusFilter, priorityFilter]);
 
@@ -736,7 +755,7 @@ export default function TodosClient({ userId }: { userId: string, username?: str
                             />
 
                             {/* Short Preview (when collapsed) */}
-                            {expandedTodoId !== t.id && (t.description || t.due_date || t.priority) && (
+                            {expandedTodoId !== t.id && Boolean(t.description ?? t.due_date ?? t.priority) && (
                               <div className="flex flex-wrap items-center gap-3 text-[13px] text-muted-foreground/80 mt-1 cursor-text -ml-0.5" onClick={() => handleExpandTodo(t)}>
                                 {t.priority && (
                                   <span className="flex items-center gap-1.5 capitalize font-medium">
@@ -829,7 +848,7 @@ export default function TodosClient({ userId }: { userId: string, username?: str
                                     <DialogHeader>
                                       <DialogTitle className="text-xl font-bold">Retire Task</DialogTitle>
                                       <DialogDescription className="text-muted-foreground">
-                                        Are you sure you want to remove "{t.title}"? This cannot be undone.
+                                        Are you sure you want to remove &quot;{t.title}&quot;? This cannot be undone.
                                       </DialogDescription>
                                     </DialogHeader>
                                     <DialogFooter className="sm:justify-end gap-3 mt-4">
@@ -852,6 +871,7 @@ export default function TodosClient({ userId }: { userId: string, username?: str
                                   const url = supabase.storage.from(BUCKET).getPublicUrl(img.path).data.publicUrl;
                                   return (
                                     <a key={img.id} href={url} target="_blank" rel="noreferrer" className="group/img relative">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
                                       <img
                                         src={url}
                                         alt="todo attachment"
@@ -878,4 +898,9 @@ export default function TodosClient({ userId }: { userId: string, username?: str
     </div >
   );
 }
+
+
+
+
+
 

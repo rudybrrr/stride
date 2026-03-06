@@ -1,9 +1,7 @@
 import React from "react";
-import { Plus, Hash, Inbox, ChevronRight, MoreHorizontal, Trash2, FolderPlus, LogOut, User, BarChart2, Trophy, Share2, Users, List, Star, CheckSquare, GripVertical } from "lucide-react";
+import { Plus, Inbox, MoreHorizontal, Trash2, LogOut, User, BarChart2, Trophy, Share2, Users, List } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
-import { ScrollArea } from "~/components/ui/scroll-area";
-import { Separator } from "~/components/ui/separator";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -11,7 +9,9 @@ import {
     DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 import { ModeToggle } from "~/components/mode-toggle";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
+import { usePathname } from "next/navigation";
+import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 
 import type { TodoList } from "~/lib/types";
 
@@ -27,9 +27,6 @@ interface ListSidebarProps {
     username?: string;
 }
 
-import { usePathname } from "next/navigation";
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
-
 export const ListSidebar = React.memo(function ListSidebar({
     lists,
     activeListId,
@@ -42,7 +39,7 @@ export const ListSidebar = React.memo(function ListSidebar({
     username,
 }: ListSidebarProps) {
     const pathname = usePathname();
-    const inbox = React.useMemo(() => lists.find(l => l.name === "Inbox"), [lists]);
+    const inbox = React.useMemo(() => lists.find((list) => list.name === "Inbox"), [lists]);
 
     const [isMounted, setIsMounted] = React.useState(false);
     const [localLists, setLocalLists] = React.useState<TodoList[]>([]);
@@ -52,9 +49,10 @@ export const ListSidebar = React.memo(function ListSidebar({
     }, []);
 
     React.useEffect(() => {
-        const inboxFiltered = lists.filter(l => l.name !== "Inbox");
+        const inboxFiltered = lists.filter((list) => list.name !== "Inbox");
         const savedOrder = localStorage.getItem(`list-order-${userId}`);
-        let sorted = [...inboxFiltered];
+        const sorted = [...inboxFiltered];
+
         if (savedOrder) {
             try {
                 const orderArr = JSON.parse(savedOrder) as string[];
@@ -66,34 +64,35 @@ export const ListSidebar = React.memo(function ListSidebar({
                     if (indexB === -1) return -1;
                     return indexA - indexB;
                 });
-            } catch (e) {
-                console.error("Failed to parse list order", e);
+            } catch (error) {
+                console.error("Failed to parse list order", error);
             }
         }
+
         setLocalLists(sorted);
     }, [lists, userId]);
 
-    const onDragEnd = (result: any) => {
+    const onDragEnd = (result: DropResult) => {
         if (!result.destination) return;
+
         const items = Array.from(localLists);
         const [reorderedItem] = items.splice(result.source.index, 1);
         if (reorderedItem) {
             items.splice(result.destination.index, 0, reorderedItem);
         }
+
         setLocalLists(items);
-        localStorage.setItem(`list-order-${userId}`, JSON.stringify(items.map(i => i.id)));
+        localStorage.setItem(`list-order-${userId}`, JSON.stringify(items.map((item) => item.id)));
     };
 
     return (
         <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border">
-            {/* Header */}
             <div className="p-6 pb-2">
                 <h1 className="font-bold tracking-tight text-lg text-sidebar-foreground">Study Sprint</h1>
             </div>
 
             <div className="flex-1 px-3 overflow-y-auto overflow-x-hidden">
                 <div className="space-y-6 py-4">
-                    {/* Dashboard Area */}
                     <div className="space-y-0.5 px-2">
                         <Link href="/dashboard" className="block w-full">
                             <Button
@@ -109,7 +108,6 @@ export const ListSidebar = React.memo(function ListSidebar({
                         </Link>
                     </div>
 
-                    {/* Study Hall Section */}
                     <div className="px-2">
                         <h2 className="text-[11px] font-bold tracking-widest text-sidebar-foreground/40 mb-2 px-2 uppercase">
                             Network
@@ -128,7 +126,6 @@ export const ListSidebar = React.memo(function ListSidebar({
                         </Link>
                     </div>
 
-                    {/* Lists Section */}
                     <div className="px-2">
                         <div className="flex items-center justify-between mb-2 px-2 group/header">
                             <h2 className="text-[11px] font-bold tracking-widest text-sidebar-foreground/40 uppercase">
@@ -170,16 +167,16 @@ export const ListSidebar = React.memo(function ListSidebar({
                                             >
                                                 {localLists.map((list, index) => (
                                                     <Draggable key={list.id} draggableId={list.id} index={index}>
-                                                        {(provided, snapshot) => (
+                                                        {(draggableProvided, snapshot) => (
                                                             <div
-                                                                ref={provided.innerRef}
-                                                                {...provided.draggableProps}
-                                                                {...provided.dragHandleProps}
+                                                                ref={draggableProvided.innerRef}
+                                                                {...draggableProvided.draggableProps}
+                                                                {...draggableProvided.dragHandleProps}
                                                                 style={{
-                                                                    ...provided.draggableProps.style,
-                                                                    ...(snapshot.isDragging ? { zIndex: 50 } : {})
+                                                                    ...draggableProvided.draggableProps.style,
+                                                                    ...(snapshot.isDragging ? { zIndex: 50 } : {}),
                                                                 }}
-                                                                className={`group flex items-center gap-1 ${snapshot.isDragging ? 'opacity-90 scale-[1.02] shadow-sm rounded-lg bg-sidebar-accent' : ''}`}
+                                                                className={`group flex items-center gap-1 ${snapshot.isDragging ? "opacity-90 scale-[1.02] shadow-sm rounded-lg bg-sidebar-accent" : ""}`}
                                                             >
                                                                 <div
                                                                     onClick={() => onListSelect(list.id)}
@@ -244,7 +241,7 @@ export const ListSidebar = React.memo(function ListSidebar({
                                                     : "text-sidebar-foreground/80"
                                                     }`}
                                             >
-                                                <List className={`h-[15px] w-[15px] text-sidebar-foreground/40`} />
+                                                <List className="h-[15px] w-[15px] text-sidebar-foreground/40" />
                                                 <span className="truncate">{list.name}</span>
                                             </Button>
                                         </div>

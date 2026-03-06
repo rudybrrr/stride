@@ -24,7 +24,7 @@ Students often have clear to-do lists but struggle to bridge the gap between "pl
 ### 🚀 Technical Foundation
 - **Optimized Performance:** Leverages parallel fetching, a global state provider, and fully optimistic UI updates for a responsive experience.
 - **Robust Security:** Every table is protected by granular Row Level Security (RLS) policies, ensuring users only access what they own or were invited to.
-- **Modern Stack:** Built with Next.js 14, TypeScript, Tailwind CSS, and shadcn/ui.
+- **Modern Stack:** Built with Next.js 16, TypeScript, Tailwind CSS, and shadcn/ui.
 
 ---
 
@@ -41,7 +41,7 @@ Students often have clear to-do lists but struggle to bridge the gap between "pl
 ---
 
 ## Tech Stack
-- **Frontend:** Next.js 14, React, TypeScript, Tailwind CSS, Recharts
+- **Frontend:** Next.js 16, React, TypeScript, Tailwind CSS, Recharts
 - **Backend/BaaS:** Supabase (PostgreSQL, Auth, RLS, Realtime, Storage)
 
 ---
@@ -190,6 +190,31 @@ create policy "Editors can insert images" on public.todo_images for insert with 
 create policy "Editors can delete images" on public.todo_images for delete using (public.can_edit_list(list_id));
 ```
 
+#### B2. Atomic List Creation RPC (Recommended)
+```sql
+create or replace function public.create_list_with_owner(list_name text)
+returns table (id uuid, name text, owner_id uuid, inserted_at timestamptz)
+language plpgsql security definer set search_path = public as $$
+declare new_list public.todo_lists;
+begin
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if list_name is null or btrim(list_name) = '' then raise exception 'List name cannot be empty'; end if;
+
+  insert into public.todo_lists (owner_id, name)
+  values (auth.uid(), btrim(list_name))
+  returning * into new_list;
+
+  insert into public.todo_list_members (list_id, user_id, role)
+  values (new_list.id, auth.uid(), 'owner')
+  on conflict (list_id, user_id) do update set role = excluded.role;
+
+  return query select new_list.id, new_list.name, new_list.owner_id, new_list.inserted_at;
+end;
+$$;
+
+grant execute on function public.create_list_with_owner(text) to authenticated;
+```
+
 #### C. Realtime Enablement
 ```sql
 alter publication supabase_realtime set (publish = 'insert, update, delete');
@@ -211,3 +236,4 @@ alter table public.focus_sessions replica identity full;
 ## Roadmap (Actively Maintained)
 - **[Planned] Planning Hub:** Calendar and weekly overview.
 - **[Completed] Global Study Hall:** Real-time social leaderboard.
+

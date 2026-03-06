@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { ListSidebar } from "../todos/list-sidebar";
 import { FocusTimer } from "../todos/focus-timer";
@@ -13,22 +13,54 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
+
 import type { LeaderboardEntry, ActivityFeedEvent } from "~/lib/types";
-import confetti from "canvas-confetti";
+
+interface WeeklyLeaderboardRow {
+    user_id: string;
+    username: string | null;
+    avatar_url: string | null;
+    total_minutes: number | null;
+}
+
+interface FocusSessionActivityRow {
+    id: string;
+    user_id: string;
+    duration_seconds: number;
+    inserted_at: string;
+}
+
+interface PublicProfileRow {
+    id: string;
+    username: string | null;
+    avatar_url: string | null;
+}
+
+interface FocusSessionInsertPayload {
+    id: string;
+    user_id: string;
+    duration_seconds: number;
+    inserted_at: string;
+    mode: string;
+}
+
+function isFocusSessionInsertPayload(value: unknown): value is FocusSessionInsertPayload {
+    if (!value || typeof value !== "object") return false;
+
+    const row = value as Record<string, unknown>;
+    return (
+        typeof row.id === "string"
+        && typeof row.user_id === "string"
+        && typeof row.duration_seconds === "number"
+        && typeof row.inserted_at === "string"
+        && typeof row.mode === "string"
+    );
+}
 
 export default function StudyHallClient() {
     const { lists, profile, userId } = useData();
     const router = useRouter();
-    const supabase = createSupabaseBrowserClient();
-
-    // Ensure users are redirected to login if unauthenticated
-    useEffect(() => {
-        if (!userId) {
-            supabase.auth.getSession().then(({ data }) => {
-                if (!data.session) router.push('/login');
-            });
-        }
-    }, [userId, router, supabase.auth]);
+    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
     const [activityFeed, setActivityFeed] = useState<ActivityFeedEvent[]>([]);
@@ -37,7 +69,7 @@ export default function StudyHallClient() {
     const fetchLeaderboard = useCallback(async () => {
         const { data, error } = await supabase
             .from("weekly_leaderboard")
-            .select("*")
+            .select("user_id, username, avatar_url, total_minutes")
             .limit(50);
 
         if (error) {
@@ -45,11 +77,15 @@ export default function StudyHallClient() {
             return;
         }
 
-        // Add rank manually since the view is ordered
-        const rankedData: LeaderboardEntry[] = (data || []).map((entry, index) => ({
-            ...entry,
-            rank: index + 1
-        }));
+        const rankedData = ((data ?? []) as WeeklyLeaderboardRow[])
+            .sort((a, b) => (b.total_minutes ?? 0) - (a.total_minutes ?? 0))
+            .map((entry, index) => ({
+                user_id: entry.user_id,
+                username: entry.username ?? "anonymous",
+                avatar_url: entry.avatar_url ?? null,
+                total_minutes: entry.total_minutes ?? 0,
+                rank: index + 1,
+            }));
 
         setLeaderboard(rankedData);
     }, [supabase]);
@@ -58,7 +94,7 @@ export default function StudyHallClient() {
         const { data, error } = await supabase
             .from("focus_sessions")
             .select("id, duration_seconds, inserted_at, user_id")
-            .eq('mode', 'focus')
+            .eq("mode", "focus")
             .order("inserted_at", { ascending: false })
             .limit(5);
 
@@ -67,76 +103,90 @@ export default function StudyHallClient() {
             return;
         }
 
-        if (!data || data.length === 0) {
+        const sessions = (data ?? []) as FocusSessionActivityRow[];
+        if (sessions.length === 0) {
             setActivityFeed([]);
             return;
         }
 
-        const userIds = [...new Set(data.map(s => s.user_id))];
-        const { data: profilesData } = await supabase
+        const userIds = [...new Set(sessions.map((session) => session.user_id))];
+        const { data: profilesData, error: profileError } = await supabase
             .from("profiles")
             .select("id, username, avatar_url")
             .in("id", userIds);
 
-        const profilesMap = (profilesData || []).reduce((acc: any, p: any) => {
-            acc[p.id] = p;
-            return acc;
-        }, {});
+        if (profileError) {
+            console.error("Error fetching profile data for activity feed:", profileError);
+            return;
+        }
 
-        const formattedFeed: ActivityFeedEvent[] = data.map((item: any) => ({
+        const profilesMap = new Map(
+            ((profilesData ?? []) as PublicProfileRow[]).map((profileRow) => [profileRow.id, profileRow]),
+        );
+
+        const formattedFeed: ActivityFeedEvent[] = sessions.map((item) => ({
             id: item.id,
             user_id: item.user_id,
             duration_seconds: item.duration_seconds,
             inserted_at: item.inserted_at,
-            username: profilesMap[item.user_id]?.username || "Anonymous",
-            avatar_url: profilesMap[item.user_id]?.avatar_url || null
+            username: profilesMap.get(item.user_id)?.username ?? "Anonymous",
+            avatar_url: profilesMap.get(item.user_id)?.avatar_url ?? null,
         }));
 
         setActivityFeed(formattedFeed);
     }, [supabase]);
 
     useEffect(() => {
-        let isMounted = true;
-        Promise.all([fetchLeaderboard(), fetchRecentActivity()]).then(() => {
-            if (isMounted) setLoading(false);
-        });
+        let isActive = true;
 
-        // Subscribe to NEW focus sessions to update the live feed
-        const channel = supabase
-            .channel('public:focus_sessions')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'focus_sessions' },
-                async (payload) => {
-                    const newSession = payload.new;
-                    if (newSession.mode !== 'focus') return;
-
-                    // Fetch the user's profile info to enrich the feed event
-                    const { data: profileData } = await supabase
-                        .from('profiles')
-                        .select('username, avatar_url')
-                        .eq('id', newSession.user_id)
-                        .single();
-
-                    const newEvent: ActivityFeedEvent = {
-                        id: newSession.id,
-                        user_id: newSession.user_id,
-                        duration_seconds: newSession.duration_seconds,
-                        inserted_at: newSession.inserted_at,
-                        username: profileData?.username || "Anonymous Scholar",
-                        avatar_url: profileData?.avatar_url || null
-                    };
-
-                    setActivityFeed(prev => [newEvent, ...prev].slice(0, 5)); // Keep max 5 items
-
-                    // Also refresh the leaderboard to reflect the new time
-                    fetchLeaderboard();
+        void Promise.all([fetchLeaderboard(), fetchRecentActivity()])
+            .then(() => {
+                if (isActive) {
+                    setLoading(false);
                 }
+            })
+            .catch((error) => {
+                console.error("Failed to load study hall data:", error);
+                if (isActive) {
+                    setLoading(false);
+                }
+            });
+
+        const channel = supabase
+            .channel("public:focus_sessions")
+            .on(
+                "postgres_changes",
+                { event: "INSERT", schema: "public", table: "focus_sessions" },
+                (payload) => {
+                    void (async () => {
+                        if (!isFocusSessionInsertPayload(payload.new) || payload.new.mode !== "focus") return;
+
+                        const { data: profileData } = await supabase
+                            .from("profiles")
+                            .select("username, avatar_url")
+                            .eq("id", payload.new.user_id)
+                            .single();
+
+                        const profileRow = profileData as { username?: string | null; avatar_url?: string | null } | null;
+                        const newEvent: ActivityFeedEvent = {
+                            id: payload.new.id,
+                            user_id: payload.new.user_id,
+                            duration_seconds: payload.new.duration_seconds,
+                            inserted_at: payload.new.inserted_at,
+                            username: profileRow?.username ?? "Anonymous Scholar",
+                            avatar_url: profileRow?.avatar_url ?? null,
+                        };
+
+                        setActivityFeed((prev) => [newEvent, ...prev].slice(0, 5));
+                        void fetchLeaderboard();
+                    })();
+                },
             )
             .subscribe();
 
         return () => {
-            supabase.removeChannel(channel);
+            isActive = false;
+            void supabase.removeChannel(channel);
         };
     }, [supabase, fetchLeaderboard, fetchRecentActivity]);
 
@@ -161,6 +211,7 @@ export default function StudyHallClient() {
         return <span className="font-mono font-bold text-muted-foreground w-5 text-center">{rank}</span>;
     };
 
+    const noOp = () => undefined;
 
     if (!userId) {
         return (
@@ -175,28 +226,24 @@ export default function StudyHallClient() {
 
     return (
         <div className="flex h-screen bg-background overflow-hidden">
-            {/* Sidebar */}
             <aside className="w-80 hidden lg:block h-full border-r border-sidebar-border">
                 <ListSidebar
                     lists={lists}
-                    activeListId={null} // Null because we are not on a list
+                    activeListId={null}
                     onListSelect={(id) => router.push(`/todos?listId=${id}`)}
                     onCreateList={() => router.push("/todos")}
-                    onDeleteList={() => { }}
-                    onInvite={() => { }}
+                    onDeleteList={noOp}
+                    onInvite={noOp}
                     onLogout={handleLogout}
                     userId={userId}
                     username={profile?.username}
                 />
             </aside>
 
-            {/* Main Content */}
             <main className="flex-1 overflow-y-auto custom-scrollbar relative">
-                {/* Background Decor */}
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
 
                 <div className="max-w-6xl mx-auto p-4 sm:p-8 space-y-8 pb-20 relative z-10">
-                    {/* Header */}
                     <header className="flex items-center justify-between">
                         <div className="space-y-1">
                             <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
@@ -215,11 +262,9 @@ export default function StudyHallClient() {
                         </Link>
                     </header>
 
-                    {/* Persistent Focus Timer */}
                     <FocusTimer userId={userId} />
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Leaderboard Column (Takes up 2/3) */}
                         <div className="lg:col-span-2 space-y-4">
                             <Card className="bg-card/50 border-border/10 shadow-sm rounded-2xl overflow-hidden py-0 gap-0 h-fit">
                                 <CardHeader className="border-b border-border/10 p-6 bg-transparent !pb-6">
@@ -256,38 +301,33 @@ export default function StudyHallClient() {
                                                             initial={{ opacity: 0, y: 10 }}
                                                             animate={{ opacity: 1, y: 0 }}
                                                             exit={{ opacity: 0 }}
-                                                            className={`flex items-center gap-4 p-4 transition-colors hover:bg-muted/30 ${isMe ? 'bg-primary/5' : ''}`}
+                                                            className={`flex items-center gap-4 p-4 transition-colors hover:bg-muted/30 ${isMe ? "bg-primary/5" : ""}`}
                                                         >
-                                                            {/* Rank */}
-                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-transparent ${getRankStyles(entry.rank!)}`}>
-                                                                {getRankIcon(entry.rank!)}
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-transparent ${getRankStyles(entry.rank ?? 0)}`}>
+                                                                {getRankIcon(entry.rank ?? 0)}
                                                             </div>
 
-                                                            {/* User Info */}
                                                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                                                                <Avatar className={`w-10 h-10 border-2 ${isMe ? 'border-primary' : 'border-background'}`}>
-                                                                    <AvatarImage src={entry.avatar_url || ""} />
+                                                                <Avatar className={`w-10 h-10 border-2 ${isMe ? "border-primary" : "border-background"}`}>
+                                                                    <AvatarImage src={entry.avatar_url ?? ""} />
                                                                     <AvatarFallback className="bg-primary/10 text-primary font-bold">
                                                                         {entry.username.substring(0, 2).toUpperCase()}
                                                                     </AvatarFallback>
                                                                 </Avatar>
                                                                 <div className="flex flex-col truncate">
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className={`font-bold truncate ${isMe ? 'text-primary' : 'text-foreground'}`}>
+                                                                        <span className={`font-bold truncate ${isMe ? "text-primary" : "text-foreground"}`}>
                                                                             @{entry.username} {isMe && "(You)"}
                                                                         </span>
-                                                                        {/* Placeholder for streak badge logic if we add it later */}
-                                                                        {entry.rank! <= 3 && <Flame className="w-3.5 h-3.5 text-orange-500" />}
+                                                                        {(entry.rank ?? 0) <= 3 && <Flame className="w-3.5 h-3.5 text-orange-500" />}
                                                                     </div>
                                                                 </div>
                                                             </div>
 
-                                                            {/* Score */}
                                                             <div className="text-right flex-shrink-0">
                                                                 <div className="text-lg font-black font-mono">
                                                                     {entry.total_minutes}<span className="text-xs text-muted-foreground ml-0.5">m</span>
                                                                 </div>
-                                                                {/* Showing hours helper if > 60m */}
                                                                 {entry.total_minutes > 60 && (
                                                                     <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
                                                                         {(entry.total_minutes / 60).toFixed(1)} hrs
@@ -304,7 +344,6 @@ export default function StudyHallClient() {
                             </Card>
                         </div>
 
-                        {/* Live Feed Column (Takes up 1/3) */}
                         <div className="space-y-4">
                             <Card className="bg-card/50 border-border/10 shadow-sm rounded-2xl sticky top-8 py-0 gap-0 overflow-hidden h-fit">
                                 <CardHeader className="border-b border-border/10 p-4 bg-transparent !pb-4">
@@ -335,7 +374,7 @@ export default function StudyHallClient() {
                                                             className="flex gap-3 px-4 py-3"
                                                         >
                                                             <Avatar className="w-8 h-8 flex-shrink-0 mt-0.5 border border-border">
-                                                                <AvatarImage src={event.avatar_url || ""} />
+                                                                <AvatarImage src={event.avatar_url ?? ""} />
                                                                 <AvatarFallback className="bg-muted text-xs font-bold">
                                                                     {event.username.substring(0, 1).toUpperCase()}
                                                                 </AvatarFallback>
@@ -370,3 +409,4 @@ export default function StudyHallClient() {
         </div>
     );
 }
+

@@ -7,7 +7,7 @@ import { Card, CardContent } from "~/components/ui/card";
 import { useFocus, MODE_CONFIG } from "~/components/focus-provider";
 import type { TimerMode } from "~/lib/types";
 
-export function FocusTimer({ userId, listId }: { userId?: string; listId?: string | null }) {
+export function FocusTimer({ userId: _userId, listId: _listId }: { userId?: string; listId?: string | null }) {
     const {
         mode,
         timeLeft,
@@ -139,3 +139,4 @@ export function FocusTimer({ userId, listId }: { userId?: string; listId?: strin
         </Card>
     );
 }
+

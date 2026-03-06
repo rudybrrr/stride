@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { toast } from "sonner";
-import { LogIn, UserPlus, Mail, Lock, ArrowRight, Star, ShieldCheck } from "lucide-react";
+import { Mail, Lock, ArrowRight } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -171,3 +171,4 @@ export default function LoginPage() {
     </main>
   );
 }
+
