@@ -45,7 +45,7 @@ function Calendar({
         ...formatters,
       }}
       classNames={{
-        root: cn("w-fit", defaultClassNames.root),
+        root: cn("relative w-fit", defaultClassNames.root),
         months: cn(
           "flex gap-4 flex-col md:flex-row relative",
           defaultClassNames.months
@@ -88,8 +88,10 @@ function Calendar({
             : "rounded-md pl-2 pr-1 flex items-center gap-1 text-sm h-8 [&>svg]:text-muted-foreground [&>svg]:size-3.5",
           defaultClassNames.caption_label
         ),
+        month_grid: cn("w-full border-collapse", defaultClassNames.month_grid),
         table: "w-full border-collapse",
-        weekdays: cn("flex", defaultClassNames.weekdays),
+        weekdays: cn("flex w-full", defaultClassNames.weekdays),
+        weeks: cn("w-full", defaultClassNames.weeks),
         weekday: cn(
           "text-muted-foreground rounded-md flex-1 font-normal text-[0.8rem] select-none",
           defaultClassNames.weekday

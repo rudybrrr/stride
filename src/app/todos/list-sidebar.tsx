@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Inbox, MoreHorizontal, Trash2, LogOut, User, BarChart2, Trophy, Share2, Users, List } from "lucide-react";
+import { Plus, Inbox, MoreHorizontal, Trash2, LogOut, User, BarChart2, CalendarDays, Trophy, Share2, Users, List } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import {
@@ -114,6 +114,18 @@ export const ListSidebar = React.memo(function ListSidebar({
                             >
                                 <BarChart2 className="h-[18px] w-[18px] text-amber-500" />
                                 Insights
+                            </Button>
+                        </Link>
+                        <Link href="/planning" className="block w-full">
+                            <Button
+                                variant="ghost"
+                                className={`w-full justify-start gap-3 rounded-lg font-medium transition-all ${pathname === "/planning"
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                    : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"
+                                    }`}
+                            >
+                                <CalendarDays className="h-[18px] w-[18px] text-blue-500" />
+                                Planning
                             </Button>
                         </Link>
                     </div>

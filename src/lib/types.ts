@@ -42,8 +42,22 @@ export interface FocusSession {
 export interface Profile {
     id: string;
     email: string;
+    username?: string;
     full_name?: string;
     avatar_url?: string;
+    daily_focus_goal_minutes?: number | null;
+}
+
+export interface PlannedFocusBlock {
+    id: string;
+    user_id: string;
+    list_id: string;
+    todo_id: string | null;
+    title: string;
+    scheduled_start: string;
+    scheduled_end: string;
+    inserted_at: string;
+    updated_at: string;
 }
 
 export interface LeaderboardEntry {

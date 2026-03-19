@@ -8,7 +8,7 @@ import { Label } from "~/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "~/components/ui/card";
 import { toast } from "sonner";
-import { Check, Image as ImageIcon, KeyRound, Loader2, Shield, Upload, User } from "lucide-react";
+import { Check, Image as ImageIcon, KeyRound, Loader2, Shield, Target, Upload, User } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { useData } from "~/components/data-provider";
@@ -23,6 +23,11 @@ interface ProfileUpdatePayload {
 interface AvatarUpdatePayload {
     id: string;
     avatar_url: string;
+}
+
+interface StudyGoalUpdatePayload {
+    id: string;
+    daily_focus_goal_minutes: number;
 }
 
 const MAX_AVATAR_BYTES = 3 * 1024 * 1024;
@@ -68,12 +73,14 @@ export function ProfileForm({ userId }: { userId: string }) {
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
     const [profileSaving, setProfileSaving] = useState(false);
+    const [studyGoalSaving, setStudyGoalSaving] = useState(false);
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [passwordSaving, setPasswordSaving] = useState(false);
 
     const [username, setUsername] = useState("");
     const [fullName, setFullName] = useState("");
     const [avatarPath, setAvatarPath] = useState<string | null>(null);
+    const [dailyGoal, setDailyGoal] = useState("120");
 
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
@@ -83,6 +90,7 @@ export function ProfileForm({ userId }: { userId: string }) {
         setUsername(profile?.username ?? "");
         setFullName(profile?.full_name ?? "");
         setAvatarPath(profile?.avatar_url ?? null);
+        setDailyGoal(String(profile?.daily_focus_goal_minutes ?? 120));
     }, [profile]);
 
     const avatarPreviewUrl = useMemo(
@@ -216,6 +224,39 @@ export function ProfileForm({ userId }: { userId: string }) {
             toast.error(`Avatar upload failed: ${message}`);
         } finally {
             setAvatarUploading(false);
+        }
+    }
+
+    async function updateStudyGoal(e: React.FormEvent) {
+        e.preventDefault();
+
+        const nextGoal = Number.parseInt(dailyGoal, 10);
+        if (!Number.isFinite(nextGoal) || nextGoal <= 0) {
+            toast.error("Daily study goal must be a positive number of minutes.");
+            return;
+        }
+
+        try {
+            setStudyGoalSaving(true);
+
+            const studyGoalPayload: StudyGoalUpdatePayload = {
+                id: userId,
+                daily_focus_goal_minutes: nextGoal,
+            };
+
+            const { error } = await supabase.from("profiles").upsert(studyGoalPayload, { onConflict: "id" });
+            if (error) {
+                throw error;
+            }
+
+            toast.success("Daily study goal updated.");
+            void refreshData();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Unknown study goal update error";
+            console.error("Study goal update failed:", { message, userId });
+            toast.error(`Study goal update failed: ${message}`);
+        } finally {
+            setStudyGoalSaving(false);
         }
     }
 
@@ -365,6 +406,68 @@ export function ProfileForm({ userId }: { userId: string }) {
                                             <Check className="w-4 h-4" />
                                         )}
                                         {profileSaving ? "Saving..." : "Save Changes"}
+                                    </Button>
+                                </CardFooter>
+                            </div>
+                        </div>
+                    </Card>
+                </form>
+
+                <form onSubmit={updateStudyGoal}>
+                    <Card className="border-border/40 shadow-sm bg-card/50 rounded-2xl overflow-hidden transition-shadow hover:shadow-md">
+                        <div className="flex flex-col md:flex-row">
+                            <CardHeader className="space-y-1 bg-primary/5 md:bg-transparent md:border-r border-b md:border-b-0 border-border/40 p-6 md:w-1/3 shrink-0">
+                                <div className="flex flex-col gap-3">
+                                    <div className="p-2 rounded-xl bg-primary/10 text-primary w-fit">
+                                        <Target className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-xl font-black tracking-tight">Study Goal</CardTitle>
+                                        <CardDescription className="text-muted-foreground font-medium mt-1">
+                                            Set your daily focus target in minutes for the Planning Hub.
+                                        </CardDescription>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <div className="flex flex-col flex-1">
+                                <CardContent className="p-6 space-y-6 flex-1">
+                                    <div className="space-y-2 max-w-md">
+                                        <Label htmlFor="dailyGoal" className="text-xs font-bold uppercase tracking-wider opacity-70">
+                                            Daily Focus Goal
+                                        </Label>
+                                        <div className="relative">
+                                            <Input
+                                                id="dailyGoal"
+                                                type="number"
+                                                min="1"
+                                                step="1"
+                                                inputMode="numeric"
+                                                value={dailyGoal}
+                                                onChange={(event) => setDailyGoal(event.target.value)}
+                                                className="rounded-xl border-border/40 bg-background/50 focus:ring-primary shadow-sm h-11 font-medium transition-all pr-20"
+                                                required
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                minutes
+                                            </span>
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground font-bold uppercase pl-1">
+                                            Used to power your daily target ring in Planning.
+                                        </p>
+                                    </div>
+                                </CardContent>
+                                <CardFooter className="p-4 bg-muted/30 border-t border-border/40 flex justify-end">
+                                    <Button
+                                        type="submit"
+                                        disabled={studyGoalSaving}
+                                        className="rounded-xl px-6 font-bold gap-2 shadow-sm transition-all text-sm h-9 hover:translate-y-[-1px]"
+                                    >
+                                        {studyGoalSaving ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Check className="w-4 h-4" />
+                                        )}
+                                        {studyGoalSaving ? "Saving..." : "Save Goal"}
                                     </Button>
                                 </CardFooter>
                             </div>
@@ -524,4 +627,3 @@ export function ProfileForm({ userId }: { userId: string }) {
         </motion.div>
     );
 }
-

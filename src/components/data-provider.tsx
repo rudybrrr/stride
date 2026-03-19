@@ -17,6 +17,7 @@ interface DataProfile {
     username?: string;
     full_name?: string;
     avatar_url?: string | null;
+    daily_focus_goal_minutes?: number | null;
 }
 
 interface DataContextType {
@@ -88,7 +89,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         try {
             const [listsRes, profileRes, sessionsRes, todosRes] = await Promise.all([
                 supabase.from("todo_list_members").select("list_id, role, todo_lists(*)").eq("user_id", uid),
-                supabase.from("profiles").select("username, full_name, avatar_url").eq("id", uid).maybeSingle(),
+                supabase.from("profiles").select("username, full_name, avatar_url, daily_focus_goal_minutes").eq("id", uid).maybeSingle(),
                 supabase.from("focus_sessions").select("*, todo_lists (name)").eq("user_id", uid).order("inserted_at", { ascending: true }),
                 supabase.from("todos").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("is_done", true),
             ]);
@@ -107,7 +108,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
 
             if (profileRes.data) {
-                setProfile(profileRes.data);
+                const profileRow = profileRes.data as DataProfile;
+                setProfile({
+                    ...profileRow,
+                    daily_focus_goal_minutes: profileRow.daily_focus_goal_minutes ?? 120,
+                });
+            } else {
+                setProfile(null);
             }
 
             if (sessionsRes.data) {
