@@ -5,6 +5,7 @@ import {
     CalendarRange,
     CheckSquare2,
     ChevronLeft,
+    ChevronRight,
     FolderKanban,
     Home,
     Inbox,
@@ -53,6 +54,10 @@ interface ShellActionsContextValue {
 const ShellActionsContext = createContext<ShellActionsContextValue | undefined>(undefined);
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "shell-sidebar-collapsed";
+const SIDEBAR_HOVER_PREVIEW_DELAY_MS = 120;
+const SIDEBAR_HOVER_PREVIEW_CLOSE_DELAY_MS = 160;
+const DESKTOP_SIDEBAR_COLLAPSED_WIDTH = "4.25rem";
+const DESKTOP_SIDEBAR_PREVIEW_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 const PRIMARY_ITEMS = [
     { href: "/home", label: "Home", icon: Home },
@@ -64,7 +69,7 @@ const PRIMARY_ITEMS = [
 const SMART_VIEW_ITEMS = [
     { href: "/tasks?view=today", value: "today", label: "Today", icon: CheckSquare2 },
     { href: "/tasks?view=upcoming", value: "upcoming", label: "Upcoming", icon: CalendarRange },
-    { href: "/tasks?view=inbox", value: "inbox", label: "Inbox", icon: Inbox },
+    { href: "/tasks?view=inbox", value: "inbox", label: "No Due Date", icon: Inbox },
 ] as const;
 
 function getActiveSmartView(pathname: string, rawView: string | null) {
@@ -132,9 +137,11 @@ function AppShellLayout({
     const { resolvedTheme, setTheme, theme } = useTheme();
     const [mounted, setMounted] = useState(false);
     const [desktopCollapsed, setDesktopCollapsed] = useState(false);
+    const [desktopPreviewOpen, setDesktopPreviewOpen] = useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
     const suppressProjectClickRef = useRef(false);
+    const hoverPreviewTimerRef = useRef<number | null>(null);
 
     const activeSmartView = getActiveSmartView(pathname, searchParams.get("view"));
     const activeProjectId = pathname.startsWith("/projects/") ? pathname.split("/")[2] ?? null : null;
@@ -150,9 +157,64 @@ function AppShellLayout({
         }
     }, []);
 
+    useEffect(() => {
+        return () => {
+            if (hoverPreviewTimerRef.current !== null) {
+                window.clearTimeout(hoverPreviewTimerRef.current);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!desktopCollapsed) {
+            if (hoverPreviewTimerRef.current !== null) {
+                window.clearTimeout(hoverPreviewTimerRef.current);
+                hoverPreviewTimerRef.current = null;
+            }
+            setDesktopPreviewOpen(false);
+        }
+    }, [desktopCollapsed]);
+
+    function clearHoverPreviewTimer() {
+        if (hoverPreviewTimerRef.current !== null) {
+            window.clearTimeout(hoverPreviewTimerRef.current);
+            hoverPreviewTimerRef.current = null;
+        }
+    }
+
     function setCollapsedState(nextValue: boolean) {
+        clearHoverPreviewTimer();
+        setDesktopPreviewOpen(false);
         setDesktopCollapsed(nextValue);
         window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(nextValue));
+    }
+
+    function openDesktopPreview() {
+        clearHoverPreviewTimer();
+        if (desktopPreviewOpen) return;
+        setDesktopPreviewOpen(true);
+    }
+
+    function closeDesktopPreview() {
+        setDesktopPreviewOpen(false);
+    }
+
+    function handleDesktopSidebarMouseEnter() {
+        if (!desktopCollapsed) return;
+        clearHoverPreviewTimer();
+        hoverPreviewTimerRef.current = window.setTimeout(() => {
+            openDesktopPreview();
+            hoverPreviewTimerRef.current = null;
+        }, SIDEBAR_HOVER_PREVIEW_DELAY_MS);
+    }
+
+    function handleDesktopSidebarMouseLeave() {
+        if (!desktopCollapsed) return;
+        clearHoverPreviewTimer();
+        hoverPreviewTimerRef.current = window.setTimeout(() => {
+            closeDesktopPreview();
+            hoverPreviewTimerRef.current = null;
+        }, SIDEBAR_HOVER_PREVIEW_CLOSE_DELAY_MS);
     }
 
     async function handleLogout() {
@@ -242,7 +304,7 @@ function AppShellLayout({
 
         if (collapsed) {
             return (
-                <nav className="space-y-1">
+                <nav className="space-y-2">
                     {orderedProjectSummaries.slice(0, 8).map((summary) => {
                         const active = activeProjectId === summary.list.id;
                         const palette = getProjectColorClasses(summary.list.color_token);
@@ -255,14 +317,21 @@ function AppShellLayout({
                                 title={summary.list.name}
                                 onClick={() => handleNavigate(`/projects/${summary.list.id}`)}
                                 className={cn(
-                                    "flex w-full items-center justify-center rounded-xl px-2 py-2.5 transition-colors",
+                                    "group mx-auto flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200",
                                     active
-                                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                        : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+                                        ? "bg-sidebar-accent/85 shadow-[0_10px_24px_rgba(15,23,42,0.16)] ring-1 ring-sidebar-border/70"
+                                        : "hover:bg-sidebar-accent/60",
                                 )}
                             >
-                                <span className={cn("mr-2 h-2.5 w-2.5 rounded-full", palette.accent)} />
-                                <Icon className={cn("h-4 w-4", active ? palette.text : "text-muted-foreground")} />
+                                <span
+                                    className={cn(
+                                        "flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200",
+                                        palette.soft,
+                                        active ? cn("border", palette.border) : "opacity-80 group-hover:opacity-100 group-hover:scale-[1.04]",
+                                    )}
+                                >
+                                    <Icon className={cn("h-4 w-4", palette.text, !active && "opacity-90")} />
+                                </span>
                                 <span className="sr-only">{summary.list.name}</span>
                             </button>
                         );
@@ -371,51 +440,78 @@ function AppShellLayout({
         );
     }
 
-    function renderSidebarContent(options: { collapsed: boolean; mobile: boolean }) {
-        const { collapsed, mobile } = options;
+    function renderSidebarContent(options: { collapsed: boolean; mobile: boolean; previewing?: boolean }) {
+        const { collapsed, mobile, previewing = false } = options;
 
         return (
             <div className="flex h-full w-full flex-col bg-sidebar">
-                <div className={cn("border-b border-sidebar-border", collapsed ? "px-3 py-3" : "px-4 py-4")}>
-                    <div className={cn("flex items-center gap-3", collapsed ? "justify-center" : "justify-between")}>
-                        {!collapsed ? (
-                            <Link href="/home" className="min-w-0 text-lg font-semibold tracking-[-0.03em] text-sidebar-foreground">
-                                Stride
-                            </Link>
-                        ) : (
-                            <span className="text-sm font-semibold tracking-[-0.03em] text-sidebar-foreground">S</span>
-                        )}
-
-                        {mobile ? null : (
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                onClick={() => setCollapsedState(!desktopCollapsed)}
-                                title={desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-                                className="text-muted-foreground"
+                <div className={cn("border-b border-sidebar-border", collapsed ? "px-2 py-4" : "px-4 py-4")}>
+                    {collapsed ? (
+                        <div className="flex flex-col items-center gap-4">
+                            <Link
+                                href="/home"
+                                title="Stride home"
+                                className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-sidebar-accent/80 text-sm font-semibold tracking-[-0.05em] text-sidebar-foreground shadow-[0_10px_24px_rgba(15,23,42,0.16)] transition-transform duration-200 hover:-translate-y-px"
                             >
-                                {desktopCollapsed ? <Menu className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                                <span className="sr-only">{desktopCollapsed ? "Expand sidebar" : "Collapse sidebar"}</span>
-                            </Button>
-                        )}
-                    </div>
+                                <span aria-hidden="true">S</span>
+                                <span className="sr-only">Stride home</span>
+                            </Link>
 
-                    <Button
-                        className={cn("mt-4", collapsed ? "w-full justify-center px-0" : "w-full justify-start")}
-                        size={collapsed ? "icon" : "default"}
-                        onClick={() => {
-                            onOpenQuickAdd();
-                            if (mobile) setMobileSidebarOpen(false);
-                        }}
-                        title="Quick add"
-                    >
-                        <Plus className="h-4 w-4" />
-                        {collapsed ? <span className="sr-only">Quick Add</span> : "Quick Add"}
-                    </Button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onOpenQuickAdd();
+                                    if (mobile) setMobileSidebarOpen(false);
+                                }}
+                                title="Quick add"
+                                className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_26px_rgba(15,23,42,0.2)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-primary/94 motion-safe:hover:-translate-y-px"
+                            >
+                                <Plus className="h-4 w-4" />
+                                <span className="sr-only">Quick Add</span>
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <div className="flex items-center justify-between gap-3">
+                                <Link href="/home" className="min-w-0 text-lg font-semibold tracking-[-0.03em] text-sidebar-foreground">
+                                    Stride
+                                </Link>
+
+                                {mobile ? null : (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        onClick={() => setCollapsedState(!desktopCollapsed)}
+                                        title={previewing ? "Keep sidebar open" : "Collapse sidebar"}
+                                        className={cn(
+                                            "text-muted-foreground",
+                                            previewing && "rounded-full border border-sidebar-border/70 hover:border-sidebar-border hover:bg-sidebar-accent/80 hover:text-sidebar-foreground",
+                                        )}
+                                    >
+                                        {previewing ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                                        <span className="sr-only">{previewing ? "Keep sidebar open" : "Collapse sidebar"}</span>
+                                    </Button>
+                                )}
+                            </div>
+
+                            <Button
+                                className="mt-4 w-full justify-start"
+                                size="default"
+                                onClick={() => {
+                                    onOpenQuickAdd();
+                                    if (mobile) setMobileSidebarOpen(false);
+                                }}
+                                title="Quick add"
+                            >
+                                <Plus className="h-4 w-4" />
+                                Quick Add
+                            </Button>
+                        </>
+                    )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-3 py-4">
-                    <div className="space-y-6">
+                <div className={cn("flex-1 overflow-y-auto py-4", collapsed ? "px-2" : "px-3")}>
+                    <div className={cn("space-y-6", collapsed && "space-y-5")}>
                         <nav className="space-y-1">
                             {PRIMARY_ITEMS.map((item) => {
                                 const active = item.href === "/projects"
@@ -430,7 +526,7 @@ function AppShellLayout({
                                         title={collapsed ? item.label : undefined}
                                         className={cn(
                                             "flex w-full items-center rounded-xl text-sm font-medium transition-colors",
-                                            collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5",
+                                            collapsed ? "mx-auto h-10 w-10 justify-center rounded-2xl px-0" : "gap-3 px-3 py-2.5",
                                             active
                                                 ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                                 : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
@@ -506,6 +602,7 @@ function AppShellLayout({
                                         size="icon-sm"
                                         onClick={() => setProjectDialogOpen(true)}
                                         title="New project"
+                                        className="rounded-full text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
                                     >
                                         <Plus className="h-4 w-4" />
                                         <span className="sr-only">New project</span>
@@ -517,16 +614,16 @@ function AppShellLayout({
                     </div>
                 </div>
 
-                <div className={cn("border-t border-sidebar-border px-3 py-3", collapsed && "px-2")}>
+                <div className={cn("border-t border-sidebar-border py-3", collapsed ? "px-2" : "px-3")}>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <button
                                 className={cn(
                                     "flex w-full items-center rounded-xl transition-colors hover:bg-sidebar-accent/70",
-                                    collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5 text-left",
+                                    collapsed ? "mx-auto h-11 w-11 justify-center rounded-full px-0" : "gap-3 px-3 py-2.5 text-left",
                                 )}
                             >
-                                <Avatar className="h-10 w-10 border border-border/60">
+                                <Avatar className={cn("border border-border/60", collapsed ? "h-9 w-9" : "h-10 w-10")}>
                                     <AvatarImage src={avatarUrl ?? ""} alt={profile?.username ?? "User"} />
                                     <AvatarFallback className="bg-primary/12 text-primary">
                                         {profile?.username?.slice(0, 1).toUpperCase() ?? "S"}
@@ -551,16 +648,61 @@ function AppShellLayout({
 
     return (
         <div className="min-h-screen bg-background">
-            <aside
-                className={cn(
-                    "fixed inset-y-0 left-0 z-30 hidden border-r border-sidebar-border bg-sidebar transition-[width] duration-200 lg:flex",
-                    desktopCollapsed ? "w-[5.5rem]" : "w-72",
-                )}
-            >
-                {renderSidebarContent({ collapsed: desktopCollapsed, mobile: false })}
-            </aside>
+            {desktopCollapsed ? (
+                <>
+                    <aside
+                        onMouseEnter={handleDesktopSidebarMouseEnter}
+                        onMouseLeave={handleDesktopSidebarMouseLeave}
+                        className="fixed inset-y-0 left-0 z-30 hidden w-[4.25rem] overflow-hidden border-r border-sidebar-border bg-sidebar lg:flex"
+                    >
+                        {renderSidebarContent({ collapsed: true, mobile: false })}
+                    </aside>
 
-            <main className={cn("transition-[padding-left] duration-200", desktopCollapsed ? "lg:pl-[5.5rem]" : "lg:pl-72")}>
+                    <aside
+                        onMouseEnter={handleDesktopSidebarMouseEnter}
+                        onMouseLeave={handleDesktopSidebarMouseLeave}
+                        className={cn(
+                            "fixed inset-y-0 left-0 z-40 hidden w-72 overflow-hidden border-r border-sidebar-border bg-sidebar lg:flex",
+                            desktopPreviewOpen
+                                ? "pointer-events-auto shadow-[0_22px_52px_rgba(15,23,42,0.2)]"
+                                : "pointer-events-none shadow-none",
+                        )}
+                        style={{
+                            clipPath: desktopPreviewOpen
+                                ? "inset(0 0 0 0)"
+                                : `inset(0 calc(100% - ${DESKTOP_SIDEBAR_COLLAPSED_WIDTH}) 0 0)`,
+                            opacity: desktopPreviewOpen ? 1 : 0,
+                            transition: [
+                                `clip-path 320ms ${DESKTOP_SIDEBAR_PREVIEW_EASING}`,
+                                "opacity 180ms ease-out",
+                                `box-shadow 320ms ${DESKTOP_SIDEBAR_PREVIEW_EASING}`,
+                            ].join(", "),
+                            willChange: "clip-path, opacity, box-shadow",
+                        }}
+                    >
+                        <div
+                            className="h-full w-72"
+                            style={{
+                                opacity: desktopPreviewOpen ? 1 : 0.84,
+                                transform: desktopPreviewOpen ? "translateX(0)" : "translateX(-8px)",
+                                transition: [
+                                    `transform 340ms ${DESKTOP_SIDEBAR_PREVIEW_EASING}`,
+                                    "opacity 180ms ease-out",
+                                ].join(", "),
+                                willChange: "transform, opacity",
+                            }}
+                        >
+                            {renderSidebarContent({ collapsed: false, mobile: false, previewing: true })}
+                        </div>
+                    </aside>
+                </>
+            ) : (
+                <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 overflow-hidden border-r border-sidebar-border bg-sidebar lg:flex">
+                    {renderSidebarContent({ collapsed: false, mobile: false })}
+                </aside>
+            )}
+
+            <main className={cn("transition-[padding-left] duration-200", desktopCollapsed ? "lg:pl-[4.25rem]" : "lg:pl-72")}>
                 {children}
             </main>
 

@@ -36,7 +36,7 @@ import {
 const VIEW_OPTIONS: Array<{ value: SmartView; label: string }> = [
     { value: "today", label: "Today" },
     { value: "upcoming", label: "Upcoming" },
-    { value: "inbox", label: "Inbox" },
+    { value: "inbox", label: "No Due Date" },
     { value: "done", label: "Completed" },
 ];
 
