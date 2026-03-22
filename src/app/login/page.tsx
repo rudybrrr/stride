@@ -34,7 +34,7 @@ export default function LoginPage() {
     }
 
     toast.success(isLogin ? "Welcome back!" : "Account created!");
-    router.push("/home");
+    router.push("/tasks");
     router.refresh();
   };
 

@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { isMissingAttachmentMetadataError, sanitizeAttachmentFileName } from "~/lib/task-attachments";
 import { toStoredDueDate } from "~/lib/task-views";
-import type { TodoRow } from "~/lib/types";
+import type { TodoImageRow, TodoRow } from "~/lib/types";
 
 interface CreateTaskInput {
     userId: string;
@@ -169,7 +170,21 @@ export async function deleteTask(supabase: SupabaseClient, taskId: string) {
     if (error) throw error;
 }
 
-export async function uploadTaskImages(
+export async function deleteTaskAttachment(
+    supabase: SupabaseClient,
+    attachment: Pick<TodoImageRow, "id" | "path">,
+) {
+    const { error: dbError } = await supabase.from("todo_images").delete().eq("id", attachment.id);
+    if (dbError) throw dbError;
+
+    const { error: storageError } = await supabase.storage.from("todo-images").remove([attachment.path]);
+
+    return {
+        cleanupWarning: storageError?.message ?? null,
+    };
+}
+
+export async function uploadTaskAttachments(
     supabase: SupabaseClient,
     userId: string,
     taskId: string,
@@ -177,22 +192,45 @@ export async function uploadTaskImages(
     files: File[],
 ) {
     for (const file of files) {
-        const extension = file.name.split(".").pop() ?? "jpg";
-        const path = `${userId}/${taskId}/${crypto.randomUUID()}.${extension}`;
+        const path = `${userId}/${taskId}/${crypto.randomUUID()}-${sanitizeAttachmentFileName(file.name)}`;
 
         const { error: uploadError } = await supabase.storage.from("todo-images").upload(path, file, {
             upsert: false,
+            contentType: file.type || undefined,
         });
 
         if (uploadError) throw uploadError;
 
-        const { error: dbError } = await supabase.from("todo_images").insert({
+        const metadataPayload = {
             todo_id: taskId,
             user_id: userId,
             list_id: listId,
             path,
-        });
+            original_name: file.name,
+            mime_type: file.type || null,
+            size_bytes: file.size,
+        };
 
-        if (dbError) throw dbError;
+        const { error: dbError } = await supabase.from("todo_images").insert(metadataPayload);
+
+        if (!dbError) continue;
+
+        if (isMissingAttachmentMetadataError(dbError)) {
+            const { error: legacyDbError } = await supabase.from("todo_images").insert({
+                todo_id: taskId,
+                user_id: userId,
+                list_id: listId,
+                path,
+            });
+
+            if (!legacyDbError) continue;
+            await supabase.storage.from("todo-images").remove([path]);
+            throw legacyDbError;
+        }
+
+        await supabase.storage.from("todo-images").remove([path]);
+        throw dbError;
     }
 }
+
+export const uploadTaskImages = uploadTaskAttachments;

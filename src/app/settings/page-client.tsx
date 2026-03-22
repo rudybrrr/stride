@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, Check, Moon, MoonStar, Palette, Sun, Users } from "lucide-react";
+import { BarChart3, Check, Circle, Moon, MoonStar, Palette, Sun, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { ACCENT_OPTIONS, useAccent } from "~/components/accent-provider";
@@ -16,11 +16,13 @@ export default function SettingsPageClient({ userId }: { userId: string }) {
     const { accent, mounted, setAccent } = useAccent();
     const { resolvedTheme, setTheme, theme } = useTheme();
     const activeTheme = resolveThemeSelection(theme, resolvedTheme);
+    const accentDisabled = mounted && activeTheme === "noir";
 
     const themeIcons = {
         light: Sun,
         dark: Moon,
         midnight: MoonStar,
+        noir: Circle,
     } as const;
 
     return (
@@ -43,7 +45,7 @@ export default function SettingsPageClient({ userId }: { userId: string }) {
                                         </div>
                                         <div>
                                             <p className="text-sm font-semibold text-foreground">Theme</p>
-                                            <p className="text-xs text-muted-foreground">Light, Dark, or Midnight</p>
+                                            <p className="text-xs text-muted-foreground">Light, Dark, Midnight, or Noir</p>
                                         </div>
                                     </div>
                                     <div className="grid gap-2">
@@ -78,8 +80,15 @@ export default function SettingsPageClient({ userId }: { userId: string }) {
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between gap-3">
                                         <p className="text-sm font-semibold text-foreground">Accent</p>
-                                        <span className="text-xs text-muted-foreground">Saved on this browser</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {accentDisabled ? "Noir uses a fixed neutral palette" : "Saved on this browser"}
+                                        </span>
                                     </div>
+                                    {accentDisabled ? (
+                                        <p className="text-xs text-muted-foreground">
+                                            Your accent choice is preserved for Light, Dark, and Midnight.
+                                        </p>
+                                    ) : null}
                                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" role="radiogroup" aria-label="Accent color">
                                         {ACCENT_OPTIONS.map((option) => {
                                             const active = mounted && accent === option.value;
@@ -89,9 +98,12 @@ export default function SettingsPageClient({ userId }: { userId: string }) {
                                                     type="button"
                                                     role="radio"
                                                     aria-checked={active}
+                                                    aria-disabled={accentDisabled}
+                                                    disabled={accentDisabled}
                                                     onClick={() => setAccent(option.value)}
                                                     className={cn(
                                                         "flex items-center justify-between rounded-xl border px-3 py-3 text-left transition-colors",
+                                                        accentDisabled && "cursor-not-allowed opacity-45 hover:border-border/60 hover:bg-background/70 hover:text-muted-foreground",
                                                         active
                                                             ? "border-primary bg-primary/10 text-foreground"
                                                             : "border-border/60 bg-background/70 text-muted-foreground hover:border-border hover:bg-secondary/80 hover:text-foreground",

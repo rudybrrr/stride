@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, Inbox, MoreHorizontal, Trash2, LogOut, User, BarChart2, CalendarDays, Trophy, Share2, Users, List } from "lucide-react";
+import { Plus, Inbox, MoreHorizontal, Trash2, LogOut, User, CheckSquare2, CalendarDays, Trophy, Share2, Users, List } from "lucide-react";
 import Link from "next/link";
 import { Button } from "~/components/ui/button";
 import {
@@ -104,16 +104,16 @@ export const ListSidebar = React.memo(function ListSidebar({
             <div className="flex-1 px-3 overflow-y-auto overflow-x-hidden">
                 <div className="space-y-6 py-4">
                     <div className="space-y-0.5 px-2">
-                        <Link href="/dashboard" className="block w-full">
+                        <Link href="/tasks" className="block w-full">
                             <Button
                                 variant="ghost"
-                                className={`w-full justify-start gap-3 rounded-lg font-medium transition-all ${pathname === "/dashboard"
+                                className={`w-full justify-start gap-3 rounded-lg font-medium transition-all ${pathname === "/tasks"
                                     ? "bg-sidebar-accent text-sidebar-accent-foreground"
                                     : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"
                                     }`}
                             >
-                                <BarChart2 className="h-[18px] w-[18px] text-amber-500" />
-                                Insights
+                                <CheckSquare2 className="h-[18px] w-[18px] text-amber-500" />
+                                Today
                             </Button>
                         </Link>
                         <Link href="/planning" className="block w-full">

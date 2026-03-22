@@ -21,7 +21,7 @@ import { Label } from "~/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
-import { createTask, uploadTaskImages } from "~/lib/task-actions";
+import { createTask, uploadTaskAttachments } from "~/lib/task-actions";
 import { getDateInputValue } from "~/lib/task-views";
 
 interface QuickAddDefaults {
@@ -82,7 +82,7 @@ export function QuickAddDialog({
             });
 
             if (attachments.length > 0) {
-                await uploadTaskImages(supabase, userId, createdTask.id, listId, attachments);
+                await uploadTaskAttachments(supabase, userId, createdTask.id, listId, attachments);
             }
 
             upsertTask(createdTask, { suppressRealtimeEcho: true });
@@ -201,7 +201,6 @@ export function QuickAddDialog({
                                 className="hidden"
                                 type="file"
                                 multiple
-                                accept="image/*"
                                 onChange={(event) => setAttachments(Array.from(event.target.files ?? []))}
                             />
                         </label>

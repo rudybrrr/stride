@@ -52,17 +52,17 @@ function Calendar({
         ),
         month: cn("flex flex-col w-full gap-4", defaultClassNames.month),
         nav: cn(
-          "flex items-center gap-1 w-full absolute top-0 inset-x-0 justify-between",
+          "absolute inset-x-0 top-0 flex w-full items-center justify-between px-1",
           defaultClassNames.nav
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          "size-(--cell-size) rounded-xl border border-border/60 bg-background/80 shadow-none aria-disabled:opacity-50 p-0 select-none hover:bg-muted/80",
+          "size-8 rounded-full border border-border/45 bg-background/72 p-0 shadow-none select-none hover:border-border/70 hover:bg-muted/55 aria-disabled:opacity-45",
           defaultClassNames.button_previous
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          "size-(--cell-size) rounded-xl border border-border/60 bg-background/80 shadow-none aria-disabled:opacity-50 p-0 select-none hover:bg-muted/80",
+          "size-8 rounded-full border border-border/45 bg-background/72 p-0 shadow-none select-none hover:border-border/70 hover:bg-muted/55 aria-disabled:opacity-45",
           defaultClassNames.button_next
         ),
         month_caption: cn(
@@ -147,14 +147,14 @@ function Calendar({
         Chevron: ({ className, orientation, ...props }) => {
           if (orientation === "left") {
             return (
-              <ChevronLeftIcon className={cn("size-4", className)} {...props} />
+              <ChevronLeftIcon className={cn("size-3.5", className)} {...props} />
             )
           }
 
           if (orientation === "right") {
             return (
               <ChevronRightIcon
-                className={cn("size-4", className)}
+                className={cn("size-3.5", className)}
                 {...props}
               />
             )

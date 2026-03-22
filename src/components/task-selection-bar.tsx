@@ -11,6 +11,7 @@ export function TaskSelectionBar({
     editing = false,
     completing = false,
     deleting = false,
+    onCancel,
     onToggleSelectAll,
     onClearSelection,
     onEditSelected,
@@ -23,6 +24,7 @@ export function TaskSelectionBar({
     editing?: boolean;
     completing?: boolean;
     deleting?: boolean;
+    onCancel: () => void;
     onToggleSelectAll: () => void;
     onClearSelection: () => void;
     onEditSelected: () => void;
@@ -43,6 +45,14 @@ export function TaskSelectionBar({
                 disabled={totalVisibleCount === 0 || busy}
             >
                 {allVisibleSelected ? "Deselect all" : "Select all"}
+            </Button>
+            <Button
+                variant="ghost"
+                size="sm"
+                onClick={onCancel}
+                disabled={busy}
+            >
+                Cancel
             </Button>
             <Button
                 variant="ghost"

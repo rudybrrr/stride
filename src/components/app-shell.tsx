@@ -3,11 +3,11 @@
 import {
     BarChart3,
     CalendarRange,
+    Circle,
     CheckSquare2,
     ChevronLeft,
     ChevronRight,
     FolderKanban,
-    Home,
     Inbox,
     LogOut,
     Menu,
@@ -60,39 +60,41 @@ const ShellActionsContext = createContext<ShellActionsContextValue | undefined>(
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "shell-sidebar-collapsed";
 const SIDEBAR_HOVER_PREVIEW_DELAY_MS = 120;
 const SIDEBAR_HOVER_PREVIEW_CLOSE_DELAY_MS = 160;
-const DESKTOP_PROFILE_MENU_CLOSE_DELAY_MS = 140;
 const DESKTOP_SIDEBAR_COLLAPSED_WIDTH = "4.25rem";
 const DESKTOP_SIDEBAR_PREVIEW_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 const PRIMARY_ITEMS = [
-    { href: "/home", label: "Home", icon: Home },
-    { href: "/tasks", label: "Tasks", icon: CheckSquare2 },
+    { href: "/tasks", label: "Today", icon: CheckSquare2 },
     { href: "/calendar", label: "Calendar", icon: CalendarRange },
-    { href: "/projects", label: "Projects", icon: FolderKanban },
 ] as const;
 
 const SMART_VIEW_ITEMS = [
-    { href: "/tasks?view=today", value: "today", label: "Today", icon: CheckSquare2 },
     { href: "/tasks?view=upcoming", value: "upcoming", label: "Upcoming", icon: CalendarRange },
     { href: "/tasks?view=inbox", value: "inbox", label: "No Due Date", icon: Inbox },
+    { href: "/tasks?view=done", value: "done", label: "Completed", icon: CheckSquare2 },
 ] as const;
 
 const GLOBAL_SEARCH_VIEW_ITEMS = [
-    { href: "/home", label: "Home", icon: Home, keywords: ["dashboard"] },
-    { href: "/tasks?view=today", label: "Today", icon: CheckSquare2, keywords: ["tasks"] },
+    { href: "/tasks", label: "Today", icon: CheckSquare2, keywords: ["tasks", "focus"] },
+    { href: "/calendar", label: "Calendar", icon: CalendarRange, keywords: ["plan"] },
+    { href: "/projects", label: "Projects", icon: FolderKanban, keywords: ["workspace"] },
     { href: "/tasks?view=upcoming", label: "Upcoming", icon: CalendarRange, keywords: ["schedule"] },
     { href: "/tasks?view=inbox", label: "No Due Date", icon: Inbox, keywords: ["inbox"] },
     { href: "/tasks?view=done", label: "Completed", icon: CheckSquare2, keywords: ["done"] },
-    { href: "/calendar", label: "Calendar", icon: CalendarRange, keywords: ["plan"] },
-    { href: "/projects", label: "Projects", icon: FolderKanban, keywords: ["workspace"] },
 ] as const;
 
 function getActiveSmartView(pathname: string, rawView: string | null) {
     if (pathname !== "/tasks") return null;
-    if (rawView === "upcoming" || rawView === "inbox") {
+    if (rawView === "upcoming" || rawView === "inbox" || rawView === "done") {
         return rawView;
     }
-    return "today";
+    return null;
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable) return true;
+    return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 }
 
 export function useShellActions() {
@@ -154,14 +156,14 @@ function AppShellLayout({
     const [desktopCollapsed, setDesktopCollapsed] = useState(false);
     const [desktopPreviewOpen, setDesktopPreviewOpen] = useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-    const [mobileProfileMenuOpen, setMobileProfileMenuOpen] = useState(false);
+    const [mobileProfileMenuSource, setMobileProfileMenuSource] = useState<"sidebar" | "topbar" | null>(null);
     const [desktopProfileMenuId, setDesktopProfileMenuId] = useState<string | null>(null);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
     const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
     const [globalSearchQuery, setGlobalSearchQuery] = useState("");
     const suppressProjectClickRef = useRef(false);
     const hoverPreviewTimerRef = useRef<number | null>(null);
-    const desktopProfileMenuCloseTimerRef = useRef<number | null>(null);
+    const desktopCollapsedRef = useRef(desktopCollapsed);
 
     const activeSmartView = getActiveSmartView(pathname, searchParams.get("view"));
     const activeProjectId = pathname.startsWith("/projects/") ? pathname.split("/")[2] ?? null : null;
@@ -234,9 +236,6 @@ function AppShellLayout({
             if (hoverPreviewTimerRef.current !== null) {
                 window.clearTimeout(hoverPreviewTimerRef.current);
             }
-            if (desktopProfileMenuCloseTimerRef.current !== null) {
-                window.clearTimeout(desktopProfileMenuCloseTimerRef.current);
-            }
         };
     }, []);
 
@@ -256,12 +255,30 @@ function AppShellLayout({
     }, [globalSearchOpen]);
 
     useEffect(() => {
+        desktopCollapsedRef.current = desktopCollapsed;
+    }, [desktopCollapsed]);
+
+    useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key?.toLowerCase() !== "k") return;
             if (!event.metaKey && !event.ctrlKey) return;
+            if (event.altKey) return;
+
+            if (event.key?.toLowerCase() === "k") {
+                event.preventDefault();
+                setGlobalSearchOpen(true);
+                return;
+            }
+
+            if (event.code !== "Backslash" || event.shiftKey || event.repeat) return;
+            if (isEditableKeyboardTarget(event.target)) return;
 
             event.preventDefault();
-            setGlobalSearchOpen(true);
+            if (window.matchMedia("(min-width: 1024px)").matches) {
+                setCollapsedState(!desktopCollapsedRef.current);
+                return;
+            }
+
+            setMobileSidebarOpen((current) => !current);
         };
 
         window.addEventListener("keydown", handleKeyDown);
@@ -277,24 +294,8 @@ function AppShellLayout({
         }
     }
 
-    function clearDesktopProfileMenuCloseTimer() {
-        if (desktopProfileMenuCloseTimerRef.current !== null) {
-            window.clearTimeout(desktopProfileMenuCloseTimerRef.current);
-            desktopProfileMenuCloseTimerRef.current = null;
-        }
-    }
-
-    function scheduleDesktopProfileMenuClose(menuId: string) {
-        clearDesktopProfileMenuCloseTimer();
-        desktopProfileMenuCloseTimerRef.current = window.setTimeout(() => {
-            setDesktopProfileMenuId((current) => current === menuId ? null : current);
-            desktopProfileMenuCloseTimerRef.current = null;
-        }, DESKTOP_PROFILE_MENU_CLOSE_DELAY_MS);
-    }
-
     function setCollapsedState(nextValue: boolean) {
         clearHoverPreviewTimer();
-        clearDesktopProfileMenuCloseTimer();
         setDesktopProfileMenuId(null);
         setDesktopPreviewOpen(false);
         setDesktopCollapsed(nextValue);
@@ -330,19 +331,25 @@ function AppShellLayout({
     }
 
     async function handleLogout() {
-        clearDesktopProfileMenuCloseTimer();
         setDesktopProfileMenuId(null);
-        setMobileProfileMenuOpen(false);
+        setMobileProfileMenuSource(null);
         await supabase.auth.signOut();
         router.push("/login");
     }
 
     function handleNavigate(href: string) {
-        clearDesktopProfileMenuCloseTimer();
         setDesktopProfileMenuId(null);
-        setMobileProfileMenuOpen(false);
+        setMobileProfileMenuSource(null);
         router.push(href);
         setMobileSidebarOpen(false);
+    }
+
+    function handleMobileSidebarOpenChange(open: boolean) {
+        setMobileSidebarOpen(open);
+
+        if (!open) {
+            setMobileProfileMenuSource((current) => (current === "sidebar" ? null : current));
+        }
     }
 
     function openGlobalSearch(options?: { closeMobileSidebar?: boolean }) {
@@ -376,21 +383,13 @@ function AppShellLayout({
         saveProjectOrder(nextProjectIds);
     }
 
-    function renderProfileMenuContent(options: { mobile: boolean; menuId: string }) {
-        const { mobile, menuId } = options;
+    function renderProfileMenuContent(options: { mobile: boolean }) {
+        const { mobile } = options;
 
         return (
             <DropdownMenuContent
                 align="end"
                 className="w-72 rounded-2xl"
-                onPointerEnter={() => {
-                    if (mobile) return;
-                    clearDesktopProfileMenuCloseTimer();
-                }}
-                onPointerLeave={() => {
-                    if (mobile) return;
-                    scheduleDesktopProfileMenuClose(menuId);
-                }}
             >
                 <DropdownMenuItem asChild className="rounded-xl px-3 py-2">
                     <Link href="/progress">
@@ -433,6 +432,10 @@ function AppShellLayout({
                         <MoonStar className="h-4 w-4" />
                         Midnight
                     </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="noir" className="rounded-xl px-3 py-2">
+                        <Circle className="h-4 w-4" />
+                        Noir
+                    </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="rounded-xl px-3 py-2" onClick={() => void handleLogout()}>
@@ -452,7 +455,7 @@ function AppShellLayout({
                     type="button"
                     onClick={() => openGlobalSearch({ closeMobileSidebar: mobile })}
                     title="Search"
-                    className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-sidebar-accent/35 text-muted-foreground transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-sidebar-border/80 bg-sidebar-accent/35 text-muted-foreground transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
                 >
                     <Search className="h-4 w-4" />
                     <span className="sr-only">Search</span>
@@ -464,7 +467,7 @@ function AppShellLayout({
             <button
                 type="button"
                 onClick={() => openGlobalSearch({ closeMobileSidebar: mobile })}
-                className="flex h-9 w-full items-center gap-2.5 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/20 px-3 text-sm text-muted-foreground transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/55 hover:text-sidebar-foreground"
+                className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/20 px-3 text-sm text-muted-foreground transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/55 hover:text-sidebar-foreground"
             >
                 <Search className="h-4 w-4 shrink-0" />
                 <span className="min-w-0 flex-1 text-left">Search</span>
@@ -623,6 +626,7 @@ function AppShellLayout({
 
     function renderSidebarContent(options: { collapsed: boolean; mobile: boolean; previewing?: boolean }) {
         const { collapsed, mobile, previewing = false } = options;
+        const projectsIndexActive = pathname === "/projects";
         const profileMenuTriggerId = mobile
             ? "mobile-sidebar-profile-menu-trigger"
             : collapsed
@@ -638,12 +642,12 @@ function AppShellLayout({
                     {collapsed ? (
                         <div className="flex flex-col items-center gap-4">
                             <Link
-                                href="/home"
-                                title="Stride home"
+                                href="/tasks"
+                                title="Go to Today"
                                 className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-sidebar-accent/80 text-sm font-semibold tracking-[-0.05em] text-sidebar-foreground shadow-[0_10px_24px_rgba(15,23,42,0.16)] transition-transform duration-200 hover:-translate-y-px"
                             >
                                 <span aria-hidden="true">S</span>
-                                <span className="sr-only">Stride home</span>
+                                <span className="sr-only">Go to Today</span>
                             </Link>
 
                             {renderGlobalSearchTrigger({ collapsed, mobile })}
@@ -655,7 +659,7 @@ function AppShellLayout({
                                     if (mobile) setMobileSidebarOpen(false);
                                 }}
                                 title="Quick add"
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_26px_rgba(15,23,42,0.2)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-primary/94 motion-safe:hover:-translate-y-px"
+                                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_26px_rgba(15,23,42,0.2)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-primary/94 motion-safe:hover:-translate-y-px"
                             >
                                 <Plus className="h-4 w-4" />
                                 <span className="sr-only">Quick Add</span>
@@ -664,7 +668,7 @@ function AppShellLayout({
                     ) : (
                         <>
                             <div className="flex items-center justify-between gap-3">
-                                <Link href="/home" className="min-w-0 text-lg font-semibold tracking-[-0.03em] text-sidebar-foreground">
+                                <Link href="/tasks" className="min-w-0 text-lg font-semibold tracking-[-0.03em] text-sidebar-foreground">
                                     Stride
                                 </Link>
 
@@ -709,9 +713,7 @@ function AppShellLayout({
                     <div className={cn("space-y-6", collapsed && "space-y-5")}>
                         <nav className="space-y-1">
                             {PRIMARY_ITEMS.map((item) => {
-                                const active = item.href === "/projects"
-                                    ? pathname === item.href || pathname.startsWith("/projects/")
-                                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
                                 return (
                                     <button
@@ -734,7 +736,7 @@ function AppShellLayout({
                             })}
                         </nav>
 
-                        {!collapsed ? (
+                        {!collapsed && pathname === "/tasks" ? (
                             <div className="space-y-2">
                                 <div className="px-3">
                                     <p className="eyebrow">Views</p>
@@ -772,7 +774,16 @@ function AppShellLayout({
                         <div className="space-y-2">
                             {!collapsed ? (
                                 <div className="flex items-center justify-between px-3">
-                                    <p className="eyebrow">Projects</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleNavigate("/projects")}
+                                        className={cn(
+                                            "eyebrow cursor-pointer transition-colors hover:text-foreground",
+                                            projectsIndexActive ? "text-foreground" : "text-muted-foreground",
+                                        )}
+                                    >
+                                        Projects
+                                    </button>
                                     <div className="flex items-center gap-3">
                                         <button
                                             type="button"
@@ -795,12 +806,15 @@ function AppShellLayout({
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"
-                                        onClick={() => setProjectDialogOpen(true)}
-                                        title="New project"
-                                        className="rounded-full text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
+                                        onClick={() => handleNavigate("/projects")}
+                                        title="Projects"
+                                        className={cn(
+                                            "rounded-full text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+                                            projectsIndexActive && "bg-sidebar-accent text-sidebar-accent-foreground",
+                                        )}
                                     >
-                                        <Plus className="h-4 w-4" />
-                                        <span className="sr-only">New project</span>
+                                        <FolderKanban className="h-4 w-4" />
+                                        <span className="sr-only">Projects</span>
                                     </Button>
                                 </div>
                             )}
@@ -811,32 +825,21 @@ function AppShellLayout({
 
                 <div className={cn("border-t border-sidebar-border py-3", collapsed ? "px-2" : "px-3")}>
                     <DropdownMenu
-                        open={mobile ? mobileProfileMenuOpen : isDesktopProfileMenuOpen}
+                        open={mobile ? mobileProfileMenuSource === "sidebar" : isDesktopProfileMenuOpen}
                         onOpenChange={(open) => {
                             if (mobile) {
-                                setMobileProfileMenuOpen(open);
+                                setMobileProfileMenuSource(open ? "sidebar" : null);
                                 return;
                             }
 
-                            clearDesktopProfileMenuCloseTimer();
                             setDesktopProfileMenuId(open ? profileMenuTriggerId : null);
                         }}
                     >
                         <DropdownMenuTrigger asChild>
                             <button
                                 id={profileMenuTriggerId}
-                                onPointerEnter={() => {
-                                    if (!mobile && isDesktopProfileMenuOpen) {
-                                        clearDesktopProfileMenuCloseTimer();
-                                    }
-                                }}
-                                onPointerLeave={() => {
-                                    if (!mobile && isDesktopProfileMenuOpen) {
-                                        scheduleDesktopProfileMenuClose(profileMenuTriggerId);
-                                    }
-                                }}
                                 className={cn(
-                                    "flex w-full items-center rounded-xl transition-colors hover:bg-sidebar-accent/70",
+                                    "flex w-full cursor-pointer items-center rounded-xl transition-colors hover:bg-sidebar-accent/70",
                                     collapsed ? "mx-auto h-11 w-11 justify-center rounded-full px-0" : "gap-3 px-3 py-2.5 text-left",
                                 )}
                             >
@@ -856,7 +859,7 @@ function AppShellLayout({
                                 )}
                             </button>
                         </DropdownMenuTrigger>
-                        {renderProfileMenuContent({ mobile, menuId: profileMenuTriggerId })}
+                        {renderProfileMenuContent({ mobile })}
                     </DropdownMenu>
                 </div>
             </div>
@@ -938,11 +941,14 @@ function AppShellLayout({
                     </div>
 
                     <div className="fixed right-4 top-[max(1rem,env(safe-area-inset-top))] z-30 lg:hidden">
-                        <DropdownMenu open={mobileProfileMenuOpen} onOpenChange={setMobileProfileMenuOpen}>
+                        <DropdownMenu
+                            open={mobileProfileMenuSource === "topbar"}
+                            onOpenChange={(open) => setMobileProfileMenuSource(open ? "topbar" : null)}
+                        >
                             <DropdownMenuTrigger asChild>
                                 <button
                                     id="mobile-topbar-profile-menu-trigger"
-                                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-card/95 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur"
+                                    className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-border/70 bg-card/95 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur"
                                 >
                                     <Avatar className="h-9 w-9 border border-border/60">
                                         <AvatarImage src={avatarUrl ?? ""} alt={profile?.username ?? "User"} />
@@ -953,11 +959,11 @@ function AppShellLayout({
                                     <span className="sr-only">Open account menu</span>
                                 </button>
                             </DropdownMenuTrigger>
-                            {renderProfileMenuContent({ mobile: true, menuId: "mobile-topbar-profile-menu-trigger" })}
+                            {renderProfileMenuContent({ mobile: true })}
                         </DropdownMenu>
                     </div>
 
-                    <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+                    <Sheet open={mobileSidebarOpen} onOpenChange={handleMobileSidebarOpenChange}>
                         <SheetContent
                             side="left"
                             showCloseButton={false}
@@ -977,7 +983,7 @@ function AppShellLayout({
                 <DialogContent showCloseButton={false} className="max-w-2xl overflow-hidden border-border/70 p-0">
                     <DialogTitle className="sr-only">Global search</DialogTitle>
                     <DialogDescription className="sr-only">
-                        Search views, projects, and tasks across your workspace.
+                        Search destinations, projects, and tasks across your workspace.
                     </DialogDescription>
 
                     <div className="border-b border-border/70 px-5 py-4">
@@ -987,7 +993,7 @@ function AppShellLayout({
                                 autoFocus
                                 value={globalSearchQuery}
                                 onChange={(event) => setGlobalSearchQuery(event.target.value)}
-                                placeholder="Search tasks, projects, and views"
+                                placeholder="Search destinations, projects, and tasks"
                                 className="h-11 border-0 bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
                             />
                         </div>
@@ -1003,7 +1009,7 @@ function AppShellLayout({
                                 {matchingViewResults.length > 0 ? (
                                     <div className="space-y-1">
                                         <p className="px-2 pt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                            Views
+                                            Navigate
                                         </p>
                                         {matchingViewResults.map((item) => (
                                             <button
@@ -1017,7 +1023,7 @@ function AppShellLayout({
                                                 </span>
                                                 <div className="min-w-0 flex-1">
                                                     <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
-                                                    <p className="text-xs text-muted-foreground">View</p>
+                                                    <p className="text-xs text-muted-foreground">Destination</p>
                                                 </div>
                                             </button>
                                         ))}

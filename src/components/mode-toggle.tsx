@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Moon, MoonStar, Sun } from "lucide-react"
+import { Circle, Moon, MoonStar, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { Button } from "~/components/ui/button"
@@ -25,12 +25,17 @@ export function ModeToggle() {
                     setTheme("midnight")
                     return
                 }
+                if (activeTheme === "midnight") {
+                    setTheme("noir")
+                    return
+                }
                 setTheme("light")
             }}
         >
             {activeTheme === "light" ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : null}
             {activeTheme === "dark" ? <Moon className="h-[1.2rem] w-[1.2rem]" /> : null}
             {activeTheme === "midnight" ? <MoonStar className="h-[1.2rem] w-[1.2rem]" /> : null}
+            {activeTheme === "noir" ? <Circle className="h-[1.2rem] w-[1.2rem]" /> : null}
             <span className="sr-only">Cycle theme</span>
         </Button>
     )

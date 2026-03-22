@@ -203,6 +203,11 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
         setSelectionMode((current) => !current);
     }
 
+    function handleCancelSelectionMode() {
+        setSelectedTaskIds([]);
+        setSelectionMode(false);
+    }
+
     function handleToggleSelectAll() {
         if (allVisibleSelected) {
             setSelectedTaskIds([]);
@@ -515,6 +520,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                         editing={bulkEditing}
                         completing={bulkCompleting}
                         deleting={bulkDeleting}
+                        onCancel={handleCancelSelectionMode}
                         onToggleSelectAll={handleToggleSelectAll}
                         onClearSelection={() => setSelectedTaskIds([])}
                         onEditSelected={() => setBulkEditOpen(true)}

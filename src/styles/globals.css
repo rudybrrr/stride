@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@variant dark (&:is(.dark *, .midnight *));
+@variant dark (&:is(.dark *, .midnight *, .noir *));
 
 @theme {
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif,
@@ -176,6 +176,47 @@
   --project-slate: #a2aec0;
 }
 
+.noir {
+  --background: #000000;
+  --foreground: #f7f7f4;
+  --card: #050505;
+  --card-foreground: #f7f7f4;
+  --popover: #080808;
+  --popover-foreground: #f7f7f4;
+  --primary: #eceae3;
+  --primary-foreground: #050505;
+  --secondary: #0b0b0b;
+  --secondary-foreground: #efeee8;
+  --muted: #040404;
+  --muted-foreground: #9c9b95;
+  --accent: #111111;
+  --accent-foreground: #f3f1eb;
+  --destructive: #ff8b94;
+  --destructive-foreground: #240708;
+  --border: #1b1b1b;
+  --input: #232323;
+  --ring: #eceae3;
+  --chart-1: #eceae3;
+  --chart-2: #c8c5bc;
+  --chart-3: #9f9b91;
+  --chart-4: #79756c;
+  --chart-5: #525047;
+  --sidebar: #020202;
+  --sidebar-foreground: #f4f2ec;
+  --sidebar-primary: #eceae3;
+  --sidebar-primary-foreground: #050505;
+  --sidebar-accent: #0b0b0b;
+  --sidebar-accent-foreground: #f4f2ec;
+  --sidebar-border: #111111;
+  --sidebar-ring: #eceae3;
+  --project-cobalt: #8f95a3;
+  --project-emerald: #85988f;
+  --project-amber: #b49d7b;
+  --project-rose: #b38c92;
+  --project-violet: #9a93a8;
+  --project-slate: #8d8d88;
+}
+
 :root[data-accent="teal"] {
   --primary: #147d73;
   --primary-foreground: #f4fffd;
@@ -312,7 +353,8 @@
   }
 
   html.dark,
-  html.midnight {
+  html.midnight,
+  html.noir {
     color-scheme: dark;
   }
 
@@ -324,6 +366,12 @@
       var(--background) 24%,
       color-mix(in oklab, var(--background) 95%, black) 100%
     );
+  }
+
+  html.noir body {
+    background-image:
+      radial-gradient(circle at top, rgb(255 255 255 / 0.045), transparent 18%),
+      radial-gradient(circle at 78% 0%, color-mix(in oklab, var(--primary) 11%, transparent), transparent 20%);
   }
 
   ::selection {

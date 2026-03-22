@@ -6,6 +6,7 @@ import { addDays, startOfDay } from "date-fns";
 
 import { useData } from "~/components/data-provider";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { isMissingAttachmentMetadataError } from "~/lib/task-attachments";
 import {
     LEGACY_TODO_FIELDS,
     TODO_FIELDS,
@@ -62,6 +63,8 @@ interface FocusSessionSummaryRow {
 }
 
 const PROJECT_ORDER_STORAGE_KEY_PREFIX = "list-order-";
+const ATTACHMENT_FIELDS = "id, todo_id, user_id, list_id, path, original_name, mime_type, size_bytes, inserted_at";
+const LEGACY_ATTACHMENT_FIELDS = "id, todo_id, user_id, list_id, path, inserted_at";
 
 function sortTasksByInsertedAt(tasks: TaskDatasetRecord[]) {
     return [...tasks].sort((a, b) => (a.inserted_at ?? "").localeCompare(b.inserted_at ?? ""));
@@ -166,6 +169,32 @@ async function loadPlannedBlocks(
     throw error;
 }
 
+async function loadTodoAttachments(
+    supabase: ReturnType<typeof createSupabaseBrowserClient>,
+    listIds: string[],
+): Promise<TodoImageRow[]> {
+    const { data, error } = await supabase
+        .from("todo_images")
+        .select(ATTACHMENT_FIELDS)
+        .in("list_id", listIds);
+
+    if (!error) {
+        return (data ?? []) as TodoImageRow[];
+    }
+
+    if (!isMissingAttachmentMetadataError(error)) {
+        throw error;
+    }
+
+    const { data: legacyData, error: legacyError } = await supabase
+        .from("todo_images")
+        .select(LEGACY_ATTACHMENT_FIELDS)
+        .in("list_id", listIds);
+
+    if (legacyError) throw legacyError;
+    return (legacyData ?? []) as TodoImageRow[];
+}
+
 function isDueSoon(task: TodoRow) {
     if (!task.due_date || task.is_done) return false;
     const dueDate = new Date(task.due_date);
@@ -229,13 +258,10 @@ function useTaskDatasetState(): TaskDatasetValue {
                 setLoading(true);
             }
 
-            const [taskRows, nextBlocks, imagesResponse, membersResponse, focusResponse] = await Promise.all([
+            const [taskRows, nextBlocks, attachments, membersResponse, focusResponse] = await Promise.all([
                 loadTodoRows(supabase, listIds),
                 loadPlannedBlocks(supabase, userId),
-                supabase
-                    .from("todo_images")
-                    .select("id, todo_id, user_id, list_id, path, inserted_at")
-                    .in("list_id", listIds),
+                loadTodoAttachments(supabase, listIds),
                 supabase
                     .from("todo_list_members")
                     .select("list_id")
@@ -248,7 +274,6 @@ function useTaskDatasetState(): TaskDatasetValue {
                     .lt("inserted_at", addDays(startOfDay(new Date()), 1).toISOString()),
             ]);
 
-            if (imagesResponse.error) throw imagesResponse.error;
             if (membersResponse.error) throw membersResponse.error;
             if (focusResponse.error) throw focusResponse.error;
 
@@ -264,7 +289,7 @@ function useTaskDatasetState(): TaskDatasetValue {
             const sortedTasks = sortTasksByInsertedAt(nextTasks);
 
             const nextImagesByTodo: Record<string, TodoImageRow[]> = {};
-            for (const image of (imagesResponse.data ?? []) as TodoImageRow[]) {
+            for (const image of attachments) {
                 (nextImagesByTodo[image.todo_id] ??= []).push(image);
             }
 

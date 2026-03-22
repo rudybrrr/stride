@@ -1,12 +1,8 @@
-import HomeClient from "./page-client";
+import { redirect } from "next/navigation";
 
 import { requireUser } from "~/lib/require-user";
 
-export const metadata = {
-    title: "Home | Stride",
-};
-
-export default async function HomePage() {
+export default async function LegacyHomeRedirectPage() {
     await requireUser();
-    return <HomeClient />;
+    redirect("/tasks");
 }

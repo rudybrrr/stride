@@ -71,8 +71,6 @@ export function DatePickerField({
                         className="rounded-[1.2rem] bg-transparent p-0"
                         classNames={{
                             month_caption: "flex h-9 items-center justify-center px-10",
-                            button_previous: "size-9 rounded-xl border border-border/60 bg-background/80 shadow-none",
-                            button_next: "size-9 rounded-xl border border-border/60 bg-background/80 shadow-none",
                             weekday: "flex-1 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground",
                         }}
                     />

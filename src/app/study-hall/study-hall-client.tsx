@@ -256,10 +256,10 @@ export default function StudyHallClient() {
                                 The weekly arena. Resets every Monday.
                             </p>
                         </div>
-                        <Link href="/dashboard">
+                        <Link href="/tasks">
                             <Button variant="outline" className="rounded-xl gap-2 font-bold shadow-sm">
                                 <ArrowLeft className="w-4 h-4" />
-                                Back to Insights
+                                Back to Today
                             </Button>
                         </Link>
                     </header>
@@ -411,4 +411,3 @@ export default function StudyHallClient() {
         </div>
     );
 }
-

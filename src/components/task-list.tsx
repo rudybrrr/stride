@@ -91,7 +91,7 @@ export function TaskList({
                                 aria-label={task.is_done ? "Mark task incomplete" : "Mark task complete"}
                                 onClick={() => onToggle(task, !task.is_done)}
                                 className={cn(
-                                    "mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors",
+                                    "mt-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
                                     task.is_done
                                         ? "border-primary bg-primary text-primary-foreground"
                                         : "border-border/80 bg-background/80 text-transparent hover:border-primary/60",

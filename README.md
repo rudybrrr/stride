@@ -17,8 +17,7 @@ Stride is an execution-first academic planner built on Next.js and Supabase. The
 
 ### Primary routes
 
-- `/home`
-- `/tasks`
+- `/tasks` (Today workspace and smart views)
 - `/calendar`
 - `/projects`
 
@@ -30,7 +29,8 @@ Stride is an execution-first academic planner built on Next.js and Supabase. The
 
 ### Legacy redirects
 
-- `/dashboard` -> `/home`
+- `/home` -> `/tasks`
+- `/dashboard` -> `/tasks`
 - `/todos` -> `/tasks`
 - `/planning` -> `/calendar`
 - `/study-hall` -> `/community`
@@ -55,17 +55,13 @@ Stride is an execution-first academic planner built on Next.js and Supabase. The
 - Planned focus blocks linked to tasks or standalone project work
 - Focus timer with persisted sessions
 - Community leaderboard powered by `weekly_leaderboard`
-- Theme system with `light`, `dark`, and `midnight`
+- Theme system with `light`, `dark`, `midnight`, and `noir`
 
 ## Visual Gallery
 
-| Authentication | Home |
-| :---: | :---: |
-| ![Authentication](screenshots/auth.png) | ![Home](screenshots/dashboard.png) |
-
-| Tasks | Calendar |
-| :---: | :---: |
-| ![Tasks](screenshots/tasks.png) | ![Calendar](screenshots/planner.png) |
+| Authentication | Tasks | Calendar |
+| :---: | :---: | :---: |
+| ![Authentication](screenshots/auth.png) | ![Tasks](screenshots/tasks.png) | ![Calendar](screenshots/planner.png) |
 
 ## Stack
 
@@ -166,6 +162,9 @@ create table if not exists public.todo_images (
   user_id uuid not null references auth.users(id) on delete cascade,
   list_id uuid not null references public.todo_lists(id) on delete cascade,
   path text not null,
+  original_name text,
+  mime_type text,
+  size_bytes bigint,
   inserted_at timestamptz not null default now()
 );
 
@@ -503,19 +502,20 @@ alter table public.planned_focus_blocks replica identity full;
 
 Create two public buckets:
 
-- `todo-images`
+- `todo-images` (task attachments; retained name for compatibility)
 - `profile-avatars`
 
 Recommended storage policies:
 
 - `todo-images`
-  - `select`: list members can view images in accessible lists
-  - `insert` / `delete`: editors can manage images in lists they can edit
+  - `select`: list members can view attachments in accessible lists
+  - `insert` / `delete`: editors can manage attachments in lists they can edit
 - `profile-avatars`
   - `select`: public read
   - `insert` / `delete`: authenticated users can only manage objects in their own top-level folder
 
 The checked-in `20260307_settings_profile_avatar_security.sql` migration already creates the `profile-avatars` bucket policies.
+Apply `20260322_attachment_metadata.sql` as well so task attachments persist original filenames, MIME types, and file sizes.
 
 ## Smart View Rules
 
@@ -529,7 +529,9 @@ The checked-in `20260307_settings_profile_avatar_security.sql` migration already
 - `todo_lists.color_token` and `todo_lists.icon_token` drive project presentation
 - `todos.estimated_minutes` supports planning and next-task selection
 - `todos.completed_at` is used for correct completed-task ordering
-- `profiles.daily_focus_goal_minutes` powers Home and Calendar goal progress
+- `todo_images` stores mixed task attachments and now supports `original_name`, `mime_type`, and `size_bytes`
+- the `todo-images` bucket still holds all task attachments, even though the legacy name mentions images
+- `profiles.daily_focus_goal_minutes` powers Today and Calendar goal progress
 - `planned_focus_blocks.todo_id` is optional, so a planned block can exist without a linked task
 
 ## Verification

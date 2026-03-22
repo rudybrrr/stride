@@ -156,7 +156,7 @@ function TasksContent() {
             : (lists.find((list) => list.name === "Inbox")?.id ?? lists[0]?.id ?? null),
         [lists, projectFilter],
     );
-    const currentViewLabel = VIEW_OPTIONS.find((option) => option.value === view)?.label ?? "Tasks";
+    const currentViewLabel = VIEW_OPTIONS.find((option) => option.value === view)?.label ?? "Today";
     const activeFilterCount = Number(projectFilter !== "all") + Number(priorityFilter !== "all");
     const activeProjectName = projectFilter === "all"
         ? null
@@ -250,6 +250,11 @@ function TasksContent() {
 
     function handleToggleSelectionMode() {
         setSelectionMode((current) => !current);
+    }
+
+    function handleCancelSelectionMode() {
+        setSelectedTaskIds([]);
+        setSelectionMode(false);
     }
 
     function handleToggleSelectAll() {
@@ -611,6 +616,7 @@ function TasksContent() {
                         editing={bulkEditing}
                         completing={bulkCompleting}
                         deleting={bulkDeleting}
+                        onCancel={handleCancelSelectionMode}
                         onToggleSelectAll={handleToggleSelectAll}
                         onClearSelection={() => setSelectedTaskIds([])}
                         onEditSelected={() => setBulkEditOpen(true)}

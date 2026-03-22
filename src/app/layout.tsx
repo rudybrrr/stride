@@ -42,7 +42,7 @@ export default function RootLayout({
           attribute="class"
           defaultTheme="system"
           enableSystem
-          themes={["light", "dark", "midnight"]}
+          themes={["light", "dark", "midnight", "noir"]}
           disableTransitionOnChange
         >
           <AccentProvider>

@@ -31,6 +31,9 @@ export interface TodoImageRow {
     user_id: string;
     list_id: string;
     path: string;
+    original_name?: string | null;
+    mime_type?: string | null;
+    size_bytes?: number | string | null;
     inserted_at?: string;
 }
 

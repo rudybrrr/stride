@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarRange, Check, ChevronRight, Paperclip, Play, Trash2, X } from "lucide-react";
+import { CalendarRange, Check, FileText, Play, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { useFocus } from "~/components/focus-provider";
-import { TodoImageUpload } from "~/app/todos/todo-image-upload";
+import { TaskAttachmentUpload } from "~/components/task-attachment-upload";
 import { Button } from "~/components/ui/button";
 import {
     Dialog,
@@ -18,16 +18,16 @@ import {
 } from "~/components/ui/dialog";
 import { DatePickerField } from "~/components/ui/date-picker-field";
 import { Input } from "~/components/ui/input";
-import { Label } from "~/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "~/components/ui/sheet";
 import { Textarea } from "~/components/ui/textarea";
 import { useTaskDataset } from "~/hooks/use-task-dataset";
+import type { TaskDatasetRecord } from "~/hooks/use-task-dataset";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
-import { deleteTask, setTaskCompletion, updateTask } from "~/lib/task-actions";
+import { formatAttachmentSize, getAttachmentDisplayName, getAttachmentExtension, isImageAttachment } from "~/lib/task-attachments";
+import { deleteTask, deleteTaskAttachment, setTaskCompletion, updateTask } from "~/lib/task-actions";
 import { getDateInputValue } from "~/lib/task-views";
 import type { TodoImageRow, TodoList } from "~/lib/types";
-import type { TaskDatasetRecord } from "~/hooks/use-task-dataset";
 import { cn } from "~/lib/utils";
 
 function TaskDetailForm({
@@ -48,7 +48,7 @@ function TaskDetailForm({
     onDeleted: () => void;
 }) {
     const router = useRouter();
-    const { applyTaskPatch, removeTask, upsertTask } = useTaskDataset();
+    const { applyTaskPatch, refresh, removeTask, upsertTask } = useTaskDataset();
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
     const { setCurrentListId, handleModeChange, toggleTimer } = useFocus();
     const [title, setTitle] = useState(task.title);
@@ -60,8 +60,7 @@ function TaskDetailForm({
     const [isDone, setIsDone] = useState(task.is_done);
     const [saving, setSaving] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
-    const [showNotes, setShowNotes] = useState(false);
-    const [showAttachments, setShowAttachments] = useState(false);
+    const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
     const initializedTaskIdRef = useRef<string | null>(null);
 
     const syncFormState = useCallback((
@@ -81,8 +80,7 @@ function TaskDetailForm({
 
         initializedTaskIdRef.current = task.id;
         syncFormState(task);
-        setShowNotes(false);
-        setShowAttachments(false);
+        setDeletingAttachmentId(null);
     }, [syncFormState, task]);
 
     const isDirty =
@@ -180,47 +178,73 @@ function TaskDetailForm({
         onClose?.();
     }
 
+    async function handleAttachmentsUploaded() {
+        await refresh({ silent: true });
+        onSaved();
+    }
+
+    async function handleAttachmentDelete(attachment: TodoImageRow) {
+        try {
+            setDeletingAttachmentId(attachment.id);
+            const result = await deleteTaskAttachment(supabase, attachment);
+            await refresh({ silent: true });
+            onSaved();
+
+            if (result.cleanupWarning) {
+                toast.warning("Attachment removed, but file cleanup may have been incomplete.");
+                return;
+            }
+
+            toast.success("Attachment removed.");
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Unable to remove attachment.");
+        } finally {
+            setDeletingAttachmentId((current) => (current === attachment.id ? null : current));
+        }
+    }
+
     return (
         <>
-            <div className="space-y-4 sm:space-y-5">
-                <div className="flex items-start justify-between gap-3 border-b border-border/60 pb-3 sm:pb-4">
+            <div className="space-y-6">
+                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
                     <div className="min-w-0 flex flex-1 items-start gap-3">
                         <button
                             type="button"
                             aria-label={isDone ? "Mark task incomplete" : "Mark task complete"}
                             onClick={() => void handleToggleCompletion()}
                             className={cn(
-                                "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors",
+                                "mt-1.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
                                 isDone
                                     ? "border-primary bg-primary text-primary-foreground"
                                     : "border-border/80 bg-background/80 text-transparent hover:border-primary/60",
                             )}
                         >
-                            <Check className="h-3.5 w-3.5" />
+                            <Check className="h-4 w-4" />
                         </button>
-                        <div className="min-w-0">
-                            <p className="eyebrow">Task details</p>
-                            <p
+                        <div className="min-w-0 flex-1">
+                            <Input
+                                id="detailTitle"
+                                value={title}
+                                onChange={(event) => setTitle(event.target.value)}
+                                placeholder="Task title"
                                 className={cn(
-                                    "mt-1 line-clamp-2 text-lg font-semibold tracking-[-0.03em] text-foreground transition-colors",
-                                    isDone ? "text-muted-foreground line-through" : "",
+                                    "h-auto rounded-none border-0 bg-transparent px-0 py-1 text-[1.85rem] leading-[1.08] font-semibold tracking-[-0.05em] shadow-none focus-visible:ring-0 md:text-[1.85rem]",
+                                    isDone && "text-muted-foreground line-through",
                                 )}
-                            >
-                                {title}
-                            </p>
+                            />
                         </div>
                     </div>
-                    <div className="flex items-center gap-1">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-muted-foreground hover:text-destructive"
-                            onClick={() => setDeleteOpen(true)}
-                        >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Delete task</span>
-                        </Button>
+                    <div className="flex shrink-0 items-center gap-1">
+                        {isDirty ? (
+                            <Button
+                                variant="tonal"
+                                size="sm"
+                                onClick={() => void handleSave()}
+                                disabled={saving || !title.trim()}
+                            >
+                                {saving ? "Saving..." : "Save"}
+                            </Button>
+                        ) : null}
                         {onClose ? (
                             <Button type="button" variant="ghost" size="icon-sm" onClick={onClose}>
                                 <X className="h-4 w-4" />
@@ -230,34 +254,27 @@ function TaskDetailForm({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                    <Button variant="outline" size="sm" onClick={handleStartFocus}>
-                        <Play className="h-4 w-4" />
-                        Start focus
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handlePlanBlock}>
-                        <CalendarRange className="h-4 w-4" />
-                        Plan block
-                    </Button>
-                    <Button variant="tonal" size="sm" onClick={() => void handleSave()} disabled={saving || !title.trim() || !isDirty}>
-                        {saving ? "Saving..." : "Save"}
-                    </Button>
-                </div>
+                <section>
+                    <label htmlFor="detailNotes" className="sr-only">
+                        Notes
+                    </label>
+                    <Textarea
+                        id="detailNotes"
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        placeholder="Add notes"
+                        className="min-h-[92px] resize-none rounded-none border-0 bg-transparent px-0 py-1 text-sm leading-6 shadow-none focus-visible:ring-0"
+                    />
+                </section>
 
-                <div className="space-y-2">
-                    <Label htmlFor="detailTitle" className="eyebrow">
-                        Title
-                    </Label>
-                    <Input id="detailTitle" value={title} onChange={(event) => setTitle(event.target.value)} className="h-10" />
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label htmlFor="detailProject" className="eyebrow">
-                            Project
-                        </Label>
+                <section className="divide-y divide-border/60 border-y border-border/60">
+                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-4 py-3">
+                        <p className="text-sm text-muted-foreground">Project</p>
                         <Select value={listId} onValueChange={setListId}>
-                            <SelectTrigger id="detailProject">
+                            <SelectTrigger
+                                id="detailProject"
+                                className="h-auto min-h-0 rounded-none border-0 bg-transparent px-0 py-0 text-right shadow-none focus-visible:ring-0 [&>span]:text-right"
+                            >
                                 <SelectValue placeholder="Choose a project" />
                             </SelectTrigger>
                             <SelectContent>
@@ -269,24 +286,29 @@ function TaskDetailForm({
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="detailDue" className="eyebrow">
-                            Due
-                        </Label>
-                        <DatePickerField id="detailDue" value={dueDate} onChange={setDueDate} placeholder="Choose date" allowClear />
-                    </div>
-                </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label htmlFor="detailPriority" className="eyebrow">
-                            Priority
-                        </Label>
+                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-4 py-3">
+                        <p className="text-sm text-muted-foreground">Due</p>
+                        <DatePickerField
+                            id="detailDue"
+                            value={dueDate}
+                            onChange={setDueDate}
+                            placeholder="Choose date"
+                            allowClear
+                            className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-right shadow-none focus-visible:ring-0 [&>span]:w-full [&>span]:justify-end [&>span]:text-right"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-4 py-3">
+                        <p className="text-sm text-muted-foreground">Priority</p>
                         <Select
                             value={priority || "none"}
                             onValueChange={(value) => setPriority(value === "none" ? "" : value as typeof priority)}
                         >
-                            <SelectTrigger id="detailPriority">
+                            <SelectTrigger
+                                id="detailPriority"
+                                className="h-auto min-h-0 rounded-none border-0 bg-transparent px-0 py-0 text-right shadow-none focus-visible:ring-0 [&>span]:text-right"
+                            >
                                 <SelectValue placeholder="No priority" />
                             </SelectTrigger>
                             <SelectContent>
@@ -297,102 +319,123 @@ function TaskDetailForm({
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="detailEstimate" className="eyebrow">
-                            Estimate
-                        </Label>
-                        <Input
-                            id="detailEstimate"
-                            type="number"
-                            min="1"
-                            value={estimatedMinutes}
-                            onChange={(event) => setEstimatedMinutes(event.target.value)}
-                            placeholder="45"
-                            className="h-10"
+
+                    <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-4 py-3">
+                        <p className="text-sm text-muted-foreground">Estimate</p>
+                        <div className="flex items-center justify-end gap-2">
+                            <Input
+                                id="detailEstimate"
+                                type="number"
+                                min="1"
+                                inputMode="numeric"
+                                value={estimatedMinutes}
+                                onChange={(event) => setEstimatedMinutes(event.target.value)}
+                                placeholder="45"
+                                className="h-auto w-20 rounded-none border-0 bg-transparent px-0 py-0 text-right shadow-none focus-visible:ring-0"
+                            />
+                            <span className="text-sm text-muted-foreground">min</span>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="flex flex-wrap items-center gap-2">
+                    <Button variant="ghost" size="xs" onClick={handleStartFocus}>
+                        <Play className="h-3.5 w-3.5" />
+                        Start focus
+                    </Button>
+                    <Button variant="ghost" size="xs" onClick={handlePlanBlock}>
+                        <CalendarRange className="h-3.5 w-3.5" />
+                        Plan block
+                    </Button>
+                </section>
+
+                <section className="space-y-3 border-t border-border/60 pt-5">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-medium text-muted-foreground">Attachments</p>
+                            {images.length > 0 ? (
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                    {images.length} file{images.length === 1 ? "" : "s"} attached
+                                </p>
+                            ) : null}
+                        </div>
+                        <TaskAttachmentUpload
+                            userId={userId}
+                            todoId={task.id}
+                            listId={listId}
+                            onUploaded={handleAttachmentsUploaded}
                         />
                     </div>
-                </div>
 
-                <div className="space-y-3 rounded-[1rem] border border-border/60 bg-background/40 p-3">
-                    <button
-                        type="button"
-                        onClick={() => setShowNotes((current) => !current)}
-                        className="flex w-full items-center justify-between gap-3 text-left"
-                    >
-                        <div>
-                            <p className="eyebrow">Notes</p>
-                            {!showNotes ? (
-                                <p className="mt-1 line-clamp-1 text-sm text-muted-foreground">
-                                    {description.trim() || "Add note"}
-                                </p>
-                            ) : null}
-                        </div>
-                        <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", showNotes ? "rotate-90" : "")} />
-                    </button>
-                    {showNotes ? (
-                        <Textarea
-                            id="detailNotes"
-                            value={description}
-                            onChange={(event) => setDescription(event.target.value)}
-                            placeholder="Clarify the output, reference links, or completion definition."
-                            className="min-h-[88px] resize-none"
-                        />
-                    ) : null}
-                </div>
+                    {images.length > 0 ? (
+                        <div className="space-y-2">
+                            {images.map((image) => {
+                                const publicUrl = supabase.storage.from("todo-images").getPublicUrl(image.path).data.publicUrl;
+                                const displayName = getAttachmentDisplayName(image);
+                                const extension = getAttachmentExtension(displayName).toUpperCase();
+                                const imageAttachment = isImageAttachment(image);
+                                const deletingAttachment = deletingAttachmentId === image.id;
+                                const metaLabel = [imageAttachment ? "Image" : (extension || "File"), formatAttachmentSize(image.size_bytes)]
+                                    .filter(Boolean)
+                                    .join(" - ");
 
-                <div className="space-y-3 rounded-[1rem] border border-border/60 bg-background/40 p-3">
-                    <button
+                                return (
+                                    <div
+                                        key={image.id}
+                                        className="flex items-center gap-3 rounded-[1rem] border border-border/60 bg-background/35 px-3 py-2.5"
+                                    >
+                                        <a
+                                            href={publicUrl}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted/35"
+                                        >
+                                            {imageAttachment ? (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img src={publicUrl} alt={displayName} className="h-full w-full object-cover" />
+                                            ) : (
+                                                <FileText className="h-5 w-5 text-muted-foreground" />
+                                            )}
+                                        </a>
+                                        <a href={publicUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
+                                            <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+                                            <p className="truncate text-xs text-muted-foreground">{metaLabel || "Attachment"}</p>
+                                        </a>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-xs"
+                                            className="shrink-0 text-muted-foreground hover:text-destructive"
+                                            aria-label={`Remove ${displayName}`}
+                                            disabled={deletingAttachment}
+                                            onClick={() => void handleAttachmentDelete(image)}
+                                        >
+                                            {deletingAttachment ? (
+                                                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/35 border-t-muted-foreground" />
+                                            ) : (
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">No attachments yet.</p>
+                    )}
+                </section>
+
+                <section className="border-t border-border/60 pt-5">
+                    <Button
                         type="button"
-                        onClick={() => setShowAttachments((current) => !current)}
-                        className="flex w-full items-center justify-between gap-3 text-left"
+                        variant="ghost"
+                        size="sm"
+                        className="h-auto px-0 py-0 font-medium text-destructive/80 hover:bg-transparent hover:text-destructive"
+                        onClick={() => setDeleteOpen(true)}
                     >
-                        <div>
-                            <p className="eyebrow">Attachments</p>
-                            {!showAttachments ? (
-                                <p className="mt-1 text-sm text-muted-foreground">
-                                    {images.length > 0 ? `${images.length} file${images.length === 1 ? "" : "s"}` : "Add attachment"}
-                                </p>
-                            ) : null}
-                        </div>
-                        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-                            <Paperclip className="h-4 w-4" />
-                            <ChevronRight className={cn("h-4 w-4 transition-transform", showAttachments ? "rotate-90" : "")} />
-                        </span>
-                    </button>
-                    {showAttachments ? (
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between gap-3">
-                                <p className="text-sm text-muted-foreground">
-                                    Keep source material close to the task.
-                                </p>
-                                <TodoImageUpload userId={userId} todoId={task.id} listId={listId} onUploaded={onSaved} />
-                            </div>
-                            {images.length > 0 ? (
-                                <div className="grid grid-cols-2 gap-2">
-                                    {images.map((image) => {
-                                        const publicUrl = supabase.storage.from("todo-images").getPublicUrl(image.path).data.publicUrl;
-                                        return (
-                                            <a
-                                                key={image.id}
-                                                href={publicUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="overflow-hidden rounded-xl border border-border/60"
-                                            >
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img src={publicUrl} alt="Task attachment" className="h-20 w-full object-cover" />
-                                            </a>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="surface-muted px-4 py-4 text-sm text-muted-foreground">
-                                    No attachments yet.
-                                </div>
-                            )}
-                        </div>
-                    ) : null}
-                </div>
+                        Delete task
+                    </Button>
+                </section>
             </div>
 
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -460,7 +503,7 @@ export function TaskDetailPanel({
                 <DialogContent
                     showCloseButton={false}
                     className={cn(
-                        "hidden max-w-[min(760px,calc(100vw-2rem))] overflow-hidden rounded-[2rem] border-border/70 p-0 shadow-[0_28px_80px_rgba(15,23,42,0.22)] lg:block",
+                        "hidden max-w-[min(680px,calc(100vw-2rem))] overflow-hidden rounded-[2rem] border-border/70 p-0 shadow-[0_28px_80px_rgba(15,23,42,0.22)] lg:block",
                         className,
                     )}
                 >
