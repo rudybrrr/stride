@@ -6,7 +6,25 @@ export const metadata = {
     title: "Today | Stride",
 };
 
-export default async function TasksPage() {
+function getSingleSearchParam(value: string | string[] | undefined) {
+    if (Array.isArray(value)) {
+        return value[0] ?? null;
+    }
+    return value ?? null;
+}
+
+export default async function TasksPage({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
     await requireUser();
-    return <TasksClient />;
+    const resolvedSearchParams = await searchParams;
+
+    return (
+        <TasksClient
+            initialView={getSingleSearchParam(resolvedSearchParams.view)}
+            initialTaskId={getSingleSearchParam(resolvedSearchParams.taskId)}
+        />
+    );
 }

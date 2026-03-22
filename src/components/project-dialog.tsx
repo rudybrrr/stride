@@ -114,10 +114,10 @@ export function ProjectDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-xl rounded-[1.75rem] border-border/60 p-0">
-                <div className="border-b border-border/50 p-6">
+            <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] max-w-xl flex-col gap-0 overflow-hidden rounded-[1.4rem] border-border/60 p-0 sm:max-h-[calc(100dvh-3rem)] sm:rounded-[1.75rem]">
+                <div className="border-b border-border/50 p-4 sm:p-6">
                     <DialogHeader className="text-left">
-                        <DialogTitle className="text-2xl font-semibold tracking-[-0.04em]">
+                        <DialogTitle className="text-xl font-semibold tracking-[-0.04em] sm:text-2xl">
                             {initialProject ? "Edit project" : "Create project"}
                         </DialogTitle>
                         <DialogDescription>
@@ -126,13 +126,13 @@ export function ProjectDialog({
                     </DialogHeader>
                 </div>
 
-                <div className="space-y-6 p-6">
-                    <div className="flex items-center gap-4 rounded-[1.25rem] border border-border/60 bg-background/70 p-4">
-                        <div className={`rounded-2xl p-3 ${previewPalette.soft}`}>
-                            <PreviewIcon className={`h-6 w-6 ${previewPalette.text}`} />
+                <div className="min-h-0 space-y-4 overflow-y-auto p-4 sm:space-y-6 sm:p-6">
+                    <div className="flex items-center gap-3 rounded-[1rem] border border-border/60 bg-background/70 p-3 sm:gap-4 sm:rounded-[1.25rem] sm:p-4">
+                        <div className={`rounded-xl p-2.5 sm:rounded-2xl sm:p-3 ${previewPalette.soft}`}>
+                            <PreviewIcon className={`h-5 w-5 sm:h-6 sm:w-6 ${previewPalette.text}`} />
                         </div>
                         <div>
-                            <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">
+                            <p className="text-base font-semibold tracking-[-0.03em] text-foreground sm:text-lg">
                                 {name.trim() || "Untitled Project"}
                             </p>
                             <p className="text-sm text-muted-foreground">Preview</p>
@@ -151,9 +151,9 @@ export function ProjectDialog({
                         />
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5 sm:space-y-3">
                         <Label className="eyebrow">Color</Label>
-                        <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 sm:gap-3">
                             {PROJECT_COLOR_TOKENS.map((token) => {
                                 const palette = getProjectColorClasses(token);
                                 return (
@@ -161,9 +161,9 @@ export function ProjectDialog({
                                         key={token}
                                         type="button"
                                         onClick={() => setColorToken(token)}
-                                        className={`rounded-2xl border px-3 py-4 text-xs font-semibold capitalize transition-colors ${colorToken === token ? `${palette.soft} ${palette.border} ${palette.text}` : "border-border/60 bg-background/70 text-muted-foreground hover:bg-secondary/60"}`}
+                                        className={`rounded-xl border px-2.5 py-3 text-[11px] font-semibold capitalize transition-colors sm:rounded-2xl sm:px-3 sm:py-4 sm:text-xs ${colorToken === token ? `${palette.soft} ${palette.border} ${palette.text}` : "border-border/60 bg-background/70 text-muted-foreground hover:bg-secondary/60"}`}
                                     >
-                                        <span className={`mx-auto mb-2 block h-3 w-3 rounded-full ${palette.accent}`} />
+                                        <span className={`mx-auto mb-1.5 block h-2.5 w-2.5 rounded-full sm:mb-2 sm:h-3 sm:w-3 ${palette.accent}`} />
                                         {token}
                                     </button>
                                 );
@@ -171,9 +171,9 @@ export function ProjectDialog({
                         </div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5 sm:space-y-3">
                         <Label className="eyebrow">Icon</Label>
-                        <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3">
                             {PROJECT_ICON_TOKENS.map((token) => {
                                 const Icon = getProjectIcon(token);
                                 const active = iconToken === token;
@@ -185,9 +185,9 @@ export function ProjectDialog({
                                         onClick={() => setIconToken(token)}
                                         title={label}
                                         aria-label={label}
-                                        className={`aspect-square rounded-2xl border p-4 transition-colors ${active ? `${previewPalette.soft} ${previewPalette.border} ${previewPalette.text}` : "border-border/60 bg-background/70 text-muted-foreground hover:bg-secondary/60"}`}
+                                        className={`aspect-square rounded-xl border p-3 transition-colors sm:rounded-2xl sm:p-4 ${active ? `${previewPalette.soft} ${previewPalette.border} ${previewPalette.text}` : "border-border/60 bg-background/70 text-muted-foreground hover:bg-secondary/60"}`}
                                     >
-                                        <Icon className="mx-auto h-5 w-5" />
+                                        <Icon className="mx-auto h-4 w-4 sm:h-5 sm:w-5" />
                                         <span className="sr-only">{label}</span>
                                     </button>
                                 );
@@ -197,12 +197,12 @@ export function ProjectDialog({
 
                     {initialProject ? (
                         isInbox ? (
-                            <div className="surface-muted flex items-start gap-3 px-4 py-4 text-sm text-muted-foreground">
+                            <div className="surface-muted flex items-start gap-3 px-4 py-3 text-sm text-muted-foreground sm:py-4">
                                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                                 <p>Inbox is permanent and cannot be deleted or left.</p>
                             </div>
                         ) : (
-                            <div className="rounded-[1.25rem] border border-destructive/25 bg-destructive/5 p-4">
+                            <div className="rounded-[1rem] border border-destructive/25 bg-destructive/5 p-3.5 sm:rounded-[1.25rem] sm:p-4">
                                 <div className="space-y-2">
                                     <p className="eyebrow text-destructive">Danger zone</p>
                                     <h3 className="text-base font-semibold tracking-[-0.02em] text-foreground">
@@ -214,7 +214,7 @@ export function ProjectDialog({
                                             : "You will lose access to this shared project."}
                                     </p>
                                 </div>
-                                <div className="mt-4">
+                                <div className="mt-3 sm:mt-4">
                                     <Button
                                         variant="destructive"
                                         onClick={() => void handleDeleteOrLeave()}
@@ -228,7 +228,7 @@ export function ProjectDialog({
                     ) : null}
                 </div>
 
-                <DialogFooter className="border-t border-border/50 p-6">
+                <DialogFooter className="border-t border-border/50 p-4 sm:p-6">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>

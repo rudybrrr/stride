@@ -82,15 +82,27 @@ function dedupeTasks(tasks: TaskDatasetRecord[]) {
     });
 }
 
-export default function TasksClient() {
+export default function TasksClient({
+    initialView,
+    initialTaskId,
+}: {
+    initialView?: string | null;
+    initialTaskId?: string | null;
+}) {
     return (
         <AppShell>
-            <TasksContent />
+            <TasksContent initialView={initialView} initialTaskId={initialTaskId} />
         </AppShell>
     );
 }
 
-function TasksContent() {
+function TasksContent({
+    initialView,
+    initialTaskId,
+}: {
+    initialView?: string | null;
+    initialTaskId?: string | null;
+}) {
     const searchParams = useSearchParams();
     const { openQuickAdd } = useShellActions();
     const { applyTaskPatch, removeTask, upsertTask, userId, tasks, lists, imagesByTodo, loading } = useTaskDataset();
@@ -100,10 +112,10 @@ function TasksContent() {
     const routeView = getRouteView(searchParams.get("view"));
     const routeTaskId = searchParams.get("taskId");
 
-    const [view, setView] = useState<SmartView>(routeView);
+    const [view, setView] = useState<SmartView>(() => getRouteView(initialView ?? null));
     const [projectFilter, setProjectFilter] = useState("all");
     const [priorityFilter, setPriorityFilter] = useState<PriorityFilterValue>("all");
-    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(routeTaskId);
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId ?? null);
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);

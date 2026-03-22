@@ -207,13 +207,13 @@ function TaskDetailForm({
         <>
             <div className="space-y-6">
                 <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
-                    <div className="min-w-0 flex flex-1 items-start gap-3">
+                    <div className="min-w-0 flex flex-1 items-center gap-3">
                         <button
                             type="button"
                             aria-label={isDone ? "Mark task incomplete" : "Mark task complete"}
                             onClick={() => void handleToggleCompletion()}
                             className={cn(
-                                "mt-1.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
+                                "flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
                                 isDone
                                     ? "border-primary bg-primary text-primary-foreground"
                                     : "border-border/80 bg-background/80 text-transparent hover:border-primary/60",
@@ -228,7 +228,7 @@ function TaskDetailForm({
                                 onChange={(event) => setTitle(event.target.value)}
                                 placeholder="Task title"
                                 className={cn(
-                                    "h-auto rounded-none border-0 bg-transparent px-0 py-1 text-[1.85rem] leading-[1.08] font-semibold tracking-[-0.05em] shadow-none focus-visible:ring-0 md:text-[1.85rem]",
+                                    "h-auto rounded-none border-0 bg-transparent px-0 py-0.5 text-[1rem] leading-6 font-semibold tracking-[-0.02em] shadow-none focus-visible:ring-0 sm:text-[1.05rem] md:text-[1.1rem]",
                                     isDone && "text-muted-foreground line-through",
                                 )}
                             />
