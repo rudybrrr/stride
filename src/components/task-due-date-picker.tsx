@@ -9,12 +9,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover
 import { cn } from "~/lib/utils";
 
 type PopoverAlign = "start" | "center" | "end";
+type SmallScreenCalendarPlacement = "inline" | "left";
 
 interface TaskDueDateMenuProps {
     value?: string | null;
     onChange: (value: string) => void;
     allowClear?: boolean;
     onClose?: () => void;
+    smallScreenCalendarPlacement?: SmallScreenCalendarPlacement;
 }
 
 interface TaskDueDatePickerProps {
@@ -25,6 +27,7 @@ interface TaskDueDatePickerProps {
     allowClear?: boolean;
     disabled?: boolean;
     popoverAlign?: PopoverAlign;
+    smallScreenCalendarPlacement?: SmallScreenCalendarPlacement;
     className?: string;
 }
 
@@ -39,6 +42,7 @@ export function TaskDueDateMenu({
     onChange,
     allowClear = false,
     onClose,
+    smallScreenCalendarPlacement = "inline",
 }: TaskDueDateMenuProps) {
     const selectedDate = useMemo(() => getSelectedDate(value), [value]);
     const [calendarOpen, setCalendarOpen] = useState(false);
@@ -111,6 +115,28 @@ export function TaskDueDateMenu({
         onClose?.();
     }
 
+    function renderCalendar() {
+        return (
+            <Calendar
+                mode="single"
+                selected={selectedDate}
+                month={displayMonth}
+                onMonthChange={setDisplayMonth}
+                onSelect={(date) => {
+                    if (!date) return;
+                    apply(format(date, "yyyy-MM-dd"));
+                }}
+                className="rounded-lg bg-transparent p-0 [--cell-size:2.55rem]"
+                classNames={{
+                    month_caption: "flex h-9 items-center justify-center px-10 text-sm",
+                    weekday: "flex-1 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground",
+                    week: "mt-1 flex w-full",
+                    day: "group/day relative aspect-square flex-1 p-0.5 text-center select-none",
+                }}
+            />
+        );
+    }
+
     return (
         <div
             className="relative w-[16.5rem]"
@@ -174,25 +200,21 @@ export function TaskDueDateMenu({
             </div>
 
             {calendarOpen ? (
-                <div className="absolute top-0 left-full z-10 rounded-xl border border-border bg-popover p-2.5 text-popover-foreground shadow-[0_18px_36px_rgba(17,18,15,0.16)] origin-left motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-left-1">
-                    <Calendar
-                        mode="single"
-                        selected={selectedDate}
-                        month={displayMonth}
-                        onMonthChange={setDisplayMonth}
-                        onSelect={(date) => {
-                            if (!date) return;
-                            apply(format(date, "yyyy-MM-dd"));
-                        }}
-                        className="rounded-lg bg-transparent p-0 [--cell-size:2.55rem]"
-                        classNames={{
-                            month_caption: "flex h-9 items-center justify-center px-10 text-sm",
-                            weekday: "flex-1 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground",
-                            week: "mt-1 flex w-full",
-                            day: "group/day relative aspect-square flex-1 p-0.5 text-center select-none",
-                        }}
-                    />
-                </div>
+                <>
+                    {smallScreenCalendarPlacement === "inline" ? (
+                        <div className="mt-2 rounded-xl border border-border bg-popover p-2.5 text-popover-foreground shadow-[0_18px_36px_rgba(17,18,15,0.16)] lg:hidden">
+                            {renderCalendar()}
+                        </div>
+                    ) : (
+                        <div className="absolute top-0 right-full z-10 rounded-xl border border-border bg-popover p-2.5 text-popover-foreground shadow-[0_18px_36px_rgba(17,18,15,0.16)] origin-right motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-right-1 lg:hidden">
+                            {renderCalendar()}
+                        </div>
+                    )}
+
+                    <div className="absolute top-0 left-full z-10 hidden rounded-xl border border-border bg-popover p-2.5 text-popover-foreground shadow-[0_18px_36px_rgba(17,18,15,0.16)] origin-left motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:slide-in-from-left-1 lg:block">
+                        {renderCalendar()}
+                    </div>
+                </>
             ) : null}
         </div>
     );
@@ -206,6 +228,7 @@ export function TaskDueDatePicker({
     allowClear = false,
     disabled = false,
     popoverAlign = "start",
+    smallScreenCalendarPlacement = "inline",
     className,
 }: TaskDueDatePickerProps) {
     const [open, setOpen] = useState(false);
@@ -237,6 +260,7 @@ export function TaskDueDatePicker({
                     onChange={onChange}
                     allowClear={allowClear}
                     onClose={() => setOpen(false)}
+                    smallScreenCalendarPlacement={smallScreenCalendarPlacement}
                 />
             </PopoverContent>
         </Popover>

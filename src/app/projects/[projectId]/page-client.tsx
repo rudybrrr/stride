@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarRange, CheckSquare2, Filter, FolderKanban, MoreHorizontal, PencilLine, Share2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 
 import { AppShell, useShellActions } from "~/components/app-shell";
 import { EmptyState, PageHeader } from "~/components/app-primitives";
 import { ProjectDialog } from "~/components/project-dialog";
 import { ProjectMembersDialog } from "~/components/project-members-dialog";
-import type { TaskBulkEditChanges } from "~/components/task-bulk-edit-dialog";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
 import { TaskList } from "~/components/task-list";
 import { TaskSelectionBar } from "~/components/task-selection-bar";
@@ -45,9 +43,8 @@ import {
 } from "~/components/ui/sheet";
 import type { TaskDatasetRecord } from "~/hooks/use-task-dataset";
 import { useTaskDataset } from "~/hooks/use-task-dataset";
+import { dedupeTasks, useTaskSelectionActions } from "~/hooks/use-task-selection-actions";
 import { mergeBufferedTasks, useTaskTransitionBuffer } from "~/hooks/use-task-transition-buffer";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
-import { deleteTask, setTaskCompletion, updateTask } from "~/lib/task-actions";
 import type { TaskPriority } from "~/lib/task-views";
 import { cn } from "~/lib/utils";
 
@@ -67,15 +64,6 @@ const PROJECT_STATUS_OPTIONS = [
     { value: "all", label: "All" },
 ] as const;
 
-function dedupeTasks(tasks: TaskDatasetRecord[]) {
-    const seen = new Set<string>();
-    return tasks.filter((task) => {
-        if (seen.has(task.id)) return false;
-        seen.add(task.id);
-        return true;
-    });
-}
-
 export default function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
     return (
         <AppShell>
@@ -87,8 +75,7 @@ export default function ProjectWorkspaceClient({ projectId }: { projectId: strin
 function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     const router = useRouter();
     const { openQuickAdd } = useShellActions();
-    const { applyTaskPatch, removeTask, userId, lists, tasks, projectSummaries, imagesByTodo, loading, upsertTask } = useTaskDataset();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const { userId, lists, tasks, projectSummaries, imagesByTodo, loading } = useTaskDataset();
     const { bufferedTasks, queueBufferedTask } = useTaskTransitionBuffer();
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
@@ -96,12 +83,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [taskFilter, setTaskFilter] = useState<"open" | "done" | "all">("open");
     const [priorityFilter, setPriorityFilter] = useState<PriorityFilterValue>("all");
-    const [selectionMode, setSelectionMode] = useState(false);
-    const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
     const [bulkDeletingOpen, setBulkDeletingOpen] = useState(false);
-    const [bulkCompleting, setBulkCompleting] = useState(false);
-    const [bulkDeleting, setBulkDeleting] = useState(false);
-    const [bulkEditing, setBulkEditing] = useState(false);
 
     const project = lists.find((list) => list.id === projectId) ?? null;
     const projectSummary = projectSummaries.find((summary) => summary.list.id === projectId) ?? null;
@@ -126,13 +108,6 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
     const activeFilterCount = Number(taskFilter !== "open") + Number(priorityFilter !== "all");
     const selectableTasks = useMemo(() => dedupeTasks(visibleDisplayTasks), [visibleDisplayTasks]);
-    const selectableTaskIds = useMemo(() => new Set(selectableTasks.map((task) => task.id)), [selectableTasks]);
-    const selectedTaskIdSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
-    const selectedVisibleTasks = useMemo(
-        () => selectableTasks.filter((task) => selectedTaskIdSet.has(task.id)),
-        [selectableTasks, selectedTaskIdSet],
-    );
-    const allVisibleSelected = selectableTasks.length > 0 && selectedVisibleTasks.length === selectableTasks.length;
 
     useEffect(() => {
         if (!selectedTaskId) return;
@@ -141,282 +116,51 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
         }
     }, [selectedTaskId, visibleTasks]);
 
-    useEffect(() => {
-        if (!selectionMode) {
-            setSelectedTaskIds([]);
-            return;
-        }
+    const getBufferPlacement = useCallback((task: TaskDatasetRecord, nextIsDone: boolean) => {
+        const willLeaveCurrentFilter = (taskFilter === "open" && nextIsDone) || (taskFilter === "done" && !nextIsDone);
+        if (!willLeaveCurrentFilter) return null;
 
+        const visibleIndex = visibleTasks.findIndex((item) => item.id === task.id);
+        return visibleIndex !== -1 ? { bucket: `project:${taskFilter}`, index: visibleIndex } : null;
+    }, [taskFilter, visibleTasks]);
+
+    const {
+        selectionMode,
+        selectedTaskIdSet,
+        selectedVisibleTasks,
+        allVisibleSelected,
+        bulkCompleting,
+        bulkDeleting,
+        bulkEditing,
+        handleToggle,
+        handleToggleTaskSelection,
+        handleToggleSelectionMode,
+        handleCancelSelectionMode,
+        handleToggleSelectAll,
+        handleCompleteSelected,
+        handleDeleteSelected,
+        handleSetSelectedDueDate,
+        handleSetSelectedPriority,
+        handleMoveSelectedTasks,
+    } = useTaskSelectionActions({
+        allTasks: tasks,
+        selectableTasks,
+        queueBufferedTask,
+        getBufferPlacement,
+        onTaskDeleted(taskId) {
+            setSelectedTaskId((current) => current === taskId ? null : current);
+        },
+    });
+
+    async function handleConfirmDeleteSelected() {
+        await handleDeleteSelected();
+        setBulkDeletingOpen(false);
+    }
+
+    useEffect(() => {
+        if (!selectionMode) return;
         setSelectedTaskId(null);
     }, [selectionMode]);
-
-    useEffect(() => {
-        setSelectedTaskIds((current) => {
-            const next = current.filter((taskId) => selectableTaskIds.has(taskId));
-            return next.length === current.length ? current : next;
-        });
-    }, [selectableTaskIds]);
-
-    async function handleToggle(taskId: string, nextIsDone: boolean) {
-        const existingTask = tasks.find((task) => task.id === taskId);
-        if (!existingTask) return;
-
-        const optimisticUpdatedAt = new Date().toISOString();
-        const optimisticTask = {
-            ...existingTask,
-            is_done: nextIsDone,
-            completed_at: nextIsDone ? optimisticUpdatedAt : null,
-            updated_at: optimisticUpdatedAt,
-        };
-
-        const willLeaveCurrentFilter = (taskFilter === "open" && nextIsDone) || (taskFilter === "done" && !nextIsDone);
-        if (willLeaveCurrentFilter) {
-            const visibleIndex = visibleTasks.findIndex((task) => task.id === taskId);
-            if (visibleIndex !== -1) {
-                queueBufferedTask(optimisticTask, `project:${taskFilter}`, visibleIndex);
-            }
-        }
-
-        try {
-            applyTaskPatch(taskId, {
-                is_done: nextIsDone,
-                completed_at: nextIsDone ? optimisticUpdatedAt : null,
-                updated_at: optimisticUpdatedAt,
-            });
-            const updatedTask = await setTaskCompletion(supabase, taskId, nextIsDone);
-            upsertTask(updatedTask, { suppressRealtimeEcho: true });
-            toast.success(nextIsDone ? "Task completed." : "Task reopened.");
-        } catch (error) {
-            upsertTask(existingTask);
-            toast.error(error instanceof Error ? error.message : "Unable to update task.");
-        }
-    }
-
-    function handleToggleTaskSelection(task: TaskDatasetRecord) {
-        setSelectedTaskIds((current) => current.includes(task.id)
-            ? current.filter((taskId) => taskId !== task.id)
-            : [...current, task.id]);
-    }
-
-    function handleToggleSelectionMode() {
-        setSelectionMode((current) => !current);
-    }
-
-    function handleCancelSelectionMode() {
-        setSelectedTaskIds([]);
-        setSelectionMode(false);
-    }
-
-    function handleToggleSelectAll() {
-        if (allVisibleSelected) {
-            setSelectedTaskIds([]);
-            return;
-        }
-
-        setSelectedTaskIds(selectableTasks.map((task) => task.id));
-    }
-
-    async function handleCompleteSelected() {
-        const tasksToComplete = selectedVisibleTasks.filter((task) => !task.is_done);
-        if (tasksToComplete.length === 0) return;
-
-        setBulkCompleting(true);
-        const optimisticUpdatedAt = new Date().toISOString();
-
-        for (const task of tasksToComplete) {
-            const optimisticTask = {
-                ...task,
-                is_done: true,
-                completed_at: optimisticUpdatedAt,
-                updated_at: optimisticUpdatedAt,
-            };
-
-            if (taskFilter === "open") {
-                const visibleIndex = visibleTasks.findIndex((item) => item.id === task.id);
-                if (visibleIndex !== -1) {
-                    queueBufferedTask(optimisticTask, `project:${taskFilter}`, visibleIndex);
-                }
-            }
-
-            applyTaskPatch(task.id, {
-                is_done: true,
-                completed_at: optimisticUpdatedAt,
-                updated_at: optimisticUpdatedAt,
-            });
-        }
-
-        const results = await Promise.allSettled(
-            tasksToComplete.map((task) => setTaskCompletion(supabase, task.id, true)),
-        );
-
-        let successCount = 0;
-        const failedTaskIds: string[] = [];
-
-        results.forEach((result, index) => {
-            const originalTask = tasksToComplete[index];
-            if (!originalTask) return;
-
-            if (result.status === "fulfilled") {
-                upsertTask(result.value, { suppressRealtimeEcho: true });
-                successCount += 1;
-                return;
-            }
-
-            upsertTask(originalTask);
-            failedTaskIds.push(originalTask.id);
-        });
-
-        if (successCount > 0) {
-            toast.success(`${successCount} task${successCount === 1 ? "" : "s"} completed.`);
-        }
-        if (failedTaskIds.length > 0) {
-            toast.error(`${failedTaskIds.length} task${failedTaskIds.length === 1 ? "" : "s"} failed to update.`);
-        }
-
-        setSelectedTaskIds(failedTaskIds);
-        if (failedTaskIds.length === 0) {
-            setSelectionMode(false);
-        }
-        setBulkCompleting(false);
-    }
-
-    async function handleDeleteSelected() {
-        if (selectedVisibleTasks.length === 0) return;
-
-        setBulkDeleting(true);
-
-        const results = await Promise.allSettled(
-            selectedVisibleTasks.map((task) => deleteTask(supabase, task.id)),
-        );
-
-        let successCount = 0;
-        const failedTaskIds: string[] = [];
-
-        results.forEach((result, index) => {
-            const task = selectedVisibleTasks[index];
-            if (!task) return;
-
-            if (result.status === "fulfilled") {
-                removeTask(task.id, { suppressRealtimeEcho: true });
-                successCount += 1;
-                if (selectedTaskId === task.id) {
-                    setSelectedTaskId(null);
-                }
-                return;
-            }
-
-            failedTaskIds.push(task.id);
-        });
-
-        if (successCount > 0) {
-            toast.success(`${successCount} task${successCount === 1 ? "" : "s"} deleted.`);
-        }
-        if (failedTaskIds.length > 0) {
-            toast.error(`${failedTaskIds.length} task${failedTaskIds.length === 1 ? "" : "s"} failed to delete.`);
-        }
-
-        setBulkDeletingOpen(false);
-        setSelectedTaskIds(failedTaskIds);
-        if (failedTaskIds.length === 0) {
-            setSelectionMode(false);
-        }
-        setBulkDeleting(false);
-    }
-
-    async function handleEditSelected(changes: TaskBulkEditChanges) {
-        if (selectedVisibleTasks.length === 0) return;
-
-        setBulkEditing(true);
-        const optimisticUpdatedAt = new Date().toISOString();
-        const tasksToUpdate = selectedVisibleTasks.map((task) => {
-            const nextDueDate = changes.dueDate.mode === "keep"
-                ? task.due_date ?? null
-                : changes.dueDate.mode === "clear"
-                    ? null
-                    : (changes.dueDate.value ?? null);
-            const nextPriority = changes.priority.mode === "keep"
-                ? task.priority ?? null
-                : changes.priority.mode === "clear"
-                    ? null
-                    : (changes.priority.value ?? null);
-            const nextListId = changes.list.mode === "keep"
-                ? task.list_id
-                : (changes.list.value ?? task.list_id);
-
-            return { originalTask: task, nextDueDate, nextPriority, nextListId };
-        });
-
-        for (const { originalTask, nextDueDate, nextPriority, nextListId } of tasksToUpdate) {
-            applyTaskPatch(originalTask.id, {
-                due_date: nextDueDate,
-                priority: nextPriority,
-                list_id: nextListId,
-                updated_at: optimisticUpdatedAt,
-            });
-        }
-
-        const results = await Promise.allSettled(
-            tasksToUpdate.map(({ originalTask, nextDueDate, nextPriority, nextListId }) => updateTask(supabase, {
-                id: originalTask.id,
-                title: originalTask.title,
-                description: originalTask.description ?? null,
-                dueDate: nextDueDate,
-                priority: nextPriority,
-                estimatedMinutes: originalTask.estimated_minutes ?? null,
-                listId: nextListId,
-            })),
-        );
-
-        let successCount = 0;
-        const failedTaskIds: string[] = [];
-
-        results.forEach((result, index) => {
-            const taskUpdate = tasksToUpdate[index];
-            if (!taskUpdate) return;
-
-            if (result.status === "fulfilled") {
-                upsertTask(result.value, { suppressRealtimeEcho: true });
-                successCount += 1;
-                return;
-            }
-
-            upsertTask(taskUpdate.originalTask);
-            failedTaskIds.push(taskUpdate.originalTask.id);
-        });
-
-        if (successCount > 0) {
-            toast.success(`${successCount} task${successCount === 1 ? "" : "s"} updated.`);
-        }
-        if (failedTaskIds.length > 0) {
-            toast.error(`${failedTaskIds.length} task${failedTaskIds.length === 1 ? "" : "s"} failed to update.`);
-        }
-
-        setBulkEditing(false);
-    }
-
-    function handleSetSelectedDueDate(value: string | null) {
-        void handleEditSelected({
-            dueDate: value ? { mode: "set", value } : { mode: "clear" },
-            priority: { mode: "keep" },
-            list: { mode: "keep" },
-        });
-    }
-
-    function handleSetSelectedPriority(value: TaskPriority | null) {
-        void handleEditSelected({
-            dueDate: { mode: "keep" },
-            priority: value ? { mode: "set", value } : { mode: "clear" },
-            list: { mode: "keep" },
-        });
-    }
-
-    function handleMoveSelectedTasks(listId: string) {
-        void handleEditSelected({
-            dueDate: { mode: "keep" },
-            priority: { mode: "keep" },
-            list: { mode: "set", value: listId },
-        });
-    }
 
     if (!project || !projectSummary) {
         return (
@@ -642,7 +386,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                         <Button variant="outline" onClick={() => setBulkDeletingOpen(false)}>
                             Cancel
                         </Button>
-                        <Button variant="destructive" onClick={() => void handleDeleteSelected()} disabled={bulkDeleting}>
+                        <Button variant="destructive" onClick={() => void handleConfirmDeleteSelected()} disabled={bulkDeleting}>
                             {bulkDeleting ? "Deleting..." : "Delete"}
                         </Button>
                     </DialogFooter>

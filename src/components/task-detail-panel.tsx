@@ -296,6 +296,7 @@ function TaskDetailForm({
                             placeholder="Choose date"
                             allowClear
                             popoverAlign="end"
+                            smallScreenCalendarPlacement="left"
                             className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-right shadow-none focus-visible:ring-0 [&>span]:w-full [&>span]:justify-end [&>span]:text-right"
                         />
                     </div>

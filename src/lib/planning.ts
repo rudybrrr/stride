@@ -1,50 +1,18 @@
 import {
   addDays,
-  addMinutes,
   differenceInMinutes,
-  endOfMonth,
-  endOfWeek,
   format,
   isValid,
   parseISO,
   startOfDay,
-  startOfMonth,
   startOfWeek,
 } from "date-fns";
 
 export type PlannerView = "month" | "week";
 
-export const ALL_PROJECTS_VALUE = "all";
-export const DEFAULT_DAILY_GOAL_MINUTES = 120;
 export const WEEK_STARTS_ON = 1 as const;
 
-export function clampPlannerAnchor(view: PlannerView, anchorDate: Date, minimumDate = new Date()) {
-  const minimumAnchor = startOfDay(minimumDate);
-
-  if (view === "month") {
-    return startOfMonth(anchorDate).getTime() < startOfMonth(minimumAnchor).getTime()
-      ? minimumAnchor
-      : anchorDate;
-  }
-
-  return startOfWeek(anchorDate, { weekStartsOn: WEEK_STARTS_ON }).getTime() <
-    startOfWeek(minimumAnchor, { weekStartsOn: WEEK_STARTS_ON }).getTime()
-    ? minimumAnchor
-    : anchorDate;
-}
-
-export function canNavigateToPreviousPlannerRange(view: PlannerView, anchorDate: Date, minimumDate = new Date()) {
-  const minimumAnchor = startOfDay(minimumDate);
-
-  if (view === "month") {
-    return startOfMonth(anchorDate).getTime() > startOfMonth(minimumAnchor).getTime();
-  }
-
-  return startOfWeek(anchorDate, { weekStartsOn: WEEK_STARTS_ON }).getTime() >
-    startOfWeek(minimumAnchor, { weekStartsOn: WEEK_STARTS_ON }).getTime();
-}
-
-export function parsePlannerDate(raw: string | null | undefined) {
+function parsePlannerDate(raw: string | null | undefined) {
   if (!raw) return startOfDay(new Date());
 
   const parsed = parseISO(raw);
@@ -53,35 +21,6 @@ export function parsePlannerDate(raw: string | null | undefined) {
 
 export function toDateKey(date: Date) {
   return format(date, "yyyy-MM-dd");
-}
-
-export function getLocalDayBounds(date: Date) {
-  const start = startOfDay(date);
-  return {
-    start,
-    endExclusive: addDays(start, 1),
-  };
-}
-
-export function getVisibleRange(view: PlannerView, anchorDate: Date) {
-  if (view === "week") {
-    const start = startOfWeek(anchorDate, { weekStartsOn: WEEK_STARTS_ON });
-    return {
-      start,
-      endExclusive: addDays(start, 7),
-    };
-  }
-
-  const start = startOfWeek(startOfMonth(anchorDate), { weekStartsOn: WEEK_STARTS_ON });
-  const endExclusive = addDays(
-    endOfWeek(endOfMonth(anchorDate), { weekStartsOn: WEEK_STARTS_ON }),
-    1,
-  );
-
-  return {
-    start,
-    endExclusive,
-  };
 }
 
 export function getWeekDays(anchorDate: Date) {
@@ -111,18 +50,6 @@ export function combineDateAndTime(dateKey: string, time: string) {
 
 export function getDurationMinutes(startIso: string, endIso: string) {
   return Math.max(1, differenceInMinutes(new Date(endIso), new Date(startIso)));
-}
-
-export function moveBlockToDate(startIso: string, endIso: string, destinationDateKey: string) {
-  const sourceStart = new Date(startIso);
-  const newStart = combineDateAndTime(destinationDateKey, format(sourceStart, "HH:mm"));
-  const durationMinutes = getDurationMinutes(startIso, endIso);
-  const newEnd = addMinutes(newStart, durationMinutes);
-
-  return {
-    scheduled_start: newStart.toISOString(),
-    scheduled_end: newEnd.toISOString(),
-  };
 }
 
 export function formatBlockTimeRange(startIso: string, endIso: string) {
