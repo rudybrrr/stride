@@ -15,6 +15,7 @@ function formatTime(seconds: number) {
 export function FocusStrip() {
     const { mode, timeLeft, isActive, toggleTimer, resetTimer, handleModeChange } = useFocus();
     const config = MODE_CONFIG[mode];
+    const modeOptions = ["focus", "shortBreak", "longBreak"] as const;
 
     return (
         <div className="surface-card flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -35,7 +36,7 @@ export function FocusStrip() {
 
             <div className="flex flex-col gap-3 sm:items-end">
                 <div className="flex flex-wrap gap-2">
-                    {(["focus", "shortBreak", "longBreak"] as const).map((nextMode) => (
+                    {modeOptions.map((nextMode) => (
                         <button
                             key={nextMode}
                             type="button"
@@ -62,6 +63,64 @@ export function FocusStrip() {
                         Reset
                     </Button>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+export function CompactFocusStrip() {
+    const { mode, timeLeft, isActive, toggleTimer, resetTimer, handleModeChange } = useFocus();
+    const config = MODE_CONFIG[mode];
+    const modeOptions = ["focus", "shortBreak", "longBreak"] as const;
+
+    return (
+        <div className="surface-card space-y-4 p-4">
+            <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1.5">
+                    <p className="eyebrow">Focus</p>
+                    <div className="flex items-center gap-3">
+                        <div className={cn("rounded-lg p-2.5", config.bgColor)}>
+                            <config.icon className={cn("h-4.5 w-4.5", config.color)} />
+                        </div>
+                        <div>
+                            <p className="font-mono text-[1.75rem] font-semibold tracking-[-0.06em] text-foreground">
+                                {formatTime(timeLeft)}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                                {mode === "focus" ? "Focus block" : "Break"}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+                {modeOptions.map((nextMode) => (
+                    <button
+                        key={nextMode}
+                        type="button"
+                        onClick={() => handleModeChange(nextMode)}
+                        className={cn(
+                            "rounded-md px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] transition-colors",
+                            mode === nextMode
+                                ? "bg-accent text-accent-foreground"
+                                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                        )}
+                    >
+                        {nextMode === "focus" ? "Focus" : nextMode === "shortBreak" ? "Short" : "Long"}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+                <Button size="sm" className="flex-1" onClick={toggleTimer}>
+                    {isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    {isActive ? "Pause" : "Start"}
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1" onClick={resetTimer}>
+                    <RotateCcw className="h-4 w-4" />
+                    Reset
+                </Button>
             </div>
         </div>
     );

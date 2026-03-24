@@ -15,7 +15,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "~/components/ui/dialog";
-import { DatePickerField } from "~/components/ui/date-picker-field";
+import { TaskDueDatePicker } from "~/components/task-due-date-picker";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
@@ -149,7 +149,13 @@ export function QuickAddDialog({
                             <Label htmlFor="quickAddDue" className="eyebrow">
                                 Due
                             </Label>
-                            <DatePickerField id="quickAddDue" value={dueDate} onChange={setDueDate} placeholder="Choose date" allowClear />
+                            <TaskDueDatePicker
+                                id="quickAddDue"
+                                value={dueDate}
+                                onChange={setDueDate}
+                                placeholder="Choose date"
+                                allowClear
+                            />
                         </div>
                     </div>
 

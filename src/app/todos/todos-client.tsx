@@ -30,8 +30,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "~/components/ui/popover";
-import { Calendar } from "~/components/ui/calendar";
 import { format, isToday, isTomorrow, isYesterday, differenceInCalendarDays } from "date-fns";
+import { TaskDueDateMenu } from "~/components/task-due-date-picker";
 import type { TodoRow, TodoImageRow } from "~/lib/types";
 
 const BUCKET = "todo-images";
@@ -89,12 +89,14 @@ export default function TodosClient({ userId }: { userId: string, username?: str
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"high" | "medium" | "low" | null>(null);
   const [dueDate, setDueDate] = useState<string | null>(null);
+  const [creatorDueDateOpen, setCreatorDueDateOpen] = useState(false);
 
   // Individual Task Expand State
   const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null);
   const [editDesc, setEditDesc] = useState("");
   const [editPriority, setEditPriority] = useState<"high" | "medium" | "low" | null>(null);
   const [editDate, setEditDate] = useState<string | null>(null);
+  const [editDueDateOpen, setEditDueDateOpen] = useState(false);
   const { setCurrentListId } = useFocus();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -361,6 +363,7 @@ export default function TodosClient({ userId }: { userId: string, username?: str
     setDescription("");
     setPriority(null);
     setDueDate(null);
+    setCreatorDueDateOpen(false);
     setIsCreatorExpanded(false);
 
     const { error } = await supabase.from("todos").insert({
@@ -434,10 +437,12 @@ export default function TodosClient({ userId }: { userId: string, username?: str
     setEditDesc(t.description ?? "");
     setEditPriority(t.priority as "high" | "medium" | "low" | null);
     setEditDate(t.due_date ? (t.due_date.split('T')[0] ?? null) : null);
+    setEditDueDateOpen(false);
   }, [expandedTodoId]);
 
   const handleSaveExpandedTodo = useCallback((id: string) => {
     setExpandedTodoId(null);
+    setEditDueDateOpen(false);
     void updateTodoDetails(id, {
       description: editDesc.trim() || null,
       priority: editPriority,
@@ -666,28 +671,28 @@ export default function TodosClient({ userId }: { userId: string, username?: str
                         </div>
 
                         {/* Due Date Picker */}
-                        <Popover>
+                        <Popover open={creatorDueDateOpen} onOpenChange={setCreatorDueDateOpen}>
                           <PopoverTrigger asChild>
                             <Button type="button" variant="outline" size="sm" className={`h-9 gap-2 border-border/50 bg-background/50 font-medium ${dueDate ? 'text-primary border-primary/30' : 'text-muted-foreground'}`}>
                               <CalendarIcon className="w-4 h-4" />
-                              {dueDate ? format(new Date(dueDate + 'T12:00:00'), 'MMM d, yyyy') : 'Today'}
+                              {dueDate ? format(new Date(dueDate + 'T12:00:00'), 'MMM d, yyyy') : 'Due date'}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={dueDate ? new Date(dueDate + 'T12:00:00') : undefined}
-                              onSelect={(date) => {
-                                setDueDate(date ? format(date, 'yyyy-MM-dd') : null);
+                          <PopoverContent className="w-auto p-2.5" align="start">
+                            <TaskDueDateMenu
+                              value={dueDate}
+                              allowClear
+                              onChange={(nextValue) => {
+                                setDueDate(nextValue || null);
+                                setCreatorDueDateOpen(false);
                               }}
-                              initialFocus
                             />
                           </PopoverContent>
                         </Popover>
                       </div>
 
                       <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                        <Button variant="ghost" size="sm" onClick={() => { setIsCreatorExpanded(false); setTitle(""); setDescription(""); setPriority(null); setDueDate(null); }}>Cancel</Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setIsCreatorExpanded(false); setTitle(""); setDescription(""); setPriority(null); setDueDate(null); setCreatorDueDateOpen(false); }}>Cancel</Button>
                         <Button size="sm" onClick={() => void addTodo()} disabled={!title.trim() || isSubmitting} className="font-semibold bg-primary text-primary-foreground min-w-[80px]">Save</Button>
                       </div>
                     </div>
@@ -802,27 +807,27 @@ export default function TodosClient({ userId }: { userId: string, username?: str
                                       </div>
 
                                       {/* Due Date Picker */}
-                                      <Popover>
+                                      <Popover open={editDueDateOpen} onOpenChange={setEditDueDateOpen}>
                                         <PopoverTrigger asChild>
                                           <Button type="button" variant="outline" size="sm" className={`h-9 gap-2 shadow-sm border-border/50 bg-background/50 font-medium ${editDate ? 'text-primary border-primary/30' : 'text-muted-foreground'}`}>
                                             <CalendarIcon className="w-4 h-4" />
                                             {editDate ? format(new Date(editDate + 'T12:00:00'), 'MMM d, yyyy') : 'Due Date'}
                                           </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0" align="start">
-                                          <Calendar
-                                            mode="single"
-                                            selected={editDate ? new Date(editDate + 'T12:00:00') : undefined}
-                                            onSelect={(date) => {
-                                              setEditDate(date ? format(date, 'yyyy-MM-dd') : null);
+                                        <PopoverContent className="w-auto p-2.5" align="start">
+                                          <TaskDueDateMenu
+                                            value={editDate}
+                                            allowClear
+                                            onChange={(nextValue) => {
+                                              setEditDate(nextValue || null);
+                                              setEditDueDateOpen(false);
                                             }}
-                                            initialFocus
                                           />
                                         </PopoverContent>
                                       </Popover>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      <Button variant="ghost" size="sm" onClick={() => setExpandedTodoId(null)} className="hidden sm:inline-flex text-muted-foreground">Close</Button>
+                                      <Button variant="ghost" size="sm" onClick={() => { setExpandedTodoId(null); setEditDueDateOpen(false); }} className="hidden sm:inline-flex text-muted-foreground">Close</Button>
                                       <Button size="sm" onClick={() => handleSaveExpandedTodo(t.id)} className="font-semibold bg-primary text-primary-foreground min-w-[80px] shadow-md shadow-primary/20">Save</Button>
                                     </div>
                                   </div>

@@ -16,7 +16,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "~/components/ui/dialog";
-import { DatePickerField } from "~/components/ui/date-picker-field";
+import { TaskDueDatePicker } from "~/components/task-due-date-picker";
 import { Input } from "~/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "~/components/ui/sheet";
@@ -206,17 +206,17 @@ function TaskDetailForm({
     return (
         <>
             <div className="space-y-6">
-                <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-4">
+                <div className="flex items-start justify-between gap-4 border-b border-border pb-4">
                     <div className="min-w-0 flex flex-1 items-center gap-3">
                         <button
                             type="button"
                             aria-label={isDone ? "Mark task incomplete" : "Mark task complete"}
                             onClick={() => void handleToggleCompletion()}
                             className={cn(
-                                "flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
+                                "flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors",
                                 isDone
                                     ? "border-primary bg-primary text-primary-foreground"
-                                    : "border-border/80 bg-background/80 text-transparent hover:border-primary/60",
+                                    : "border-border bg-card text-transparent hover:border-primary/60",
                             )}
                         >
                             <Check className="h-4 w-4" />
@@ -267,9 +267,9 @@ function TaskDetailForm({
                     />
                 </section>
 
-                <section className="divide-y divide-border/60 border-y border-border/60">
+                <section className="divide-y divide-border/70 border-y border-border/70">
                     <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-4 py-3">
-                        <p className="text-sm text-muted-foreground">Project</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Project</p>
                         <Select value={listId} onValueChange={setListId}>
                             <SelectTrigger
                                 id="detailProject"
@@ -288,19 +288,20 @@ function TaskDetailForm({
                     </div>
 
                     <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-4 py-3">
-                        <p className="text-sm text-muted-foreground">Due</p>
-                        <DatePickerField
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Due</p>
+                        <TaskDueDatePicker
                             id="detailDue"
                             value={dueDate}
                             onChange={setDueDate}
                             placeholder="Choose date"
                             allowClear
+                            popoverAlign="end"
                             className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-right shadow-none focus-visible:ring-0 [&>span]:w-full [&>span]:justify-end [&>span]:text-right"
                         />
                     </div>
 
                     <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-4 py-3">
-                        <p className="text-sm text-muted-foreground">Priority</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Priority</p>
                         <Select
                             value={priority || "none"}
                             onValueChange={(value) => setPriority(value === "none" ? "" : value as typeof priority)}
@@ -321,7 +322,7 @@ function TaskDetailForm({
                     </div>
 
                     <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-4 py-3">
-                        <p className="text-sm text-muted-foreground">Estimate</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estimate</p>
                         <div className="flex items-center justify-end gap-2">
                             <Input
                                 id="detailEstimate"
@@ -333,7 +334,7 @@ function TaskDetailForm({
                                 placeholder="45"
                                 className="h-auto w-20 rounded-none border-0 bg-transparent px-0 py-0 text-right shadow-none focus-visible:ring-0"
                             />
-                            <span className="text-sm text-muted-foreground">min</span>
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Min</span>
                         </div>
                     </div>
                 </section>
@@ -352,7 +353,7 @@ function TaskDetailForm({
                 <section className="space-y-3 border-t border-border/60 pt-5">
                     <div className="flex items-start justify-between gap-3">
                         <div>
-                            <p className="text-xs font-medium text-muted-foreground">Attachments</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Attachments</p>
                             {images.length > 0 ? (
                                 <p className="mt-0.5 text-xs text-muted-foreground">
                                     {images.length} file{images.length === 1 ? "" : "s"} attached
@@ -382,13 +383,13 @@ function TaskDetailForm({
                                 return (
                                     <div
                                         key={image.id}
-                                        className="flex items-center gap-3 rounded-[1rem] border border-border/60 bg-background/35 px-3 py-2.5"
+                                        className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2.5"
                                     >
                                         <a
                                             href={publicUrl}
                                             target="_blank"
                                             rel="noreferrer"
-                                            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted/35"
+                                            className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md bg-card"
                                         >
                                             {imageAttachment ? (
                                                 // eslint-disable-next-line @next/next/no-img-element
@@ -439,7 +440,7 @@ function TaskDetailForm({
             </div>
 
             <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-                <DialogContent className="max-w-md rounded-[1.5rem]">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Delete task?</DialogTitle>
                         <DialogDescription>
@@ -503,7 +504,7 @@ export function TaskDetailPanel({
                 <DialogContent
                     showCloseButton={false}
                     className={cn(
-                        "hidden max-w-[min(680px,calc(100vw-2rem))] overflow-hidden rounded-[2rem] border-border/70 p-0 shadow-[0_28px_80px_rgba(15,23,42,0.22)] lg:block",
+                        "hidden max-w-[min(680px,calc(100vw-2rem))] overflow-hidden p-0 lg:block",
                         className,
                     )}
                 >

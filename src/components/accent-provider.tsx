@@ -3,17 +3,17 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
 export const ACCENT_OPTIONS = [
-    { value: "blue", label: "Blue", swatch: "#2f6ae0" },
-    { value: "teal", label: "Teal", swatch: "#147d73" },
-    { value: "green", label: "Green", swatch: "#2f8f54" },
-    { value: "amber", label: "Amber", swatch: "#c47d1f" },
-    { value: "rose", label: "Rose", swatch: "#c45172" },
-    { value: "slate", label: "Slate", swatch: "#55657d" },
+    { value: "blue", label: "Blue", swatch: "#5f6f82" },
+    { value: "teal", label: "Teal", swatch: "#366760" },
+    { value: "green", label: "Green", swatch: "#4d6547" },
+    { value: "amber", label: "Amber", swatch: "#946a36" },
+    { value: "rose", label: "Rose", swatch: "#8d5f6b" },
+    { value: "slate", label: "Slate", swatch: "#53605b" },
 ] as const;
 
 export type AccentToken = (typeof ACCENT_OPTIONS)[number]["value"];
 
-const DEFAULT_ACCENT: AccentToken = "blue";
+const DEFAULT_ACCENT: AccentToken = "slate";
 const STORAGE_KEY = "study-sprint-accent";
 
 interface AccentContextValue {

@@ -22,7 +22,7 @@ import {
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTheme } from "next-themes";
 
 import { ProjectDialog } from "~/components/project-dialog";
@@ -258,6 +258,21 @@ function AppShellLayout({
         desktopCollapsedRef.current = desktopCollapsed;
     }, [desktopCollapsed]);
 
+    const clearHoverPreviewTimer = useCallback(() => {
+        if (hoverPreviewTimerRef.current !== null) {
+            window.clearTimeout(hoverPreviewTimerRef.current);
+            hoverPreviewTimerRef.current = null;
+        }
+    }, []);
+
+    const setCollapsedState = useCallback((nextValue: boolean) => {
+        clearHoverPreviewTimer();
+        setDesktopProfileMenuId(null);
+        setDesktopPreviewOpen(false);
+        setDesktopCollapsed(nextValue);
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(nextValue));
+    }, [clearHoverPreviewTimer]);
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (!event.metaKey && !event.ctrlKey) return;
@@ -285,22 +300,7 @@ function AppShellLayout({
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
         };
-    }, []);
-
-    function clearHoverPreviewTimer() {
-        if (hoverPreviewTimerRef.current !== null) {
-            window.clearTimeout(hoverPreviewTimerRef.current);
-            hoverPreviewTimerRef.current = null;
-        }
-    }
-
-    function setCollapsedState(nextValue: boolean) {
-        clearHoverPreviewTimer();
-        setDesktopProfileMenuId(null);
-        setDesktopPreviewOpen(false);
-        setDesktopCollapsed(nextValue);
-        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(nextValue));
-    }
+    }, [setCollapsedState]);
 
     function openDesktopPreview() {
         clearHoverPreviewTimer();
@@ -383,33 +383,31 @@ function AppShellLayout({
         saveProjectOrder(nextProjectIds);
     }
 
-    function renderProfileMenuContent(options: { mobile: boolean }) {
-        const { mobile } = options;
-
+    function renderProfileMenuContent() {
         return (
             <DropdownMenuContent
                 align="end"
-                className="w-72 rounded-2xl"
+                className="w-72 rounded-xl"
             >
-                <DropdownMenuItem asChild className="rounded-xl px-3 py-2">
+                <DropdownMenuItem asChild className="rounded-md px-3 py-2">
                     <Link href="/progress">
                         <BarChart3 className="h-4 w-4" />
                         Progress
                     </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-xl px-3 py-2">
+                <DropdownMenuItem asChild className="rounded-md px-3 py-2">
                     <Link href="/community">
                         <Users className="h-4 w-4" />
                         Community
                     </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-xl px-3 py-2">
+                <DropdownMenuItem asChild className="rounded-md px-3 py-2">
                     <Link href="/tasks?view=done">
                         <CheckSquare2 className="h-4 w-4" />
                         Completed Tasks
                     </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-xl px-3 py-2">
+                <DropdownMenuItem asChild className="rounded-md px-3 py-2">
                     <Link href="/settings">
                         <Settings className="h-4 w-4" />
                         Settings
@@ -420,25 +418,25 @@ function AppShellLayout({
                     Theme
                 </DropdownMenuLabel>
                 <DropdownMenuRadioGroup value={activeTheme} onValueChange={(value) => setTheme(value)}>
-                    <DropdownMenuRadioItem value="light" className="rounded-xl px-3 py-2">
+                    <DropdownMenuRadioItem value="light" className="rounded-md px-3 py-2">
                         <Sun className="h-4 w-4" />
                         Light
                     </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="dark" className="rounded-xl px-3 py-2">
+                    <DropdownMenuRadioItem value="dark" className="rounded-md px-3 py-2">
                         <Moon className="h-4 w-4" />
                         Dark
                     </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="midnight" className="rounded-xl px-3 py-2">
+                    <DropdownMenuRadioItem value="midnight" className="rounded-md px-3 py-2">
                         <MoonStar className="h-4 w-4" />
                         Midnight
                     </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="noir" className="rounded-xl px-3 py-2">
+                    <DropdownMenuRadioItem value="noir" className="rounded-md px-3 py-2">
                         <Circle className="h-4 w-4" />
                         Noir
                     </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="rounded-xl px-3 py-2" onClick={() => void handleLogout()}>
+                <DropdownMenuItem className="rounded-md px-3 py-2" onClick={() => void handleLogout()}>
                     <LogOut className="h-4 w-4" />
                     Log out
                 </DropdownMenuItem>
@@ -455,7 +453,7 @@ function AppShellLayout({
                     type="button"
                     onClick={() => openGlobalSearch({ closeMobileSidebar: mobile })}
                     title="Search"
-                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-sidebar-border/80 bg-sidebar-accent/35 text-muted-foreground transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
+                    className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-sidebar-border bg-sidebar text-muted-foreground transition-colors hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
                 >
                     <Search className="h-4 w-4" />
                     <span className="sr-only">Search</span>
@@ -467,12 +465,12 @@ function AppShellLayout({
             <button
                 type="button"
                 onClick={() => openGlobalSearch({ closeMobileSidebar: mobile })}
-                className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/20 px-3 text-sm text-muted-foreground transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/55 hover:text-sidebar-foreground"
+                className="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg border border-sidebar-border bg-sidebar px-3 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
             >
                 <Search className="h-4 w-4 shrink-0" />
                 <span className="min-w-0 flex-1 text-left">Search</span>
                 {mobile ? null : (
-                    <span className="rounded-md border border-sidebar-border/70 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    <span className="rounded-sm border border-sidebar-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                         Ctrl K
                     </span>
                 )}
@@ -498,17 +496,17 @@ function AppShellLayout({
                                 title={summary.list.name}
                                 onClick={() => handleNavigate(`/projects/${summary.list.id}`)}
                                 className={cn(
-                                    "group mx-auto flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200",
+                                    "group mx-auto flex h-10 w-10 items-center justify-center rounded-lg border border-transparent transition-colors",
                                     active
-                                        ? "bg-sidebar-accent/85 shadow-[0_10px_24px_rgba(15,23,42,0.16)] ring-1 ring-sidebar-border/70"
-                                        : "hover:bg-sidebar-accent/60",
+                                        ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground"
+                                        : "hover:border-sidebar-border hover:bg-sidebar-accent/60",
                                 )}
                             >
                                 <span
                                     className={cn(
-                                        "flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200",
+                                        "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
                                         palette.soft,
-                                        active ? cn("border", palette.border) : "opacity-80 group-hover:opacity-100 group-hover:scale-[1.04]",
+                                        active ? cn("border", palette.border) : "opacity-80 group-hover:opacity-100",
                                     )}
                                 >
                                     <Icon className={cn("h-4 w-4", palette.text, !active && "opacity-90")} />
@@ -553,14 +551,14 @@ function AppShellLayout({
                                         cursor: snapshot.isDragging ? "grabbing" : "pointer",
                                     }}
                                     className={cn(
-                                        "flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                                        "flex w-full cursor-pointer items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left text-sm font-medium transition-colors",
                                         active
-                                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                            : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
-                                        snapshot.isDragging && "cursor-grabbing bg-sidebar-accent/80 shadow-sm",
+                                            ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground"
+                                            : "text-muted-foreground hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+                                        snapshot.isDragging && "cursor-grabbing border-sidebar-border bg-sidebar-accent/80",
                                     )}
                                 >
-                                    <span className={cn("pointer-events-none h-2.5 w-2.5 rounded-full", palette.accent)} />
+                                    <span className={cn("pointer-events-none h-2.5 w-2.5 rounded-sm", palette.accent)} />
                                     <Icon className={cn("pointer-events-none h-4 w-4 shrink-0", active ? palette.text : "text-muted-foreground")} />
                                     <span className="pointer-events-none min-w-0 flex-1 truncate">{summary.list.name}</span>
                                     <span className="pointer-events-none font-mono text-[11px] text-muted-foreground">
@@ -588,13 +586,13 @@ function AppShellLayout({
                                 type="button"
                                 onClick={() => handleNavigate(`/projects/${summary.list.id}`)}
                                 className={cn(
-                                    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                                    "flex w-full items-center gap-3 rounded-md border border-transparent px-3 py-2.5 text-left text-sm font-medium transition-colors",
                                     active
-                                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                        : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+                                        ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground"
+                                        : "text-muted-foreground hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
                                 )}
                             >
-                                <span className={cn("h-2.5 w-2.5 rounded-full", palette.accent)} />
+                                <span className={cn("h-2.5 w-2.5 rounded-sm", palette.accent)} />
                                 <Icon className={cn("h-4 w-4 shrink-0", active ? palette.text : "text-muted-foreground")} />
                                 <span className="min-w-0 flex-1 truncate">{summary.list.name}</span>
                                 <span className="font-mono text-[11px] text-muted-foreground">{summary.incompleteCount}</span>
@@ -644,7 +642,7 @@ function AppShellLayout({
                             <Link
                                 href="/tasks"
                                 title="Go to Today"
-                                className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-sidebar-accent/80 text-sm font-semibold tracking-[-0.05em] text-sidebar-foreground shadow-[0_10px_24px_rgba(15,23,42,0.16)] transition-transform duration-200 hover:-translate-y-px"
+                                className="flex h-10 w-10 items-center justify-center rounded-lg border border-sidebar-border bg-sidebar-accent text-sm font-semibold tracking-[0.08em] text-sidebar-foreground transition-colors hover:bg-sidebar-accent/80"
                             >
                                 <span aria-hidden="true">S</span>
                                 <span className="sr-only">Go to Today</span>
@@ -659,7 +657,7 @@ function AppShellLayout({
                                     if (mobile) setMobileSidebarOpen(false);
                                 }}
                                 title="Quick add"
-                                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_26px_rgba(15,23,42,0.2)] transition-[background-color,box-shadow,transform] duration-200 hover:bg-primary/94 motion-safe:hover:-translate-y-px"
+                                className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/92"
                             >
                                 <Plus className="h-4 w-4" />
                                 <span className="sr-only">Quick Add</span>
@@ -668,7 +666,7 @@ function AppShellLayout({
                     ) : (
                         <>
                             <div className="flex items-center justify-between gap-3">
-                                <Link href="/tasks" className="min-w-0 text-lg font-semibold tracking-[-0.03em] text-sidebar-foreground">
+                                <Link href="/tasks" className="min-w-0 text-base font-semibold uppercase tracking-[0.14em] text-sidebar-foreground">
                                     Stride
                                 </Link>
 
@@ -680,7 +678,7 @@ function AppShellLayout({
                                         title={previewing ? "Keep sidebar open" : "Collapse sidebar"}
                                         className={cn(
                                             "text-muted-foreground",
-                                            previewing && "rounded-full border border-sidebar-border/70 hover:border-sidebar-border hover:bg-sidebar-accent/80 hover:text-sidebar-foreground",
+                                            previewing && "rounded-md border border-sidebar-border hover:bg-sidebar-accent/80 hover:text-sidebar-foreground",
                                         )}
                                     >
                                         {previewing ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -693,7 +691,7 @@ function AppShellLayout({
                                 {renderGlobalSearchTrigger({ collapsed, mobile })}
 
                                 <Button
-                                    className="h-11 w-full justify-start rounded-2xl px-4"
+                                    className="h-11 w-full justify-start rounded-md px-4"
                                     size="default"
                                     onClick={() => {
                                         onOpenQuickAdd();
@@ -713,7 +711,9 @@ function AppShellLayout({
                     <div className={cn("space-y-6", collapsed && "space-y-5")}>
                         <nav className="space-y-1">
                             {PRIMARY_ITEMS.map((item) => {
-                                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                                const active = item.href === "/tasks"
+                                    ? pathname === "/tasks" && activeSmartView === null
+                                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
                                 return (
                                     <button
@@ -722,11 +722,11 @@ function AppShellLayout({
                                         onClick={() => handleNavigate(item.href)}
                                         title={collapsed ? item.label : undefined}
                                         className={cn(
-                                            "flex w-full cursor-pointer items-center rounded-xl text-sm font-medium transition-colors",
-                                            collapsed ? "mx-auto h-10 w-10 justify-center rounded-2xl px-0" : "gap-3 px-3 py-2.5",
+                                            "flex w-full cursor-pointer items-center rounded-md border border-transparent text-sm font-medium transition-colors",
+                                            collapsed ? "mx-auto h-10 w-10 justify-center rounded-lg px-0" : "gap-3 px-3 py-2.5",
                                             active
-                                                ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                                : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+                                                ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground"
+                                                : "text-muted-foreground hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
                                         )}
                                     >
                                         <item.icon className="h-4.5 w-4.5 shrink-0" />
@@ -751,17 +751,17 @@ function AppShellLayout({
                                                 type="button"
                                                 onClick={() => handleNavigate(item.href)}
                                                 className={cn(
-                                                    "flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+                                                    "flex w-full cursor-pointer items-center justify-between rounded-md border border-transparent px-3 py-2.5 text-sm font-medium transition-colors",
                                                     active
-                                                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                                        : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+                                                        ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground"
+                                                        : "text-muted-foreground hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
                                                 )}
                                             >
                                                 <span className="flex items-center gap-3">
                                                     <item.icon className="h-4 w-4" />
                                                     <span>{item.label}</span>
                                                 </span>
-                                                <span className="rounded-full bg-background/70 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                                                <span className="rounded-sm border border-sidebar-border bg-sidebar px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
                                                     {count}
                                                 </span>
                                             </button>
@@ -809,8 +809,8 @@ function AppShellLayout({
                                         onClick={() => handleNavigate("/projects")}
                                         title="Projects"
                                         className={cn(
-                                            "rounded-full text-muted-foreground hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
-                                            projectsIndexActive && "bg-sidebar-accent text-sidebar-accent-foreground",
+                                            "rounded-lg border border-transparent text-muted-foreground hover:border-sidebar-border hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+                                            projectsIndexActive && "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground",
                                         )}
                                     >
                                         <FolderKanban className="h-4 w-4" />
@@ -839,8 +839,8 @@ function AppShellLayout({
                             <button
                                 id={profileMenuTriggerId}
                                 className={cn(
-                                    "flex w-full cursor-pointer items-center rounded-xl transition-colors hover:bg-sidebar-accent/70",
-                                    collapsed ? "mx-auto h-11 w-11 justify-center rounded-full px-0" : "gap-3 px-3 py-2.5 text-left",
+                                    "flex w-full cursor-pointer items-center rounded-md border border-transparent transition-colors hover:border-sidebar-border hover:bg-sidebar-accent/70",
+                                    collapsed ? "mx-auto h-11 w-11 justify-center rounded-lg px-0" : "gap-3 px-3 py-2.5 text-left",
                                 )}
                             >
                                 <Avatar className={cn("border border-border/60", collapsed ? "h-9 w-9" : "h-10 w-10")}>
@@ -859,7 +859,7 @@ function AppShellLayout({
                                 )}
                             </button>
                         </DropdownMenuTrigger>
-                        {renderProfileMenuContent({ mobile })}
+                        {renderProfileMenuContent()}
                     </DropdownMenu>
                 </div>
             </div>
@@ -884,7 +884,7 @@ function AppShellLayout({
                         className={cn(
                             "fixed inset-y-0 left-0 z-40 hidden w-72 overflow-hidden border-r border-sidebar-border bg-sidebar lg:flex",
                             desktopPreviewOpen
-                                ? "pointer-events-auto shadow-[0_22px_52px_rgba(15,23,42,0.2)]"
+                                ? "pointer-events-auto shadow-[0_18px_36px_rgba(17,18,15,0.18)]"
                                 : "pointer-events-none shadow-none",
                         )}
                         style={{
@@ -933,7 +933,7 @@ function AppShellLayout({
                             variant="outline"
                             size="icon"
                             onClick={() => setMobileSidebarOpen(true)}
-                            className="rounded-full border-border/70 bg-card/95 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur"
+                            className="rounded-lg border-border bg-card"
                         >
                             <Menu className="h-5 w-5" />
                             <span className="sr-only">Open navigation</span>
@@ -948,7 +948,7 @@ function AppShellLayout({
                             <DropdownMenuTrigger asChild>
                                 <button
                                     id="mobile-topbar-profile-menu-trigger"
-                                    className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border border-border/70 bg-card/95 shadow-[0_10px_24px_rgba(15,23,42,0.14)] backdrop-blur"
+                                    className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-border bg-card"
                                 >
                                     <Avatar className="h-9 w-9 border border-border/60">
                                         <AvatarImage src={avatarUrl ?? ""} alt={profile?.username ?? "User"} />
@@ -959,7 +959,7 @@ function AppShellLayout({
                                     <span className="sr-only">Open account menu</span>
                                 </button>
                             </DropdownMenuTrigger>
-                            {renderProfileMenuContent({ mobile: true })}
+                            {renderProfileMenuContent()}
                         </DropdownMenu>
                     </div>
 
@@ -1001,7 +1001,7 @@ function AppShellLayout({
 
                     <div className="max-h-[70vh] overflow-y-auto p-3">
                         {!hasGlobalSearchResults ? (
-                            <div className="rounded-[1.15rem] border border-dashed border-border/70 px-4 py-10 text-center text-sm text-muted-foreground">
+                            <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
                                 No matches for “{globalSearchQuery.trim()}”.
                             </div>
                         ) : (
@@ -1016,9 +1016,9 @@ function AppShellLayout({
                                                 key={item.href}
                                                 type="button"
                                                 onClick={() => handleGlobalSearchNavigate(item.href)}
-                                                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-accent/70"
+                                                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-accent/70"
                                             >
-                                                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-card/90 text-muted-foreground">
+                                                <span className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-muted-foreground">
                                                     <item.icon className="h-4 w-4" />
                                                 </span>
                                                 <div className="min-w-0 flex-1">
@@ -1048,9 +1048,9 @@ function AppShellLayout({
                                                     key={summary.list.id}
                                                     type="button"
                                                     onClick={() => handleGlobalSearchNavigate(`/projects/${summary.list.id}`)}
-                                                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-accent/70"
+                                                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-accent/70"
                                                 >
-                                                    <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl border", palette.soft, palette.border)}>
+                                                    <span className={cn("flex h-9 w-9 items-center justify-center rounded-md border", palette.soft, palette.border)}>
                                                         <Icon className={cn("h-4 w-4", palette.text)} />
                                                     </span>
                                                     <div className="min-w-0 flex-1">
@@ -1075,13 +1075,13 @@ function AppShellLayout({
                                                     key={task.id}
                                                     type="button"
                                                     onClick={() => handleGlobalSearchNavigate(`/tasks?taskId=${task.id}`)}
-                                                    className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-accent/70"
+                                                    className="flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-accent/70"
                                                 >
                                                     <span className={cn(
-                                                        "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border",
+                                                        "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border",
                                                         task.is_done
                                                             ? "border-primary/70 bg-primary/12 text-primary"
-                                                            : "border-border/70 bg-card/80 text-muted-foreground",
+                                                            : "border-border bg-card text-muted-foreground",
                                                     )}>
                                                         <CheckSquare2 className="h-3.5 w-3.5" />
                                                     </span>

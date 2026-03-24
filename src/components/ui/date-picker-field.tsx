@@ -2,7 +2,7 @@
 
 import { format, isValid, parseISO } from "date-fns";
 import { CalendarDays } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Calendar } from "~/components/ui/calendar";
@@ -15,6 +15,7 @@ interface DatePickerFieldProps {
     onChange: (value: string) => void;
     placeholder?: string;
     allowClear?: boolean;
+    popoverAlign?: "start" | "center" | "end";
     disabled?: boolean;
     className?: string;
 }
@@ -31,11 +32,18 @@ export function DatePickerField({
     onChange,
     placeholder = "Choose date",
     allowClear = false,
+    popoverAlign = "start",
     disabled = false,
     className,
 }: DatePickerFieldProps) {
     const [open, setOpen] = useState(false);
     const selectedDate = useMemo(() => getSelectedDate(value), [value]);
+    const [displayMonth, setDisplayMonth] = useState<Date>(selectedDate ?? new Date());
+
+    useEffect(() => {
+        if (!open) return;
+        setDisplayMonth(selectedDate ?? new Date());
+    }, [open, selectedDate]);
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -45,7 +53,7 @@ export function DatePickerField({
                     type="button"
                     disabled={disabled}
                     className={cn(
-                        "border-input/70 focus-visible:border-ring focus-visible:ring-ring/50 inline-flex h-11 w-full items-center justify-between gap-3 rounded-xl border bg-background/75 px-3.5 text-left text-sm shadow-sm outline-none transition-[color,box-shadow,border-color,background-color] focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+                        "border-input focus-visible:border-ring focus-visible:ring-ring/50 inline-flex h-11 w-full items-center justify-between gap-3 rounded-lg border bg-card px-3.5 text-left text-sm outline-none transition-[color,box-shadow,border-color,background-color] focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
                         className,
                     )}
                 >
@@ -57,18 +65,19 @@ export function DatePickerField({
                     </span>
                 </button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-auto rounded-[1.4rem] border border-border/70 p-3 shadow-[0_18px_42px_rgba(15,23,42,0.18)]">
+            <PopoverContent align={popoverAlign} className="w-auto rounded-xl border border-border p-3">
                 <div className="space-y-3">
                     <Calendar
                         mode="single"
                         selected={selectedDate}
-                        month={selectedDate}
+                        month={displayMonth}
+                        onMonthChange={setDisplayMonth}
                         onSelect={(date) => {
                             if (!date) return;
                             onChange(format(date, "yyyy-MM-dd"));
                             setOpen(false);
                         }}
-                        className="rounded-[1.2rem] bg-transparent p-0"
+                        className="rounded-lg bg-transparent p-0"
                         classNames={{
                             month_caption: "flex h-9 items-center justify-center px-10",
                             weekday: "flex-1 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground",

@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { BarChart3, Flame, Target, Timer } from "lucide-react";
 
 import { AppShell } from "~/components/app-shell";
-import { EmptyState, MetricTile, PageHeader, SectionCard } from "~/components/app-primitives";
+import { EmptyState, PageHeader, SectionCard } from "~/components/app-primitives";
 import { useData } from "~/components/data-provider";
 
 const ResponsiveContainer = dynamic(() => import("recharts").then((mod) => mod.ResponsiveContainer), { ssr: false });
@@ -28,6 +28,9 @@ export default function ProgressClient() {
             <div className="page-container">
                 <PageHeader
                     title="Progress"
+                    description={stats
+                        ? `${stats.totalHours} total focus, ${stats.tasksCompleted} tasks completed, ${stats.streak}-day streak, ${stats.avgSession} average session.`
+                        : undefined}
                 />
 
                 {loading || !stats ? (
@@ -38,13 +41,6 @@ export default function ProgressClient() {
                     />
                 ) : (
                     <>
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                            <MetricTile label="Focus" value={stats.totalHours} />
-                            <MetricTile label="Completed" value={String(stats.tasksCompleted)} />
-                            <MetricTile label="Streak" value={`${stats.streak}d`} />
-                            <MetricTile label="Average" value={stats.avgSession} />
-                        </div>
-
                         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
                             <SectionCard title="Weekly focus">
                                 <div className="h-80">

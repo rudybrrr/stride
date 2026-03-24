@@ -9,7 +9,7 @@ import { AppShell, useShellActions } from "~/components/app-shell";
 import { EmptyState, PageHeader } from "~/components/app-primitives";
 import { ProjectDialog } from "~/components/project-dialog";
 import { ProjectMembersDialog } from "~/components/project-members-dialog";
-import { TaskBulkEditDialog, type TaskBulkEditChanges } from "~/components/task-bulk-edit-dialog";
+import type { TaskBulkEditChanges } from "~/components/task-bulk-edit-dialog";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
 import { TaskList } from "~/components/task-list";
 import { TaskSelectionBar } from "~/components/task-selection-bar";
@@ -99,7 +99,6 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
     const [bulkDeletingOpen, setBulkDeletingOpen] = useState(false);
-    const [bulkEditOpen, setBulkEditOpen] = useState(false);
     const [bulkCompleting, setBulkCompleting] = useState(false);
     const [bulkDeleting, setBulkDeleting] = useState(false);
     const [bulkEditing, setBulkEditing] = useState(false);
@@ -392,12 +391,31 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
             toast.error(`${failedTaskIds.length} task${failedTaskIds.length === 1 ? "" : "s"} failed to update.`);
         }
 
-        setBulkEditOpen(false);
-        setSelectedTaskIds(failedTaskIds);
-        if (failedTaskIds.length === 0) {
-            setSelectionMode(false);
-        }
         setBulkEditing(false);
+    }
+
+    function handleSetSelectedDueDate(value: string | null) {
+        void handleEditSelected({
+            dueDate: value ? { mode: "set", value } : { mode: "clear" },
+            priority: { mode: "keep" },
+            list: { mode: "keep" },
+        });
+    }
+
+    function handleSetSelectedPriority(value: TaskPriority | null) {
+        void handleEditSelected({
+            dueDate: { mode: "keep" },
+            priority: value ? { mode: "set", value } : { mode: "clear" },
+            list: { mode: "keep" },
+        });
+    }
+
+    function handleMoveSelectedTasks(listId: string) {
+        void handleEditSelected({
+            dueDate: { mode: "keep" },
+            priority: { mode: "keep" },
+            list: { mode: "set", value: listId },
+        });
     }
 
     if (!project || !projectSummary) {
@@ -415,7 +433,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
 
     return (
         <>
-            <div className="page-container">
+            <div className={selectionMode ? "page-container pb-28" : "page-container"}>
                 <PageHeader
                     title={project.name}
                     actions={
@@ -514,6 +532,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
 
                 {selectionMode ? (
                     <TaskSelectionBar
+                        lists={lists}
                         selectedCount={selectedVisibleTasks.length}
                         totalVisibleCount={selectableTasks.length}
                         allVisibleSelected={allVisibleSelected}
@@ -522,8 +541,9 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                         deleting={bulkDeleting}
                         onCancel={handleCancelSelectionMode}
                         onToggleSelectAll={handleToggleSelectAll}
-                        onClearSelection={() => setSelectedTaskIds([])}
-                        onEditSelected={() => setBulkEditOpen(true)}
+                        onSetDueDate={handleSetSelectedDueDate}
+                        onSetPriority={handleSetSelectedPriority}
+                        onSetProject={handleMoveSelectedTasks}
                         onCompleteSelected={() => void handleCompleteSelected()}
                         onDeleteSelected={() => setBulkDeletingOpen(true)}
                     />
@@ -628,15 +648,6 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-            <TaskBulkEditDialog
-                open={bulkEditOpen}
-                onOpenChange={setBulkEditOpen}
-                selectedCount={selectedVisibleTasks.length}
-                lists={lists}
-                submitting={bulkEditing}
-                onSubmit={(changes) => void handleEditSelected(changes)}
-            />
         </>
     );
 }

@@ -4,13 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { addDays, addMonths, format, isSameDay, startOfDay, subDays, subMonths } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import type { DayButtonProps } from "react-day-picker";
 import { toast } from "sonner";
 
 import { AppShell } from "~/components/app-shell";
 import { EmptyState, PageHeader, SectionCard } from "~/components/app-primitives";
-import { FocusStrip } from "~/components/focus-strip";
+import { CompactFocusStrip } from "~/components/focus-strip";
 import { Button } from "~/components/ui/button";
-import { Calendar } from "~/components/ui/calendar";
+import { Calendar, CalendarDayButton } from "~/components/ui/calendar";
 import { DatePickerField } from "~/components/ui/date-picker-field";
 import {
     Dialog,
@@ -50,6 +51,11 @@ interface BlockFormState {
     durationMinutes: string;
 }
 
+interface PlannerDaySummary {
+    dueCount: number;
+    blockCount: number;
+}
+
 function createBlockForm(listId: string, date = toDateKey(new Date())): BlockFormState {
     return {
         id: null,
@@ -66,6 +72,44 @@ function getDayBlocks(blocks: PlannedFocusBlock[], date: Date) {
     return blocks
         .filter((block) => isSameDay(new Date(block.scheduled_start), date))
         .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start));
+}
+
+function CalendarMonthDayButton({
+    metrics,
+    day,
+    className,
+    ...props
+}: DayButtonProps & {
+    metrics?: PlannerDaySummary;
+}) {
+    return (
+        <CalendarDayButton
+            {...props}
+            day={day}
+            className={cn(
+                "group/month-day h-full min-h-[var(--cell-size)] w-full items-start justify-start rounded-lg border border-transparent px-2 py-2 text-left shadow-none hover:border-border hover:bg-muted/55 data-[today=true]:border-primary/30 data-[today=true]:bg-primary/8 data-[selected-single=true]:border-primary data-[selected-single=true]:bg-primary/14 data-[selected-single=true]:text-foreground [&>span:first-child]:text-sm [&>span:first-child]:font-semibold sm:[&>span:first-child]:text-base",
+                className,
+            )}
+        >
+            <span className="leading-none">{format(day.date, "d")}</span>
+            {metrics && (metrics.dueCount > 0 || metrics.blockCount > 0) ? (
+                <span className="mt-auto flex flex-wrap items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.12em]">
+                    {metrics.dueCount > 0 ? (
+                        <span className="rounded-sm bg-amber-500/14 px-1.5 py-0.5 text-amber-800 dark:text-amber-200">
+                            {metrics.dueCount}T
+                        </span>
+                    ) : null}
+                    {metrics.blockCount > 0 ? (
+                        <span className="rounded-sm bg-primary/14 px-1.5 py-0.5 text-primary">
+                            {metrics.blockCount}B
+                        </span>
+                    ) : null}
+                </span>
+            ) : (
+                <span className="mt-auto text-[9px] uppercase tracking-[0.12em] text-transparent">.</span>
+            )}
+        </CalendarDayButton>
+    );
 }
 
 export default function CalendarClient() {
@@ -127,6 +171,25 @@ function CalendarContent() {
             ? plannedBlocks
             : plannedBlocks.filter((block) => block.list_id === selectedListId);
     }, [plannedBlocks, selectedListId]);
+
+    const daySummaries = useMemo(() => {
+        const summaries: Record<string, PlannerDaySummary> = {};
+
+        filteredTasks.forEach((task) => {
+            if (!task.due_date) return;
+            const key = toDateKey(new Date(task.due_date));
+            summaries[key] ??= { dueCount: 0, blockCount: 0 };
+            summaries[key].dueCount += 1;
+        });
+
+        filteredBlocks.forEach((block) => {
+            const key = toDateKey(new Date(block.scheduled_start));
+            summaries[key] ??= { dueCount: 0, blockCount: 0 };
+            summaries[key].blockCount += 1;
+        });
+
+        return summaries;
+    }, [filteredBlocks, filteredTasks]);
 
     const weekDays = getWeekDays(anchorDate);
     const dayTasks = filteredTasks.filter((task) => task.due_date && isSameDay(new Date(task.due_date), selectedDate));
@@ -237,9 +300,19 @@ function CalendarContent() {
             <div className="page-container">
                 <PageHeader
                     title="Calendar"
+                    description={view === "month"
+                        ? "Use the full month to spot due tasks, scheduled focus blocks, and open planning gaps."
+                        : "Plan the week without wasting space on dashboard fluff."}
                     actions={
                         <>
-                            <Button variant="outline" onClick={() => setAnchorDate(startOfDay(new Date()))}>
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    const today = startOfDay(new Date());
+                                    setAnchorDate(today);
+                                    setSelectedDate(today);
+                                }}
+                            >
                                 Today
                             </Button>
                             <Button onClick={() => openBlockDialog()}>
@@ -250,43 +323,26 @@ function CalendarContent() {
                     }
                 />
 
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-                    <div className="surface-card p-5">
-                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                            {[
-                                { label: "Focus", value: `${todayFocusMinutes}m`, meta: `${dailyGoal}m goal` },
-                                { label: "Blocks", value: String(filteredBlocks.length), meta: "Planned sessions" },
-                                { label: "Tasks", value: String(filteredTasks.length), meta: "Open tasks" },
-                                { label: "Selected", value: String(dayTasks.length + dayBlocks.length), meta: format(selectedDate, "EEE, MMM d") },
-                            ].map((item) => (
-                                <div key={item.label} className="rounded-[1.2rem] border border-border/60 bg-background/55 px-4 py-4">
-                                    <p className="eyebrow">{item.label}</p>
-                                    <div className="mt-2 space-y-1">
-                                        <p className="font-mono text-2xl font-semibold tracking-[-0.05em] text-foreground">{item.value}</p>
-                                        <p className="text-xs text-muted-foreground">{item.meta}</p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <FocusStrip />
-                </div>
-
-                <SectionCard title="Planner">
+                <SectionCard
+                    title="Planner"
+                    description={view === "month"
+                        ? `${filteredTasks.length} open tasks, ${filteredBlocks.length} planned blocks, ${todayFocusMinutes} of ${dailyGoal} focus minutes today.`
+                        : "Queue unscheduled tasks, review deadlines, and assign blocks across the week."}
+                >
                     <div className="space-y-5">
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <div className="flex flex-wrap items-center gap-3">
-                                <div className="inline-flex rounded-[1.1rem] border border-border/60 bg-muted/70 p-1">
+                                <div className="inline-flex rounded-lg border border-border bg-muted/60 p-1">
                                     {(["week", "month"] as const).map((nextView) => (
                                         <button
                                             key={nextView}
                                             type="button"
                                             onClick={() => setView(nextView)}
                                             className={cn(
-                                                "rounded-[0.9rem] px-4 py-2 text-sm font-semibold transition-colors",
+                                                "rounded-md px-4 py-2 text-sm font-semibold transition-colors",
                                                 view === nextView
-                                                    ? "bg-card text-foreground shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
-                                                    : "text-muted-foreground hover:text-foreground",
+                                                    ? "bg-card text-foreground"
+                                                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
                                             )}
                                         >
                                             {nextView === "week" ? "Week" : "Month"}
@@ -321,7 +377,7 @@ function CalendarContent() {
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
-                                <div className="rounded-full border border-border/60 bg-background/70 px-4 py-2 text-sm font-semibold text-foreground">
+                                <div className="rounded-md border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground">
                                     {getPlannerRangeLabel(view, anchorDate)}
                                 </div>
                                 <Button
@@ -340,6 +396,8 @@ function CalendarContent() {
                         {view === "week" ? (
                             <div className="grid gap-5 xl:grid-cols-[18rem_minmax(0,1fr)]">
                                 <div className="space-y-4">
+                                    <CompactFocusStrip />
+
                                     <div className="surface-card p-5">
                                         <div className="mb-4 flex items-center justify-between gap-3">
                                             <div>
@@ -459,66 +517,106 @@ function CalendarContent() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-                                <div className="surface-card p-4">
+                            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_20rem] xl:items-start">
+                                <div className="surface-card p-4 sm:p-5">
                                     <Calendar
                                         mode="single"
                                         selected={selectedDate}
                                         month={anchorDate}
-                                        onMonthChange={setAnchorDate}
+                                        onMonthChange={(month) => {
+                                            const normalizedMonth = startOfDay(month);
+                                            setAnchorDate(normalizedMonth);
+                                            setSelectedDate(normalizedMonth);
+                                        }}
                                         onSelect={(date) => date && setSelectedDate(date)}
-                                        className="w-full rounded-[1.5rem] bg-transparent p-3"
+                                        className="w-full rounded-xl border border-border bg-muted/25 p-4 sm:p-5 [--cell-size:clamp(4.4rem,7vw,6.5rem)]"
                                         classNames={{
                                             root: "w-full",
-                                            month: "w-full gap-5",
-                                            month_grid: "w-full border-separate border-spacing-y-1.5",
-                                            weekday: "flex-1 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground",
-                                            day: "px-1",
+                                            month: "w-full",
+                                            months: "w-full",
+                                            table: "w-full",
+                                            month_grid: "w-full",
+                                            nav: "absolute inset-x-4 top-4 flex items-center justify-between sm:inset-x-5 sm:top-5",
+                                            month_caption: "flex h-(--cell-size) w-full items-center justify-center px-12 sm:px-14",
+                                            weekdays: "mt-5 flex w-full",
+                                            weeks: "w-full",
+                                            week: "mt-2 flex w-full",
+                                            weekday: "flex-1 text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground",
+                                            day: "group/day relative aspect-square flex-1 p-1 text-center select-none",
+                                        }}
+                                        components={{
+                                            DayButton: (props) => (
+                                                <CalendarMonthDayButton
+                                                    {...props}
+                                                    metrics={daySummaries[toDateKey(props.day.date)]}
+                                                />
+                                            ),
                                         }}
                                     />
                                 </div>
 
-                                <div className="surface-card p-5">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <p className="eyebrow">Selected day</p>
-                                            <h3 className="text-lg font-semibold tracking-[-0.03em] text-foreground">
-                                                {format(selectedDate, "EEEE, MMM d")}
-                                            </h3>
-                                        </div>
+                                <div className="space-y-4">
+                                    <CompactFocusStrip />
 
-                                        <div className="space-y-3">
-                                            <p className="eyebrow">Due tasks</p>
-                                            {dayTasks.length > 0 ? dayTasks.map((task) => (
-                                                <div key={task.id} className="rounded-[1rem] border border-border/60 bg-background/65 px-3 py-3 text-sm">
-                                                    {task.title}
-                                                </div>
-                                            )) : (
-                                                <div className="surface-muted px-4 py-6 text-sm text-muted-foreground">
-                                                    No tasks due this day.
-                                                </div>
-                                            )}
-                                        </div>
+                                    <div className="surface-card p-5">
+                                        <div className="space-y-4">
+                                            <div>
+                                                <p className="eyebrow">Selected day</p>
+                                                <h3 className="text-lg font-semibold tracking-[-0.03em] text-foreground">
+                                                    {format(selectedDate, "EEEE, MMM d")}
+                                                </h3>
+                                                <p className="mt-2 text-sm text-muted-foreground">
+                                                    {dayTasks.length} due task{dayTasks.length === 1 ? "" : "s"} and{" "}
+                                                    {dayBlocks.length} planned block{dayBlocks.length === 1 ? "" : "s"}.
+                                                </p>
+                                            </div>
 
-                                        <div className="space-y-3">
-                                            <p className="eyebrow">Planned blocks</p>
-                                            {dayBlocks.length > 0 ? dayBlocks.map((block) => (
-                                                <button
-                                                    key={block.id}
-                                                    type="button"
-                                                    onClick={() => editBlock(block)}
-                                                    className="w-full rounded-[1rem] border border-primary/20 bg-primary/10 px-3 py-3 text-left text-sm text-primary transition-colors hover:bg-primary/14"
-                                                >
-                                                    <div className="font-semibold">{block.title}</div>
-                                                    <div className="mt-1 text-xs uppercase tracking-[0.14em]">
-                                                        {formatBlockTimeRange(block.scheduled_start, block.scheduled_end)}
+                                            <div className="surface-muted flex items-center justify-between px-4 py-3 text-sm">
+                                                <span className="text-muted-foreground">Today focus</span>
+                                                <span className="font-mono font-semibold text-foreground">
+                                                    {todayFocusMinutes}m / {dailyGoal}m
+                                                </span>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="eyebrow">Due tasks</p>
+                                                    <Button variant="ghost" size="xs" onClick={() => openBlockDialog()}>
+                                                        <Plus className="h-3.5 w-3.5" />
+                                                        New
+                                                    </Button>
+                                                </div>
+                                                {dayTasks.length > 0 ? dayTasks.map((task) => (
+                                                    <div key={task.id} className="rounded-lg border border-border bg-background/70 px-3 py-3 text-sm">
+                                                        {task.title}
                                                     </div>
-                                                </button>
-                                            )) : (
-                                                <div className="surface-muted px-4 py-6 text-sm text-muted-foreground">
-                                                    No blocks planned this day.
-                                                </div>
-                                            )}
+                                                )) : (
+                                                    <div className="surface-muted px-4 py-6 text-sm text-muted-foreground">
+                                                        No tasks due this day.
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <p className="eyebrow">Planned blocks</p>
+                                                {dayBlocks.length > 0 ? dayBlocks.map((block) => (
+                                                    <button
+                                                        key={block.id}
+                                                        type="button"
+                                                        onClick={() => editBlock(block)}
+                                                        className="w-full rounded-lg border border-primary/20 bg-primary/10 px-3 py-3 text-left text-sm text-primary transition-colors hover:bg-primary/14"
+                                                    >
+                                                        <div className="font-semibold">{block.title}</div>
+                                                        <div className="mt-1 text-xs uppercase tracking-[0.14em]">
+                                                            {formatBlockTimeRange(block.scheduled_start, block.scheduled_end)}
+                                                        </div>
+                                                    </button>
+                                                )) : (
+                                                    <div className="surface-muted px-4 py-6 text-sm text-muted-foreground">
+                                                        No blocks planned this day.
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

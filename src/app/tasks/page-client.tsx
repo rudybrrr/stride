@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { AppShell, useShellActions } from "~/components/app-shell";
 import { EmptyState, PageHeader } from "~/components/app-primitives";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
-import { TaskBulkEditDialog, type TaskBulkEditChanges } from "~/components/task-bulk-edit-dialog";
+import type { TaskBulkEditChanges } from "~/components/task-bulk-edit-dialog";
 import { TaskList } from "~/components/task-list";
 import { TaskSelectionBar } from "~/components/task-selection-bar";
 import { Button } from "~/components/ui/button";
@@ -120,7 +120,6 @@ function TasksContent({
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
     const [bulkDeletingOpen, setBulkDeletingOpen] = useState(false);
-    const [bulkEditOpen, setBulkEditOpen] = useState(false);
     const [bulkCompleting, setBulkCompleting] = useState(false);
     const [bulkDeleting, setBulkDeleting] = useState(false);
     const [bulkEditing, setBulkEditing] = useState(false);
@@ -462,12 +461,31 @@ function TasksContent({
             toast.error(`${failedTaskIds.length} task${failedTaskIds.length === 1 ? "" : "s"} failed to update.`);
         }
 
-        setBulkEditOpen(false);
-        setSelectedTaskIds(failedTaskIds);
-        if (failedTaskIds.length === 0) {
-            setSelectionMode(false);
-        }
         setBulkEditing(false);
+    }
+
+    function handleSetSelectedDueDate(value: string | null) {
+        void handleEditSelected({
+            dueDate: value ? { mode: "set", value } : { mode: "clear" },
+            priority: { mode: "keep" },
+            list: { mode: "keep" },
+        });
+    }
+
+    function handleSetSelectedPriority(value: TaskPriority | null) {
+        void handleEditSelected({
+            dueDate: { mode: "keep" },
+            priority: value ? { mode: "set", value } : { mode: "clear" },
+            list: { mode: "keep" },
+        });
+    }
+
+    function handleMoveSelectedTasks(listId: string) {
+        void handleEditSelected({
+            dueDate: { mode: "keep" },
+            priority: { mode: "keep" },
+            list: { mode: "set", value: listId },
+        });
     }
 
     const taskContent = loading ? (
@@ -542,7 +560,7 @@ function TasksContent({
 
     return (
         <>
-            <div className="page-container">
+            <div className={selectionMode ? "page-container pb-28" : "page-container"}>
                 <PageHeader
                     title={currentViewLabel}
                     actions={
@@ -552,14 +570,14 @@ function TasksContent({
                                     <Button variant="outline" size="icon-sm" className="relative sm:hidden">
                                         <Filter className="h-4 w-4" />
                                         {activeFilterCount > 0 ? (
-                                            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                                            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-sm bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                                                 {activeFilterCount}
                                             </span>
                                         ) : null}
                                         <span className="sr-only">Open filters</span>
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent side="bottom" className="rounded-t-[2rem] border-x-0 border-t border-border/70">
+                                <SheetContent side="bottom" className="rounded-t-xl border-x-0 border-t border-border">
                                     <SheetHeader>
                                         <SheetTitle>Filters</SheetTitle>
                                         <SheetDescription>Refine this task view by project or priority.</SheetDescription>
@@ -579,7 +597,7 @@ function TasksContent({
                                     <Button variant="outline" size="icon-sm" className="relative hidden sm:flex">
                                         <Filter className="h-4 w-4" />
                                         {activeFilterCount > 0 ? (
-                                            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+                                            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-sm bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
                                                 {activeFilterCount}
                                             </span>
                                         ) : null}
@@ -622,6 +640,7 @@ function TasksContent({
 
                 {selectionMode ? (
                     <TaskSelectionBar
+                        lists={lists}
                         selectedCount={selectedVisibleTasks.length}
                         totalVisibleCount={selectableTasks.length}
                         allVisibleSelected={allVisibleSelected}
@@ -630,8 +649,9 @@ function TasksContent({
                         deleting={bulkDeleting}
                         onCancel={handleCancelSelectionMode}
                         onToggleSelectAll={handleToggleSelectAll}
-                        onClearSelection={() => setSelectedTaskIds([])}
-                        onEditSelected={() => setBulkEditOpen(true)}
+                        onSetDueDate={handleSetSelectedDueDate}
+                        onSetPriority={handleSetSelectedPriority}
+                        onSetProject={handleMoveSelectedTasks}
                         onCompleteSelected={() => void handleCompleteSelected()}
                         onDeleteSelected={() => setBulkDeletingOpen(true)}
                     />
@@ -643,7 +663,7 @@ function TasksContent({
                             <button
                                 type="button"
                                 onClick={() => setProjectFilter("all")}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card/90 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                             >
                                 {activeProjectName}
                                 <X className="h-3.5 w-3.5" />
@@ -653,7 +673,7 @@ function TasksContent({
                             <button
                                 type="button"
                                 onClick={() => setPriorityFilter("all")}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card/90 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                             >
                                 {PRIORITY_OPTIONS.find((option) => option.value === priorityFilter)?.label}
                                 <X className="h-3.5 w-3.5" />
@@ -685,7 +705,7 @@ function TasksContent({
             </div>
 
             <Dialog open={bulkDeletingOpen} onOpenChange={setBulkDeletingOpen}>
-                <DialogContent className="max-w-md rounded-[1.5rem]">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Delete selected tasks?</DialogTitle>
                         <DialogDescription>
@@ -702,15 +722,6 @@ function TasksContent({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-            <TaskBulkEditDialog
-                open={bulkEditOpen}
-                onOpenChange={setBulkEditOpen}
-                selectedCount={selectedVisibleTasks.length}
-                lists={lists}
-                submitting={bulkEditing}
-                onSubmit={(changes) => void handleEditSelected(changes)}
-            />
         </>
     );
 }
@@ -784,6 +795,6 @@ function TasksFilterPanel({
 
 function cnFilterChip(active: boolean) {
     return active
-        ? "rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary"
-        : "rounded-full border border-border/70 bg-background/70 px-3 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:border-border hover:text-foreground";
+        ? "rounded-md border border-primary bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary-foreground"
+        : "rounded-md border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground";
 }

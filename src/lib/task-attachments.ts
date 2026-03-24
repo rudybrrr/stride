@@ -29,7 +29,7 @@ export function sanitizeAttachmentFileName(fileName: string) {
 }
 
 export function getAttachmentDisplayName(attachment: Pick<TodoImageRow, "path" | "original_name">) {
-    return attachment.original_name?.trim() || attachment.path.split("/").pop() || "attachment";
+    return attachment.original_name?.trim() ?? attachment.path.split("/").pop() ?? "attachment";
 }
 
 export function getAttachmentExtension(fileName: string) {
