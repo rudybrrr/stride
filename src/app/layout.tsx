@@ -9,6 +9,8 @@ import { FocusProvider } from "~/components/focus-provider";
 import { ThemeProvider } from "~/components/theme-provider";
 import { Toaster } from "~/components/ui/sonner";
 
+import { SpeedInsights } from "@vercel/speed-insights/next";
+
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-manrope",
@@ -54,6 +56,7 @@ export default function RootLayout({
             </DataProvider>
           </AccentProvider>
         </ThemeProvider>
+        <SpeedInsights />
       </body>
     </html>
   );

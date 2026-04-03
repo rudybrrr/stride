@@ -56,3 +56,5 @@ system_architecture.md
 
 # supabase
 /supabase/
+# Sentry Config File
+.env.sentry-build-plugin
