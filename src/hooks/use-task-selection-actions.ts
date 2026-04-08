@@ -42,6 +42,11 @@ interface UseTaskSelectionActionsOptions {
     onTaskDeleted?: (taskId: string) => void;
 }
 
+interface TaskSelectionGestureOptions {
+    shiftKey?: boolean;
+    enterSelectionMode?: boolean;
+}
+
 export function dedupeTasks(tasks: TaskDatasetRecord[]) {
     const seen = new Set<string>();
     return tasks.filter((task) => {
@@ -62,6 +67,7 @@ export function useTaskSelectionActions({
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+    const [selectionAnchorTaskId, setSelectionAnchorTaskId] = useState<string | null>(null);
     const [bulkCompleting, setBulkCompleting] = useState(false);
     const [bulkDeleting, setBulkDeleting] = useState(false);
     const [bulkEditing, setBulkEditing] = useState(false);
@@ -80,6 +86,7 @@ export function useTaskSelectionActions({
     useEffect(() => {
         if (!selectionMode) {
             setSelectedTaskIds([]);
+            setSelectionAnchorTaskId(null);
         }
     }, [selectionMode]);
 
@@ -88,6 +95,7 @@ export function useTaskSelectionActions({
             const next = current.filter((taskId) => selectableTaskIds.has(taskId));
             return next.length === current.length ? current : next;
         });
+        setSelectionAnchorTaskId((current) => current && selectableTaskIds.has(current) ? current : null);
     }, [selectableTaskIds]);
 
     const handleToggle = useCallback(async (taskId: string, nextIsDone: boolean) => {
@@ -122,11 +130,37 @@ export function useTaskSelectionActions({
         }
     }, [allTasks, applyTaskPatch, getBufferPlacement, queueBufferedTask, supabase, upsertTask]);
 
-    const handleToggleTaskSelection = useCallback((task: TaskDatasetRecord) => {
+    const handleToggleTaskSelection = useCallback((task: TaskDatasetRecord, options?: TaskSelectionGestureOptions) => {
+        const shiftKey = options?.shiftKey ?? false;
+        const enterSelectionMode = options?.enterSelectionMode ?? false;
+
+        if (enterSelectionMode) {
+            setSelectionMode(true);
+        }
+
+        const targetIndex = selectableTasks.findIndex((item) => item.id === task.id);
+        if (targetIndex === -1) return;
+
+        if (shiftKey) {
+            const hasExistingSelection = selectedTaskIds.length > 0;
+            const anchorTaskId = hasExistingSelection && selectionAnchorTaskId && selectableTaskIds.has(selectionAnchorTaskId)
+                ? selectionAnchorTaskId
+                : task.id;
+            const anchorIndex = selectableTasks.findIndex((item) => item.id === anchorTaskId);
+            const rangeStart = Math.min(anchorIndex === -1 ? targetIndex : anchorIndex, targetIndex);
+            const rangeEnd = Math.max(anchorIndex === -1 ? targetIndex : anchorIndex, targetIndex);
+            const rangeTaskIds = selectableTasks.slice(rangeStart, rangeEnd + 1).map((item) => item.id);
+
+            setSelectedTaskIds((current) => Array.from(new Set([...current, ...rangeTaskIds])));
+            setSelectionAnchorTaskId(anchorTaskId);
+            return;
+        }
+
         setSelectedTaskIds((current) => current.includes(task.id)
             ? current.filter((taskId) => taskId !== task.id)
             : [...current, task.id]);
-    }, []);
+        setSelectionAnchorTaskId(task.id);
+    }, [selectableTaskIds, selectableTasks, selectedTaskIds.length, selectionAnchorTaskId]);
 
     const handleToggleSelectionMode = useCallback(() => {
         setSelectionMode((current) => !current);
@@ -134,6 +168,7 @@ export function useTaskSelectionActions({
 
     const handleCancelSelectionMode = useCallback(() => {
         setSelectedTaskIds([]);
+        setSelectionAnchorTaskId(null);
         setSelectionMode(false);
     }, []);
 
@@ -351,6 +386,7 @@ export function useTaskSelectionActions({
         bulkCompleting,
         bulkDeleting,
         bulkEditing,
+        selectedCount: selectedTaskIds.length,
         handleToggle,
         handleToggleTaskSelection,
         handleToggleSelectionMode,

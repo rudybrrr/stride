@@ -53,6 +53,8 @@ import { cn } from "~/lib/utils";
 
 interface ShellActionsContextValue {
     openQuickAdd: (defaults?: { listId?: string | null; title?: string; dueDate?: string | null }) => void;
+    enterPrimaryActivity: (activityId: string) => void;
+    registerPrimaryActivityReset: (activityId: string, reset: () => void) => () => void;
 }
 
 const ShellActionsContext = createContext<ShellActionsContextValue | undefined>(undefined);
@@ -106,45 +108,14 @@ export function useShellActions() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-    const [quickAddOpen, setQuickAddOpen] = useState(false);
-    const [quickAddDefaults, setQuickAddDefaults] = useState<{ listId?: string | null; title?: string; dueDate?: string | null } | null>(null);
-
-    const contextValue: ShellActionsContextValue = {
-        openQuickAdd(defaults) {
-            setQuickAddDefaults(defaults ?? null);
-            setQuickAddOpen(true);
-        },
-    };
-
     return (
-        <ShellActionsContext.Provider value={contextValue}>
-            <WorkspaceDataProvider>
-                <AppShellLayout
-                    quickAddOpen={quickAddOpen}
-                    quickAddDefaults={quickAddDefaults}
-                    onQuickAddOpenChange={setQuickAddOpen}
-                    onOpenQuickAdd={contextValue.openQuickAdd}
-                >
-                    {children}
-                </AppShellLayout>
-            </WorkspaceDataProvider>
-        </ShellActionsContext.Provider>
+        <WorkspaceDataProvider>
+            <AppShellLayout>{children}</AppShellLayout>
+        </WorkspaceDataProvider>
     );
 }
 
-function AppShellLayout({
-    children,
-    quickAddOpen,
-    quickAddDefaults,
-    onQuickAddOpenChange,
-    onOpenQuickAdd,
-}: {
-    children: ReactNode;
-    quickAddOpen: boolean;
-    quickAddDefaults: { listId?: string | null; title?: string; dueDate?: string | null } | null;
-    onQuickAddOpenChange: (open: boolean) => void;
-    onOpenQuickAdd: ShellActionsContextValue["openQuickAdd"];
-}) {
+function AppShellLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -158,12 +129,15 @@ function AppShellLayout({
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
     const [mobileProfileMenuSource, setMobileProfileMenuSource] = useState<"sidebar" | "topbar" | null>(null);
     const [desktopProfileMenuId, setDesktopProfileMenuId] = useState<string | null>(null);
+    const [quickAddOpen, setQuickAddOpen] = useState(false);
+    const [quickAddDefaults, setQuickAddDefaults] = useState<{ listId?: string | null; title?: string; dueDate?: string | null } | null>(null);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
     const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
     const [globalSearchQuery, setGlobalSearchQuery] = useState("");
     const suppressProjectClickRef = useRef(false);
     const hoverPreviewTimerRef = useRef<number | null>(null);
     const desktopCollapsedRef = useRef(desktopCollapsed);
+    const primaryActivityResetsRef = useRef(new Map<string, () => void>());
 
     const activeSmartView = getActiveSmartView(pathname, searchParams.get("view"));
     const activeProjectId = pathname.startsWith("/projects/") ? pathname.split("/")[2] ?? null : null;
@@ -273,6 +247,72 @@ function AppShellLayout({
         window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(nextValue));
     }, [clearHoverPreviewTimer]);
 
+    const dismissPrimaryActivities = useCallback((options?: { except?: string }) => {
+        const except = options?.except;
+
+        setDesktopProfileMenuId(null);
+        setMobileProfileMenuSource(null);
+
+        if (except !== "shell:quick-add") {
+            setQuickAddOpen(false);
+        }
+        if (except !== "shell:global-search") {
+            setGlobalSearchOpen(false);
+        }
+        if (except !== "shell:mobile-sidebar") {
+            setMobileSidebarOpen(false);
+        }
+        if (except !== "shell:project-dialog") {
+            setProjectDialogOpen(false);
+        }
+
+        for (const [activityId, reset] of primaryActivityResetsRef.current) {
+            if (activityId === except) continue;
+            reset();
+        }
+    }, []);
+
+    const enterPrimaryActivity = useCallback((activityId: string) => {
+        dismissPrimaryActivities({ except: activityId });
+    }, [dismissPrimaryActivities]);
+
+    const registerPrimaryActivityReset = useCallback((activityId: string, reset: () => void) => {
+        primaryActivityResetsRef.current.set(activityId, reset);
+
+        return () => {
+            const currentReset = primaryActivityResetsRef.current.get(activityId);
+            if (currentReset === reset) {
+                primaryActivityResetsRef.current.delete(activityId);
+            }
+        };
+    }, []);
+
+    const openQuickAdd = useCallback((defaults?: { listId?: string | null; title?: string; dueDate?: string | null }) => {
+        enterPrimaryActivity("shell:quick-add");
+        setQuickAddDefaults(defaults ?? null);
+        setQuickAddOpen(true);
+    }, [enterPrimaryActivity]);
+
+    const handleProjectDialogOpenChange = useCallback((open: boolean) => {
+        if (open) {
+            enterPrimaryActivity("shell:project-dialog");
+        }
+        setProjectDialogOpen(open);
+    }, [enterPrimaryActivity]);
+
+    const handleGlobalSearchOpenChange = useCallback((open: boolean) => {
+        if (open) {
+            enterPrimaryActivity("shell:global-search");
+        }
+        setGlobalSearchOpen(open);
+    }, [enterPrimaryActivity]);
+
+    const contextValue = useMemo<ShellActionsContextValue>(() => ({
+        openQuickAdd,
+        enterPrimaryActivity,
+        registerPrimaryActivityReset,
+    }), [enterPrimaryActivity, openQuickAdd, registerPrimaryActivityReset]);
+
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (!event.metaKey && !event.ctrlKey) return;
@@ -280,7 +320,7 @@ function AppShellLayout({
 
             if (event.key?.toLowerCase() === "k") {
                 event.preventDefault();
-                setGlobalSearchOpen(true);
+                handleGlobalSearchOpenChange(true);
                 return;
             }
 
@@ -293,14 +333,18 @@ function AppShellLayout({
                 return;
             }
 
-            setMobileSidebarOpen((current) => !current);
+            setMobileSidebarOpen((current) => {
+                if (current) return false;
+                enterPrimaryActivity("shell:mobile-sidebar");
+                return true;
+            });
         };
 
         window.addEventListener("keydown", handleKeyDown);
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
         };
-    }, [setCollapsedState]);
+    }, [enterPrimaryActivity, handleGlobalSearchOpenChange, setCollapsedState]);
 
     function openDesktopPreview() {
         clearHoverPreviewTimer();
@@ -338,13 +382,14 @@ function AppShellLayout({
     }
 
     function handleNavigate(href: string) {
-        setDesktopProfileMenuId(null);
-        setMobileProfileMenuSource(null);
+        dismissPrimaryActivities();
         router.push(href);
-        setMobileSidebarOpen(false);
     }
 
     function handleMobileSidebarOpenChange(open: boolean) {
+        if (open) {
+            enterPrimaryActivity("shell:mobile-sidebar");
+        }
         setMobileSidebarOpen(open);
 
         if (!open) {
@@ -352,15 +397,11 @@ function AppShellLayout({
         }
     }
 
-    function openGlobalSearch(options?: { closeMobileSidebar?: boolean }) {
-        if (options?.closeMobileSidebar) {
-            setMobileSidebarOpen(false);
-        }
-        setGlobalSearchOpen(true);
+    function openGlobalSearch() {
+        handleGlobalSearchOpenChange(true);
     }
 
     function handleGlobalSearchNavigate(href: string) {
-        setGlobalSearchOpen(false);
         setGlobalSearchQuery("");
         handleNavigate(href);
     }
@@ -389,29 +430,21 @@ function AppShellLayout({
                 align="end"
                 className="w-72 rounded-xl"
             >
-                <DropdownMenuItem asChild className="rounded-md px-3 py-2">
-                    <Link href="/progress">
-                        <BarChart3 className="h-4 w-4" />
-                        Progress
-                    </Link>
+                <DropdownMenuItem className="rounded-md px-3 py-2" onClick={() => handleNavigate("/progress")}>
+                    <BarChart3 className="h-4 w-4" />
+                    Progress
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-md px-3 py-2">
-                    <Link href="/community">
-                        <Users className="h-4 w-4" />
-                        Community
-                    </Link>
+                <DropdownMenuItem className="rounded-md px-3 py-2" onClick={() => handleNavigate("/community")}>
+                    <Users className="h-4 w-4" />
+                    Community
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-md px-3 py-2">
-                    <Link href="/tasks?view=done">
-                        <CheckSquare2 className="h-4 w-4" />
-                        Completed Tasks
-                    </Link>
+                <DropdownMenuItem className="rounded-md px-3 py-2" onClick={() => handleNavigate("/tasks?view=done")}>
+                    <CheckSquare2 className="h-4 w-4" />
+                    Completed Tasks
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild className="rounded-md px-3 py-2">
-                    <Link href="/settings">
-                        <Settings className="h-4 w-4" />
-                        Settings
-                    </Link>
+                <DropdownMenuItem className="rounded-md px-3 py-2" onClick={() => handleNavigate("/settings")}>
+                    <Settings className="h-4 w-4" />
+                    Settings
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -451,7 +484,7 @@ function AppShellLayout({
             return (
                 <button
                     type="button"
-                    onClick={() => openGlobalSearch({ closeMobileSidebar: mobile })}
+                    onClick={() => openGlobalSearch()}
                     title="Search"
                     className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-sidebar-border bg-sidebar text-muted-foreground transition-colors hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
                 >
@@ -464,7 +497,7 @@ function AppShellLayout({
         return (
             <button
                 type="button"
-                onClick={() => openGlobalSearch({ closeMobileSidebar: mobile })}
+                onClick={() => openGlobalSearch()}
                 className="flex h-10 w-full cursor-pointer items-center gap-2.5 rounded-lg border border-sidebar-border bg-sidebar px-3 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
             >
                 <Search className="h-4 w-4 shrink-0" />
@@ -639,11 +672,12 @@ function AppShellLayout({
                 <div className={cn("border-b border-sidebar-border", collapsed ? "px-2 py-4" : "px-4 py-4")}>
                     {collapsed ? (
                         <div className="flex flex-col items-center gap-4">
-                            <Link
-                                href="/tasks"
-                                title="Go to Today"
-                                className="flex h-10 w-10 items-center justify-center rounded-lg border border-sidebar-border bg-sidebar-accent text-sm font-semibold tracking-[0.08em] text-sidebar-foreground transition-colors hover:bg-sidebar-accent/80"
-                            >
+                                <Link
+                                    href="/tasks"
+                                    title="Go to Today"
+                                    onClick={() => dismissPrimaryActivities()}
+                                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-sidebar-border bg-sidebar-accent text-sm font-semibold tracking-[0.08em] text-sidebar-foreground transition-colors hover:bg-sidebar-accent/80"
+                                >
                                 <span aria-hidden="true">S</span>
                                 <span className="sr-only">Go to Today</span>
                             </Link>
@@ -653,8 +687,7 @@ function AppShellLayout({
                             <button
                                 type="button"
                                 onClick={() => {
-                                    onOpenQuickAdd();
-                                    if (mobile) setMobileSidebarOpen(false);
+                                    openQuickAdd();
                                 }}
                                 title="Quick add"
                                 className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg border border-primary bg-primary text-primary-foreground transition-colors hover:bg-primary/92"
@@ -666,7 +699,7 @@ function AppShellLayout({
                     ) : (
                         <>
                             <div className="flex items-center justify-between gap-3">
-                                <Link href="/tasks" className="min-w-0 text-base font-semibold uppercase tracking-[0.14em] text-sidebar-foreground">
+                                <Link href="/tasks" onClick={() => dismissPrimaryActivities()} className="min-w-0 text-base font-semibold uppercase tracking-[0.14em] text-sidebar-foreground">
                                     Stride
                                 </Link>
 
@@ -694,8 +727,7 @@ function AppShellLayout({
                                     className="h-11 w-full justify-start rounded-md px-4"
                                     size="default"
                                     onClick={() => {
-                                        onOpenQuickAdd();
-                                        if (mobile) setMobileSidebarOpen(false);
+                                        openQuickAdd();
                                     }}
                                     title="Quick add"
                                 >
@@ -787,7 +819,7 @@ function AppShellLayout({
                                     <div className="flex items-center gap-3">
                                         <button
                                             type="button"
-                                            onClick={() => setProjectDialogOpen(true)}
+                                            onClick={() => handleProjectDialogOpenChange(true)}
                                             className="text-xs font-semibold text-primary transition-colors hover:text-primary/80"
                                         >
                                             + New
@@ -866,7 +898,7 @@ function AppShellLayout({
         );
     }
 
-    return (
+    const content = (
         <div className="min-h-screen bg-background">
             {desktopCollapsed ? (
                 <>
@@ -932,7 +964,7 @@ function AppShellLayout({
                         <Button
                             variant="outline"
                             size="icon"
-                            onClick={() => setMobileSidebarOpen(true)}
+                            onClick={() => handleMobileSidebarOpenChange(true)}
                             className="rounded-lg border-border bg-card"
                         >
                             <Menu className="h-5 w-5" />
@@ -979,7 +1011,7 @@ function AppShellLayout({
                 </>
             ) : null}
 
-            <Dialog open={globalSearchOpen} onOpenChange={setGlobalSearchOpen}>
+            <Dialog open={globalSearchOpen} onOpenChange={handleGlobalSearchOpenChange}>
                 <DialogContent showCloseButton={false} className="max-w-2xl overflow-hidden border-border/70 p-0">
                     <DialogTitle className="sr-only">Global search</DialogTitle>
                     <DialogDescription className="sr-only">
@@ -1105,9 +1137,15 @@ function AppShellLayout({
             <QuickAddDialog
                 open={quickAddOpen}
                 defaults={quickAddDefaults}
-                onOpenChange={onQuickAddOpenChange}
+                onOpenChange={setQuickAddOpen}
             />
-            <ProjectDialog open={projectDialogOpen} onOpenChange={setProjectDialogOpen} />
+            <ProjectDialog open={projectDialogOpen} onOpenChange={handleProjectDialogOpenChange} />
         </div>
+    );
+
+    return (
+        <ShellActionsContext.Provider value={contextValue}>
+            {content}
+        </ShellActionsContext.Provider>
     );
 }

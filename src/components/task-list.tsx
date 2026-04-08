@@ -27,9 +27,9 @@ export function TaskList({
     selectedTaskId?: string | null;
     selectedTaskIds?: Set<string>;
     selectionMode?: boolean;
-    onSelect: (task: TaskDatasetRecord) => void;
+    onSelect: (task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => void;
     onToggle: (task: TaskDatasetRecord, nextIsDone: boolean) => void;
-    onSelectionToggle?: (task: TaskDatasetRecord) => void;
+    onSelectionToggle?: (task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => void;
     showProject?: boolean;
     emptyMessage?: string;
 }) {
@@ -70,22 +70,6 @@ export function TaskList({
                                         : "hover:bg-muted/60",
                             )}
                         >
-                            {selectionMode ? (
-                                <button
-                                    type="button"
-                                    aria-label={bulkSelected ? `Deselect ${task.title}` : `Select ${task.title}`}
-                                    onClick={() => onSelectionToggle?.(task)}
-                                    className={cn(
-                                        "mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border transition-colors",
-                                        bulkSelected
-                                            ? "border-primary bg-primary text-primary-foreground"
-                                            : "border-border bg-card text-transparent hover:border-primary/60",
-                                    )}
-                                >
-                                    <Check className="h-3 w-3" />
-                                </button>
-                            ) : null}
-
                             <button
                                 type="button"
                                 aria-label={task.is_done ? "Mark task incomplete" : "Mark task complete"}
@@ -102,12 +86,12 @@ export function TaskList({
 
                             <button
                                 type="button"
-                                onClick={() => {
+                                onClick={(event) => {
                                     if (selectionMode) {
-                                        onSelectionToggle?.(task);
+                                        onSelectionToggle?.(task, { shiftKey: event.shiftKey });
                                         return;
                                     }
-                                    onSelect(task);
+                                    onSelect(task, { shiftKey: event.shiftKey });
                                 }}
                                 className="min-w-0 flex-1 cursor-pointer rounded-md px-1 py-0.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                                 aria-label={selectionMode ? `Select ${task.title}` : `Open details for ${task.title}`}

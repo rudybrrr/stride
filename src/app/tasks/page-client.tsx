@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckSquare2, Filter, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -92,7 +93,7 @@ function TasksContent({
     initialTaskId?: string | null;
 }) {
     const searchParams = useSearchParams();
-    const { openQuickAdd } = useShellActions();
+    const { enterPrimaryActivity, openQuickAdd, registerPrimaryActivityReset } = useShellActions();
     const { userId, tasks, lists, imagesByTodo, loading } = useTaskDataset();
     const { bufferedTasks, queueBufferedTask } = useTaskTransitionBuffer();
 
@@ -213,15 +214,80 @@ function TasksContent({
         setBulkDeletingOpen(false);
     }
 
+    const enterSelectionMode = useCallback(() => {
+        if (selectionMode) return;
+        enterPrimaryActivity("tasks:selection");
+        handleToggleSelectionMode();
+    }, [enterPrimaryActivity, handleToggleSelectionMode, selectionMode]);
+
+    const requestSelectionModeExit = useCallback(() => {
+        if (!selectionMode || bulkEditing || bulkCompleting || bulkDeleting) return;
+        handleCancelSelectionMode();
+    }, [bulkCompleting, bulkDeleting, bulkEditing, handleCancelSelectionMode, selectionMode]);
+
+    const handleSelectionModeChange = useCallback(() => {
+        if (selectionMode) {
+            requestSelectionModeExit();
+            return;
+        }
+        enterSelectionMode();
+    }, [enterSelectionMode, requestSelectionModeExit, selectionMode]);
+
+    const handleTaskSelect = useCallback((task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => {
+        if (options?.shiftKey) {
+            enterPrimaryActivity("tasks:selection");
+            handleToggleTaskSelection(task, { shiftKey: true, enterSelectionMode: true });
+            return;
+        }
+
+        if (selectedTaskId !== task.id) {
+            enterPrimaryActivity("tasks:detail");
+        }
+        setSelectedTaskId((current) => current === task.id ? null : task.id);
+    }, [enterPrimaryActivity, handleToggleTaskSelection, selectedTaskId]);
+
+    const handleTaskSelection = useCallback((task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => {
+        handleToggleTaskSelection(task, { shiftKey: options?.shiftKey });
+    }, [handleToggleTaskSelection]);
+
+    useEffect(() => registerPrimaryActivityReset("tasks:selection", () => {
+        setBulkDeletingOpen(false);
+        handleCancelSelectionMode();
+    }), [handleCancelSelectionMode, registerPrimaryActivityReset]);
+
+    useEffect(() => registerPrimaryActivityReset("tasks:detail", () => {
+        setSelectedTaskId(null);
+    }), [registerPrimaryActivityReset]);
+
     useEffect(() => {
         if (selectionMode) return;
+        if (routeTaskId) {
+            enterPrimaryActivity("tasks:detail");
+        }
         setSelectedTaskId(routeTaskId);
-    }, [routeTaskId, selectionMode]);
+    }, [enterPrimaryActivity, routeTaskId, selectionMode]);
 
     useEffect(() => {
         if (!selectionMode) return;
         setSelectedTaskId(null);
     }, [selectionMode]);
+
+    useEffect(() => {
+        if (!selectionMode) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.key !== "Escape") return;
+            if (bulkDeletingOpen) return;
+
+            event.preventDefault();
+            requestSelectionModeExit();
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [bulkDeletingOpen, requestSelectionModeExit, selectionMode]);
 
     const taskContent = loading ? (
         <div className="surface-muted px-4 py-6 text-sm text-muted-foreground">Loading tasks...</div>
@@ -240,8 +306,8 @@ function TasksContent({
                         selectedTaskId={selectedTaskId}
                         selectedTaskIds={selectedTaskIdSet}
                         selectionMode={selectionMode}
-                        onSelectionToggle={handleToggleTaskSelection}
-                        onSelect={(task) => setSelectedTaskId((current) => current === task.id ? null : task.id)}
+                        onSelectionToggle={handleTaskSelection}
+                        onSelect={handleTaskSelect}
                         onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
                         emptyMessage="Nothing overdue."
                     />
@@ -259,8 +325,8 @@ function TasksContent({
                         selectedTaskId={selectedTaskId}
                         selectedTaskIds={selectedTaskIdSet}
                         selectionMode={selectionMode}
-                        onSelectionToggle={handleToggleTaskSelection}
-                        onSelect={(task) => setSelectedTaskId((current) => current === task.id ? null : task.id)}
+                        onSelectionToggle={handleTaskSelection}
+                        onSelect={handleTaskSelect}
                         onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
                         emptyMessage="Nothing else due today."
                     />
@@ -287,8 +353,8 @@ function TasksContent({
             selectedTaskId={selectedTaskId}
             selectedTaskIds={selectedTaskIdSet}
             selectionMode={selectionMode}
-            onSelectionToggle={handleToggleTaskSelection}
-            onSelect={(task) => setSelectedTaskId((current) => current === task.id ? null : task.id)}
+            onSelectionToggle={handleTaskSelection}
+            onSelect={handleTaskSelect}
             onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
         />
     );
@@ -356,7 +422,7 @@ function TasksContent({
                             <Button
                                 variant={selectionMode ? "tonal" : "outline"}
                                 size="icon-sm"
-                                onClick={handleToggleSelectionMode}
+                                onClick={handleSelectionModeChange}
                                 aria-pressed={selectionMode}
                                 title={selectionMode ? "Exit selection mode" : "Select tasks"}
                             >
@@ -373,24 +439,26 @@ function TasksContent({
                     }
                 />
 
-                {selectionMode ? (
-                    <TaskSelectionBar
-                        lists={lists}
-                        selectedCount={selectedVisibleTasks.length}
-                        totalVisibleCount={selectableTasks.length}
-                        allVisibleSelected={allVisibleSelected}
-                        editing={bulkEditing}
-                        completing={bulkCompleting}
-                        deleting={bulkDeleting}
-                        onCancel={handleCancelSelectionMode}
-                        onToggleSelectAll={handleToggleSelectAll}
-                        onSetDueDate={handleSetSelectedDueDate}
-                        onSetPriority={handleSetSelectedPriority}
-                        onSetProject={handleMoveSelectedTasks}
-                        onCompleteSelected={() => void handleCompleteSelected()}
-                        onDeleteSelected={() => setBulkDeletingOpen(true)}
-                    />
-                ) : null}
+                <AnimatePresence>
+                    {selectionMode ? (
+                        <TaskSelectionBar
+                            lists={lists}
+                            selectedCount={selectedVisibleTasks.length}
+                            totalVisibleCount={selectableTasks.length}
+                            allVisibleSelected={allVisibleSelected}
+                            editing={bulkEditing}
+                            completing={bulkCompleting}
+                            deleting={bulkDeleting}
+                            onCancel={requestSelectionModeExit}
+                            onToggleSelectAll={handleToggleSelectAll}
+                            onSetDueDate={handleSetSelectedDueDate}
+                            onSetPriority={handleSetSelectedPriority}
+                            onSetProject={handleMoveSelectedTasks}
+                            onCompleteSelected={() => void handleCompleteSelected()}
+                            onDeleteSelected={() => setBulkDeletingOpen(true)}
+                        />
+                    ) : null}
+                </AnimatePresence>
 
                 {activeFilterCount > 0 ? (
                     <div className="flex flex-wrap gap-2">

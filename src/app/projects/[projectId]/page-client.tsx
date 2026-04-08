@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarRange, CheckSquare2, Filter, FolderKanban, MoreHorizontal, PencilLine, Share2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -74,7 +75,7 @@ export default function ProjectWorkspaceClient({ projectId }: { projectId: strin
 
 function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     const router = useRouter();
-    const { openQuickAdd } = useShellActions();
+    const { enterPrimaryActivity, openQuickAdd, registerPrimaryActivityReset } = useShellActions();
     const { userId, lists, tasks, projectSummaries, imagesByTodo, loading } = useTaskDataset();
     const { bufferedTasks, queueBufferedTask } = useTaskTransitionBuffer();
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -157,10 +158,94 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
         setBulkDeletingOpen(false);
     }
 
+    const enterSelectionMode = useCallback(() => {
+        if (selectionMode) return;
+        enterPrimaryActivity("project-workspace:selection");
+        handleToggleSelectionMode();
+    }, [enterPrimaryActivity, handleToggleSelectionMode, selectionMode]);
+
+    const requestSelectionModeExit = useCallback(() => {
+        if (!selectionMode || bulkEditing || bulkCompleting || bulkDeleting) return;
+        handleCancelSelectionMode();
+    }, [bulkCompleting, bulkDeleting, bulkEditing, handleCancelSelectionMode, selectionMode]);
+
+    const handleSelectionModeChange = useCallback(() => {
+        if (selectionMode) {
+            requestSelectionModeExit();
+            return;
+        }
+        enterSelectionMode();
+    }, [enterSelectionMode, requestSelectionModeExit, selectionMode]);
+
+    const handleTaskSelect = useCallback((task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => {
+        if (options?.shiftKey) {
+            enterPrimaryActivity("project-workspace:selection");
+            handleToggleTaskSelection(task, { shiftKey: true, enterSelectionMode: true });
+            return;
+        }
+
+        if (selectedTaskId !== task.id) {
+            enterPrimaryActivity("project-workspace:task-detail");
+        }
+        setSelectedTaskId((current) => current === task.id ? null : task.id);
+    }, [enterPrimaryActivity, handleToggleTaskSelection, selectedTaskId]);
+
+    const handleTaskSelection = useCallback((task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => {
+        handleToggleTaskSelection(task, { shiftKey: options?.shiftKey });
+    }, [handleToggleTaskSelection]);
+
+    const handleProjectDialogOpenChange = useCallback((open: boolean) => {
+        if (open) {
+            enterPrimaryActivity("project-workspace:dialog");
+        }
+        setProjectDialogOpen(open);
+    }, [enterPrimaryActivity]);
+
+    const handleMembersDialogOpenChange = useCallback((open: boolean) => {
+        if (open) {
+            enterPrimaryActivity("project-workspace:members");
+        }
+        setMembersDialogOpen(open);
+    }, [enterPrimaryActivity]);
+
+    useEffect(() => registerPrimaryActivityReset("project-workspace:selection", () => {
+        setBulkDeletingOpen(false);
+        handleCancelSelectionMode();
+    }), [handleCancelSelectionMode, registerPrimaryActivityReset]);
+
+    useEffect(() => registerPrimaryActivityReset("project-workspace:task-detail", () => {
+        setSelectedTaskId(null);
+    }), [registerPrimaryActivityReset]);
+
+    useEffect(() => registerPrimaryActivityReset("project-workspace:dialog", () => {
+        setProjectDialogOpen(false);
+    }), [registerPrimaryActivityReset]);
+
+    useEffect(() => registerPrimaryActivityReset("project-workspace:members", () => {
+        setMembersDialogOpen(false);
+    }), [registerPrimaryActivityReset]);
+
     useEffect(() => {
         if (!selectionMode) return;
         setSelectedTaskId(null);
     }, [selectionMode]);
+
+    useEffect(() => {
+        if (!selectionMode) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented || event.key !== "Escape") return;
+            if (bulkDeletingOpen) return;
+
+            event.preventDefault();
+            requestSelectionModeExit();
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [bulkDeletingOpen, requestSelectionModeExit, selectionMode]);
 
     if (!project || !projectSummary) {
         return (
@@ -236,7 +321,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             <Button
                                 variant={selectionMode ? "tonal" : "outline"}
                                 size="icon-sm"
-                                onClick={handleToggleSelectionMode}
+                                onClick={handleSelectionModeChange}
                                 aria-pressed={selectionMode}
                                 title={selectionMode ? "Exit selection mode" : "Select tasks"}
                             >
@@ -260,11 +345,11 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                         <CalendarRange className="h-4 w-4" />
                                         Calendar
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setMembersDialogOpen(true)}>
+                                    <DropdownMenuItem onClick={() => handleMembersDialogOpenChange(true)}>
                                         <Share2 className="h-4 w-4" />
                                         Members
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => setProjectDialogOpen(true)}>
+                                    <DropdownMenuItem onClick={() => handleProjectDialogOpenChange(true)}>
                                         <PencilLine className="h-4 w-4" />
                                         Edit project
                                     </DropdownMenuItem>
@@ -274,24 +359,26 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                     }
                 />
 
-                {selectionMode ? (
-                    <TaskSelectionBar
-                        lists={lists}
-                        selectedCount={selectedVisibleTasks.length}
-                        totalVisibleCount={selectableTasks.length}
-                        allVisibleSelected={allVisibleSelected}
-                        editing={bulkEditing}
-                        completing={bulkCompleting}
-                        deleting={bulkDeleting}
-                        onCancel={handleCancelSelectionMode}
-                        onToggleSelectAll={handleToggleSelectAll}
-                        onSetDueDate={handleSetSelectedDueDate}
-                        onSetPriority={handleSetSelectedPriority}
-                        onSetProject={handleMoveSelectedTasks}
-                        onCompleteSelected={() => void handleCompleteSelected()}
-                        onDeleteSelected={() => setBulkDeletingOpen(true)}
-                    />
-                ) : null}
+                <AnimatePresence>
+                    {selectionMode ? (
+                        <TaskSelectionBar
+                            lists={lists}
+                            selectedCount={selectedVisibleTasks.length}
+                            totalVisibleCount={selectableTasks.length}
+                            allVisibleSelected={allVisibleSelected}
+                            editing={bulkEditing}
+                            completing={bulkCompleting}
+                            deleting={bulkDeleting}
+                            onCancel={requestSelectionModeExit}
+                            onToggleSelectAll={handleToggleSelectAll}
+                            onSetDueDate={handleSetSelectedDueDate}
+                            onSetPriority={handleSetSelectedPriority}
+                            onSetProject={handleMoveSelectedTasks}
+                            onCompleteSelected={() => void handleCompleteSelected()}
+                            onDeleteSelected={() => setBulkDeletingOpen(true)}
+                        />
+                    ) : null}
+                </AnimatePresence>
 
                 {activeFilterCount > 0 ? (
                     <div className="flex flex-wrap gap-2">
@@ -329,8 +416,8 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                 selectedTaskId={selectedTaskId}
                                 selectedTaskIds={selectedTaskIdSet}
                                 selectionMode={selectionMode}
-                                onSelectionToggle={handleToggleTaskSelection}
-                                onSelect={(task) => setSelectedTaskId((current) => current === task.id ? null : task.id)}
+                                onSelectionToggle={handleTaskSelection}
+                                onSelect={handleTaskSelect}
                                 onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
                             />
                         ) : (
@@ -364,13 +451,13 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
 
             <ProjectDialog
                 open={projectDialogOpen}
-                onOpenChange={setProjectDialogOpen}
+                onOpenChange={handleProjectDialogOpenChange}
                 initialProject={project}
                 onRemoved={() => router.push("/projects")}
             />
             <ProjectMembersDialog
                 open={membersDialogOpen}
-                onOpenChange={setMembersDialogOpen}
+                onOpenChange={handleMembersDialogOpenChange}
                 project={project}
             />
 

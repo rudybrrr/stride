@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { CalendarDays, Check, ChevronDown, Flag, FolderInput, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
@@ -66,7 +67,13 @@ export function TaskSelectionBar({
     const actionDisabled = selectedCount === 0 || busy;
 
     return (
-        <div className="fixed inset-x-4 bottom-4 z-50 flex justify-center">
+        <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.985 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            className="fixed inset-x-4 bottom-4 z-50 flex justify-center"
+        >
             <div className="flex w-full max-w-[min(100%,56rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-border/70 bg-card/96 px-2 py-2 shadow-[0_24px_48px_rgba(17,18,15,0.18)] backdrop-blur supports-[backdrop-filter]:bg-card/88">
                 <Button
                     variant="ghost"
@@ -191,6 +198,6 @@ export function TaskSelectionBar({
                     {deleting ? "Deleting..." : "Delete"}
                 </Button>
             </div>
-        </div>
+        </motion.div>
     );
 }
