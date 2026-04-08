@@ -4,6 +4,7 @@ import {
   format,
   isValid,
   parseISO,
+  setHours,
   startOfDay,
   startOfWeek,
 } from "date-fns";
@@ -11,6 +12,9 @@ import {
 export type PlannerView = "month" | "week";
 
 export const WEEK_STARTS_ON = 1 as const;
+export const PLANNER_DAY_START_HOUR = 7;
+export const PLANNER_DAY_END_HOUR = 22;
+export const PLANNER_HOUR_ROW_HEIGHT = 56;
 
 function parsePlannerDate(raw: string | null | undefined) {
   if (!raw) return startOfDay(new Date());
@@ -26,6 +30,17 @@ export function toDateKey(date: Date) {
 export function getWeekDays(anchorDate: Date) {
   const start = startOfWeek(anchorDate, { weekStartsOn: WEEK_STARTS_ON });
   return Array.from({ length: 7 }, (_, index) => addDays(start, index));
+}
+
+export function getPlannerHours(
+  startHour = PLANNER_DAY_START_HOUR,
+  endHour = PLANNER_DAY_END_HOUR,
+) {
+  return Array.from({ length: Math.max(0, endHour - startHour) }, (_, index) => startHour + index);
+}
+
+export function formatPlannerHourLabel(hour: number) {
+  return format(setHours(startOfDay(new Date()), hour), "HH:mm");
 }
 
 export function getPlannerRangeLabel(view: PlannerView, anchorDate: Date) {
@@ -46,6 +61,21 @@ export function combineDateAndTime(dateKey: string, time: string) {
 
   baseDate.setHours(Number.isFinite(hours) ? hours : 9, Number.isFinite(minutes) ? minutes : 0, 0, 0);
   return baseDate;
+}
+
+export function getPlannerDayMinuteRange(
+  startHour = PLANNER_DAY_START_HOUR,
+  endHour = PLANNER_DAY_END_HOUR,
+) {
+  return Math.max(0, endHour - startHour) * 60;
+}
+
+export function getPlannerMinutesFromDate(
+  value: string | Date,
+  startHour = PLANNER_DAY_START_HOUR,
+) {
+  const date = value instanceof Date ? value : new Date(value);
+  return (date.getHours() - startHour) * 60 + date.getMinutes();
 }
 
 export function getDurationMinutes(startIso: string, endIso: string) {

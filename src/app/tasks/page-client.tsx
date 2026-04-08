@@ -294,24 +294,26 @@ function TasksContent({
     ) : view === "today" ? (
         hasTodayDisplayTasks ? (
             <div className="space-y-5">
-                <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                        <p className="eyebrow">Overdue</p>
-                        <span className="text-sm text-muted-foreground">{overdueTasks.length}</span>
+                {overdueDisplayTasks.length > 0 ? (
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <p className="eyebrow">Overdue</p>
+                            <span className="text-sm text-muted-foreground">{overdueTasks.length}</span>
+                        </div>
+                        <TaskList
+                            tasks={overdueDisplayTasks}
+                            lists={lists}
+                            showProject
+                            selectedTaskId={selectedTaskId}
+                            selectedTaskIds={selectedTaskIdSet}
+                            selectionMode={selectionMode}
+                            onSelectionToggle={handleTaskSelection}
+                            onSelect={handleTaskSelect}
+                            onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
+                            emptyMessage="Nothing overdue."
+                        />
                     </div>
-                    <TaskList
-                        tasks={overdueDisplayTasks}
-                        lists={lists}
-                        showProject
-                        selectedTaskId={selectedTaskId}
-                        selectedTaskIds={selectedTaskIdSet}
-                        selectionMode={selectionMode}
-                        onSelectionToggle={handleTaskSelection}
-                        onSelect={handleTaskSelect}
-                        onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
-                        emptyMessage="Nothing overdue."
-                    />
-                </div>
+                ) : null}
 
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
