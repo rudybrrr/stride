@@ -218,8 +218,8 @@ function FocusPageContent() {
                             })}
                         </div>
 
-                        <div className="grid gap-4 lg:min-h-[37rem] lg:grid-cols-[minmax(0,1.16fr)_minmax(20rem,0.84fr)] xl:gap-5">
-                            <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-[1.5rem] border border-border/70 bg-background/64 px-4 py-6 text-center backdrop-blur-sm sm:px-6 sm:py-8 lg:min-h-full lg:px-10 lg:py-10">
+                        <div className="grid gap-4 lg:min-h-[31rem] lg:grid-cols-[minmax(0,1.12fr)_minmax(19rem,0.88fr)] xl:gap-5">
+                            <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-[1.5rem] border border-border/70 bg-background/64 px-4 py-6 text-center backdrop-blur-sm sm:px-6 sm:py-8 lg:min-h-full lg:px-10 lg:py-9">
                                 <div className={cn("mb-6 flex h-[4.9rem] w-[4.9rem] items-center justify-center rounded-[1.5rem] border backdrop-blur-sm", tone.iconWrap)}>
                                     <config.icon className="h-9 w-9" />
                                 </div>
@@ -240,18 +240,18 @@ function FocusPageContent() {
                                 </p>
 
                                 <div className="mt-6 flex w-full flex-col items-stretch justify-center gap-2 sm:w-auto sm:flex-row">
-                                    <Button size="lg" className="w-full sm:min-w-[12rem]" onClick={toggleTimer}>
+                                    <Button size="lg" className="w-full sm:w-auto sm:min-w-[12rem]" onClick={toggleTimer}>
                                         {isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                                         {isActive ? "Pause" : mode === "focus" ? "Start focus" : "Start break"}
                                     </Button>
-                                    <Button size="lg" variant="outline" className="w-full sm:min-w-[9.5rem]" onClick={resetTimer}>
+                                    <Button size="lg" variant="outline" className="w-full sm:w-auto sm:min-w-[9.5rem]" onClick={resetTimer}>
                                         <RotateCcw className="h-4 w-4" />
                                         Reset
                                     </Button>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-3 lg:justify-between">
+                            <div className="flex flex-col gap-3 lg:justify-center">
                                 <div className="rounded-[1.2rem] border border-border/70 bg-background/68 p-3.5 backdrop-blur-sm sm:p-4">
                                     <div className="mb-2 flex items-center justify-between gap-3">
                                         <p className="eyebrow">Session project</p>

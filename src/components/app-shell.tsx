@@ -840,14 +840,14 @@ function AppShellLayout({ children }: { children: ReactNode }) {
                                         <button
                                             type="button"
                                             onClick={() => handleProjectDialogOpenChange(true)}
-                                            className="text-xs font-semibold text-primary transition-colors hover:text-primary/80"
+                                            className="cursor-pointer text-xs font-semibold text-primary transition-colors hover:text-primary/80"
                                         >
                                             + New
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => handleNavigate("/projects")}
-                                            className="text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                                            className="cursor-pointer text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground"
                                         >
                                             Manage
                                         </button>

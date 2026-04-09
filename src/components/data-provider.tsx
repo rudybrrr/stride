@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { bootstrapUserWorkspace } from "~/lib/bootstrap-user";
 import type { FocusSession, TodoList, TodoRow } from "~/lib/types";
 
 interface WeeklyStatPoint {
@@ -354,15 +355,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }
     }, [fetchShellData, fetchStatsData]);
 
-    const ensureDefaultInbox = useCallback(async (uid: string) => {
-        const { error } = await supabase.rpc("ensure_default_inbox");
-        if (error) throw error;
-
+    const ensureWorkspaceBootstrap = useCallback(async (uid: string) => {
+        await bootstrapUserWorkspace(supabase, {
+            userId: uid,
+            lists,
+            hasProfile: Boolean(profile),
+        });
         await Promise.all([
             fetchShellData(uid),
             fetchStatsData(uid),
         ]);
-    }, [fetchShellData, fetchStatsData, supabase]);
+    }, [fetchShellData, fetchStatsData, lists, profile, supabase]);
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -421,15 +424,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }, [fetchShellData, fetchStatsData, userId]);
 
     useEffect(() => {
-        if (!userId || loading || lists.length > 0) return;
+        if (!userId || loading) return;
+
+        const hasOwnedInbox = lists.some((list) => list.owner_id === userId && list.name.trim().toLowerCase() === "inbox");
+        const needsBootstrap = !profile || !hasOwnedInbox;
+
+        if (!needsBootstrap) {
+            inboxProvisionAttemptedForRef.current = null;
+            return;
+        }
         if (inboxProvisionAttemptedForRef.current === userId) return;
 
         inboxProvisionAttemptedForRef.current = userId;
 
-        void ensureDefaultInbox(userId).catch((error) => {
-            console.error("Default Inbox provisioning failed:", error);
+        void ensureWorkspaceBootstrap(userId).catch((error) => {
+            inboxProvisionAttemptedForRef.current = null;
+            console.error("Workspace bootstrap failed:", error);
         });
-    }, [ensureDefaultInbox, lists.length, loading, userId]);
+    }, [ensureWorkspaceBootstrap, lists, loading, profile, userId]);
 
     useEffect(() => {
         if (!userId) return;

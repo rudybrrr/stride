@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { bootstrapUserWorkspace } from "~/lib/bootstrap-user";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 
 export default function LoginPage() {
@@ -21,17 +22,31 @@ export default function LoginPage() {
   const submit = async () => {
     setLoading(true);
 
-    const { error } =
+    const { data, error } =
       isLogin
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password });
 
-    setLoading(false);
-
     if (error) {
+      setLoading(false);
       toast.error(error.message);
       return;
     }
+
+    const sessionUser = "session" in data && data.session?.user ? data.session.user : null;
+
+    if (sessionUser) {
+      try {
+        await bootstrapUserWorkspace(supabase, {
+          userId: sessionUser.id,
+          email: sessionUser.email ?? email,
+        });
+      } catch (bootstrapError) {
+        console.error("User bootstrap failed after auth:", bootstrapError);
+      }
+    }
+
+    setLoading(false);
 
     toast.success(isLogin ? "Welcome back!" : "Account created!");
     router.push("/tasks");
@@ -190,7 +205,7 @@ export default function LoginPage() {
                 <div className="text-center text-sm text-muted-foreground">
                   {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
                   <button
-                    className="font-semibold text-foreground transition-colors hover:text-primary"
+                    className="cursor-pointer font-semibold text-foreground transition-colors hover:text-primary"
                     onClick={() => setMode(isLogin ? "register" : "login")}
                     type="button"
                   >
