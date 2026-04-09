@@ -74,6 +74,7 @@ function areTaskRecordsEqual(a: TaskDatasetRecord, b: TaskDatasetRecord) {
     return a.id === b.id
         && a.user_id === b.user_id
         && a.list_id === b.list_id
+        && (a.section_id ?? null) === (b.section_id ?? null)
         && a.title === b.title
         && a.is_done === b.is_done
         && a.inserted_at === b.inserted_at

@@ -14,6 +14,7 @@ export interface TodoRow {
     id: string;
     user_id: string;
     list_id: string;
+    section_id?: string | null;
     title: string;
     is_done: boolean;
     inserted_at: string;
@@ -23,6 +24,15 @@ export interface TodoRow {
     estimated_minutes?: number | null;
     completed_at?: string | null;
     updated_at?: string | null;
+}
+
+export interface TodoSectionRow {
+    id: string;
+    list_id: string;
+    name: string;
+    position: number;
+    inserted_at: string;
+    updated_at: string;
 }
 
 export interface TodoImageRow {
@@ -35,6 +45,16 @@ export interface TodoImageRow {
     mime_type?: string | null;
     size_bytes?: number | string | null;
     inserted_at?: string;
+}
+
+export interface TodoStepRow {
+    id: string;
+    todo_id: string;
+    title: string;
+    is_done: boolean;
+    position: number;
+    inserted_at: string;
+    updated_at: string;
 }
 
 export interface FocusSession {

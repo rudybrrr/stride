@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { useFocus } from "~/components/focus-provider";
 import { TaskAttachmentUpload } from "~/components/task-attachment-upload";
+import { TaskStepsSection } from "~/components/task-steps-section";
 import { Button } from "~/components/ui/button";
 import {
     Dialog,
@@ -22,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "~/components/ui/sheet";
 import { Textarea } from "~/components/ui/textarea";
 import { useTaskDataset } from "~/hooks/use-task-dataset";
+import { useTaskSections } from "~/hooks/use-task-sections";
 import type { TaskDatasetRecord } from "~/hooks/use-task-dataset";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { formatAttachmentSize, getAttachmentDisplayName, getAttachmentExtension, isImageAttachment } from "~/lib/task-attachments";
@@ -29,6 +31,42 @@ import { deleteTask, deleteTaskAttachment, setTaskCompletion, updateTask } from 
 import { getDateInputValue } from "~/lib/task-views";
 import type { TodoImageRow, TodoList } from "~/lib/types";
 import { cn } from "~/lib/utils";
+
+type TaskDetailFormSnapshot = {
+    title: string;
+    description: string;
+    priority: "high" | "medium" | "low" | "";
+    dueDate: string;
+    estimatedMinutes: string;
+    listId: string;
+    sectionId: string;
+};
+
+type TaskDetailFormSyncInput = Pick<TaskDatasetRecord, "id" | "title" | "description" | "priority" | "due_date" | "estimated_minutes" | "list_id" | "section_id" | "is_done">;
+
+function createTaskDetailFormSnapshot(
+    task: Pick<TaskDatasetRecord, "title" | "description" | "priority" | "due_date" | "estimated_minutes" | "list_id" | "section_id">,
+): TaskDetailFormSnapshot {
+    return {
+        title: task.title,
+        description: task.description ?? "",
+        priority: task.priority ?? "",
+        dueDate: getDateInputValue(task.due_date),
+        estimatedMinutes: task.estimated_minutes ? String(task.estimated_minutes) : "",
+        listId: task.list_id,
+        sectionId: task.section_id ?? "",
+    };
+}
+
+function areTaskDetailFormSnapshotsEqual(a: TaskDetailFormSnapshot, b: TaskDetailFormSnapshot) {
+    return a.title === b.title
+        && a.description === b.description
+        && a.priority === b.priority
+        && a.dueDate === b.dueDate
+        && a.estimatedMinutes === b.estimatedMinutes
+        && a.listId === b.listId
+        && a.sectionId === b.sectionId;
+}
 
 function TaskDetailForm({
     task,
@@ -60,47 +98,90 @@ function TaskDetailForm({
     const router = useRouter();
     const { applyTaskPatch, refresh, removeTask, upsertTask } = useTaskDataset();
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
-    const { setCurrentListId, handleModeChange, toggleTimer } = useFocus();
+    const { setCurrentListId, handleModeChange, setIsActive } = useFocus();
     const [title, setTitle] = useState(task.title);
     const [description, setDescription] = useState(task.description ?? "");
     const [priority, setPriority] = useState<"high" | "medium" | "low" | "">(task.priority ?? "");
     const [dueDate, setDueDate] = useState(getDateInputValue(task.due_date));
     const [estimatedMinutes, setEstimatedMinutes] = useState(task.estimated_minutes ? String(task.estimated_minutes) : "");
     const [listId, setListId] = useState(task.list_id);
+    const [sectionId, setSectionId] = useState(task.section_id ?? "");
     const [isDone, setIsDone] = useState(task.is_done);
     const [saving, setSaving] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
     const initializedTaskIdRef = useRef<string | null>(null);
+    const lastSyncedSnapshotRef = useRef<TaskDetailFormSnapshot | null>(null);
+    const activeList = lists.find((list) => list.id === listId) ?? null;
+    const sectionsEnabled = Boolean(activeList && activeList.name.toLowerCase() !== "inbox");
+    const { sections, loading: sectionsLoading } = useTaskSections(listId, { enabled: sectionsEnabled });
+    const showSectionSelector = sectionsEnabled && (sectionsLoading || sections.length > 0 || Boolean(sectionId));
 
-    const syncFormState = useCallback((
-        nextTask: Pick<TaskDatasetRecord, "title" | "description" | "priority" | "due_date" | "estimated_minutes" | "list_id" | "is_done">,
-    ) => {
-        setTitle(nextTask.title);
-        setDescription(nextTask.description ?? "");
-        setPriority(nextTask.priority ?? "");
-        setDueDate(getDateInputValue(nextTask.due_date));
-        setEstimatedMinutes(nextTask.estimated_minutes ? String(nextTask.estimated_minutes) : "");
-        setListId(nextTask.list_id);
+    const currentFormSnapshot = useMemo<TaskDetailFormSnapshot>(() => ({
+        title,
+        description,
+        priority,
+        dueDate,
+        estimatedMinutes,
+        listId,
+        sectionId,
+    }), [description, dueDate, estimatedMinutes, listId, priority, sectionId, title]);
+    const taskSnapshot = useMemo(() => createTaskDetailFormSnapshot(task), [task]);
+
+    const syncFormState = useCallback((nextTask: TaskDetailFormSyncInput) => {
+        const nextSnapshot = createTaskDetailFormSnapshot(nextTask);
+
+        setTitle(nextSnapshot.title);
+        setDescription(nextSnapshot.description);
+        setPriority(nextSnapshot.priority);
+        setDueDate(nextSnapshot.dueDate);
+        setEstimatedMinutes(nextSnapshot.estimatedMinutes);
+        setListId(nextSnapshot.listId);
+        setSectionId(nextSnapshot.sectionId);
         setIsDone(nextTask.is_done);
+        initializedTaskIdRef.current = nextTask.id;
+        lastSyncedSnapshotRef.current = nextSnapshot;
     }, []);
 
     useEffect(() => {
-        if (initializedTaskIdRef.current === task.id) return;
+        const switchingTasks = initializedTaskIdRef.current !== task.id;
+        const lastSyncedSnapshot = lastSyncedSnapshotRef.current;
+        const hasLocalEdits = lastSyncedSnapshot
+            ? !areTaskDetailFormSnapshotsEqual(currentFormSnapshot, lastSyncedSnapshot)
+            : false;
+        const taskSnapshotChanged = lastSyncedSnapshot
+            ? !areTaskDetailFormSnapshotsEqual(lastSyncedSnapshot, taskSnapshot)
+            : true;
 
-        initializedTaskIdRef.current = task.id;
+        if (!switchingTasks && (hasLocalEdits || !taskSnapshotChanged)) {
+            return;
+        }
+
         syncFormState(task);
-        setDeletingAttachmentId(null);
-    }, [syncFormState, task]);
 
-    const isDirty = initializedTaskIdRef.current === task.id && (
-        title !== task.title
-        || description !== (task.description ?? "")
-        || priority !== (task.priority ?? "")
-        || dueDate !== getDateInputValue(task.due_date)
-        || estimatedMinutes !== (task.estimated_minutes ? String(task.estimated_minutes) : "")
-        || listId !== task.list_id
-    );
+        if (switchingTasks) {
+            setDeletingAttachmentId(null);
+        }
+    }, [currentFormSnapshot, syncFormState, task, taskSnapshot]);
+
+    const isDirty = initializedTaskIdRef.current === task.id && lastSyncedSnapshotRef.current
+        ? !areTaskDetailFormSnapshotsEqual(currentFormSnapshot, lastSyncedSnapshotRef.current)
+        : false;
+
+    useEffect(() => {
+        if (!sectionsEnabled) {
+            if (sectionId) {
+                setSectionId("");
+            }
+            return;
+        }
+
+        if (sectionsLoading) return;
+
+        if (sectionId && !sections.some((section) => section.id === sectionId)) {
+            setSectionId("");
+        }
+    }, [sectionId, sections, sectionsEnabled, sectionsLoading]);
 
     useEffect(() => {
         onDirtyChange?.(isDirty);
@@ -118,6 +199,7 @@ function TaskDetailForm({
         const normalizedDueDate = dueDate || null;
         const normalizedPriority = priority || null;
         const normalizedEstimatedMinutes = estimatedMinutes ? Number.parseInt(estimatedMinutes, 10) : null;
+        const normalizedSectionId = sectionId || null;
         const optimisticUpdatedAt = new Date().toISOString();
 
         try {
@@ -129,6 +211,7 @@ function TaskDetailForm({
                 priority: normalizedPriority,
                 estimated_minutes: normalizedEstimatedMinutes,
                 list_id: listId,
+                section_id: normalizedSectionId,
                 updated_at: optimisticUpdatedAt,
             });
             const updatedTask = await updateTask(supabase, {
@@ -139,6 +222,7 @@ function TaskDetailForm({
                 priority: normalizedPriority,
                 estimatedMinutes: normalizedEstimatedMinutes,
                 listId,
+                sectionId: normalizedSectionId,
             });
             upsertTask(updatedTask, { suppressRealtimeEcho: true });
             syncFormState(updatedTask);
@@ -189,7 +273,8 @@ function TaskDetailForm({
     function handleStartFocus() {
         setCurrentListId(task.list_id);
         handleModeChange("focus");
-        toggleTimer();
+        setIsActive(true);
+        router.push("/focus");
         toast.success("Focus session started.");
     }
 
@@ -327,11 +412,19 @@ function TaskDetailForm({
                     />
                 </section>
 
+                <TaskStepsSection taskId={task.id} />
+
                 <section className="rounded-xl border border-border/70 bg-muted/15 p-1.5">
                     <div className="grid gap-1">
                         <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2.5">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Project</p>
-                            <Select value={listId} onValueChange={setListId}>
+                            <Select
+                                value={listId}
+                                onValueChange={(value) => {
+                                    setListId(value);
+                                    setSectionId("");
+                                }}
+                            >
                                 <SelectTrigger
                                     id="detailProject"
                                     className="h-auto min-h-0 rounded-lg border-0 bg-background/70 px-3 py-2 text-right shadow-none focus-visible:ring-0 [&>span]:text-right"
@@ -347,6 +440,28 @@ function TaskDetailForm({
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {showSectionSelector ? (
+                            <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2.5">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Section</p>
+                                <Select value={sectionId || "none"} onValueChange={(value) => setSectionId(value === "none" ? "" : value)}>
+                                    <SelectTrigger
+                                        id="detailSection"
+                                        className="h-auto min-h-0 rounded-lg border-0 bg-background/70 px-3 py-2 text-right shadow-none focus-visible:ring-0 [&>span]:text-right"
+                                    >
+                                        <SelectValue placeholder="No section" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">No section</SelectItem>
+                                        {sections.map((section) => (
+                                            <SelectItem key={section.id} value={section.id}>
+                                                {section.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        ) : null}
 
                         <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2.5">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Due</p>
@@ -384,7 +499,7 @@ function TaskDetailForm({
                         </div>
 
                         <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3 rounded-lg px-3 py-2.5">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estimate</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Duration</p>
                             <div className="flex items-center justify-end gap-2 rounded-lg bg-background/70 px-3 py-2">
                                 <Input
                                     id="detailEstimate"

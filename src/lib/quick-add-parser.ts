@@ -306,7 +306,7 @@ export function parseQuickAddInput(input: string, lists: TodoList[], now = new D
         chips.push({ kind: "priority", label: "Priority", value: parsedPriority.label });
     }
     if (parsedEstimate) {
-        chips.push({ kind: "estimate", label: "Estimate", value: parsedEstimate.label });
+        chips.push({ kind: "estimate", label: "Duration", value: parsedEstimate.label });
     }
 
     const normalizedTokens = getNormalizedTokens(tokens);

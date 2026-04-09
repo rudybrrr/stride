@@ -11,7 +11,7 @@ Students usually do not struggle with writing tasks down. They struggle with tur
 
 Stride is built around that gap. It combines task management, calendar planning, focus sessions, and lightweight accountability into a single student productivity workflow that is designed to help captured work become scheduled, focused, and finished.
 
-Stride is an execution-first academic planner built on Next.js and Supabase. The current product combines smart task views, project workspaces, a weekly planner, focus sessions, lightweight community progress, and a premium task-first shell.
+Stride is an execution-first academic planner built on Next.js and Supabase. The current product combines smart task views, project workspaces, project sections, task steps, a dedicated focus route, planner scheduling, lightweight community progress, and a premium task-first shell.
 
 ## Current Product Shape
 
@@ -19,6 +19,7 @@ Stride is an execution-first academic planner built on Next.js and Supabase. The
 
 - `/tasks` (Today workspace and smart views)
 - `/calendar`
+- `/focus`
 - `/projects`
 
 ### Secondary routes
@@ -37,21 +38,25 @@ Stride is an execution-first academic planner built on Next.js and Supabase. The
 
 ## Current UX Model
 
-- Collapsible desktop sidebar with smart views, projects, quick add, and account utilities
+- Collapsible desktop sidebar with smart views, `Focus`, projects, quick add, and account utilities
 - Mobile drawer navigation instead of a bottom tab bar
 - Smart task views for `Today`, `Upcoming`, `Inbox`, and user-facing `Completed`
-- Inline task capture on main task surfaces plus shell-level quick add
+- Inline task capture on main task surfaces plus parser-first shell-level quick add
 - Row-click task opening with a centered desktop modal and mobile full-height task sheet
-- Project workspaces with inline add, priority filtering, member management, and project settings
+- Task detail editing with previous/next navigation, unsaved-change protection, steps, attachments, and project section assignment
+- Project workspaces with inline add, priority filtering, sections, member management, and project settings
+- Dedicated `Focus` route with a Pomodoro timer, daily goal progress, and project-linked focus sessions
 - Calendar planning with persisted `planned_focus_blocks`
-- Focus sessions tied to daily goal tracking and community progress
+- Focus sessions tied to daily goal tracking, Progress, and Community
 
 ## Core Features
 
 - Smart task views driven by deterministic rules
 - Deterministic `Next Up` recommendation
-- Task priority, due dates, notes, estimates, attachments, and completion metadata
-- Project icons, color tokens, members, and per-project workspaces
+- Task priority, due dates, notes, duration estimates, steps, attachments, and completion metadata
+- Parser-first Quick Add with Todoist-style project, date, priority, and duration tokens
+- Project icons, color tokens, members, sections, and per-project workspaces
+- Dedicated Focus page / Pomodoro timer with persisted sessions, daily-goal progress, and project context
 - Planned focus blocks linked to tasks or standalone project work
 - Focus timer with persisted sessions
 - Community leaderboard powered by `weekly_leaderboard`
@@ -459,6 +464,8 @@ Run these in order after the core schema exists:
 4. `supabase/migrations/20260320_execution_first_redesign_metadata.sql`
 5. `supabase/migrations/20260322_attachment_metadata.sql`
 6. `supabase/migrations/20260403_baseline_indexes.sql`
+7. `supabase/migrations/20260409_todo_steps_v1.sql`
+8. `supabase/migrations/20260410_project_sections_v1.sql`
 
 If you use the Supabase CLI:
 
@@ -534,11 +541,14 @@ The checked-in migration list above already includes `20260322_attachment_metada
 ## Current Database Notes
 
 - `todo_lists.color_token` and `todo_lists.icon_token` drive project presentation
-- `todos.estimated_minutes` supports planning and next-task selection
+- `todo_sections` groups tasks inside project workspaces
+- `todos.section_id` links a task to an optional project section
+- `todo_steps` stores checklist-style task steps
+- `todos.estimated_minutes` supports task duration, quick add parsing, planning, and next-task selection
 - `todos.completed_at` is used for correct completed-task ordering
 - `todo_images` stores mixed task attachments and now supports `original_name`, `mime_type`, and `size_bytes`
 - the `todo-images` bucket still holds all task attachments, even though the legacy name mentions images
-- `profiles.daily_focus_goal_minutes` powers Today and Calendar goal progress
+- `profiles.daily_focus_goal_minutes` powers Today, Calendar, and Focus goal progress
 - `planned_focus_blocks.todo_id` is optional, so a planned block can exist without a linked task
 - `20260403_baseline_indexes.sql` adds baseline indexes for common foreign-key and high-frequency query paths across `todo_lists`, `todo_list_members`, `todos`, `focus_sessions`, `todo_images`, and `planned_focus_blocks`
 

@@ -302,21 +302,25 @@ export function useTaskSelectionActions({
             const nextListId = changes.list.mode === "keep"
                 ? task.list_id
                 : (changes.list.value ?? task.list_id);
+            const nextSectionId = changes.list.mode === "keep"
+                ? task.section_id ?? null
+                : null;
 
-            return { originalTask: task, nextDueDate, nextPriority, nextListId };
+            return { originalTask: task, nextDueDate, nextPriority, nextListId, nextSectionId };
         });
 
-        for (const { originalTask, nextDueDate, nextPriority, nextListId } of tasksToUpdate) {
+        for (const { originalTask, nextDueDate, nextPriority, nextListId, nextSectionId } of tasksToUpdate) {
             applyTaskPatch(originalTask.id, {
                 due_date: nextDueDate,
                 priority: nextPriority,
                 list_id: nextListId,
+                section_id: nextSectionId,
                 updated_at: optimisticUpdatedAt,
             });
         }
 
         const results = await Promise.allSettled(
-            tasksToUpdate.map(({ originalTask, nextDueDate, nextPriority, nextListId }) => updateTask(supabase, {
+            tasksToUpdate.map(({ originalTask, nextDueDate, nextPriority, nextListId, nextSectionId }) => updateTask(supabase, {
                 id: originalTask.id,
                 title: originalTask.title,
                 description: originalTask.description ?? null,
@@ -324,6 +328,7 @@ export function useTaskSelectionActions({
                 priority: nextPriority,
                 estimatedMinutes: originalTask.estimated_minutes ?? null,
                 listId: nextListId,
+                sectionId: nextSectionId,
             })),
         );
 

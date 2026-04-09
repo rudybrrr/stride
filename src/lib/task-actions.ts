@@ -7,6 +7,7 @@ import type { TodoImageRow, TodoRow } from "~/lib/types";
 interface CreateTaskInput {
     userId: string;
     listId: string;
+    sectionId?: string | null;
     title: string;
     description?: string;
     dueDate?: string | null;
@@ -22,10 +23,11 @@ interface UpdateTaskInput {
     priority?: "high" | "medium" | "low" | null;
     estimatedMinutes?: number | null;
     listId: string;
+    sectionId?: string | null;
 }
 
 export const TODO_FIELDS =
-    "id, user_id, list_id, title, is_done, inserted_at, description, due_date, priority, estimated_minutes, completed_at, updated_at";
+    "id, user_id, list_id, section_id, title, is_done, inserted_at, description, due_date, priority, estimated_minutes, completed_at, updated_at";
 export const LEGACY_TODO_FIELDS =
     "id, user_id, list_id, title, is_done, inserted_at, description, due_date, priority, updated_at";
 
@@ -38,13 +40,15 @@ export function isMissingTaskMetadataError(error: unknown) {
     return (
         code === "PGRST204" ||
         message.includes("estimated_minutes") ||
-        message.includes("completed_at")
+        message.includes("completed_at") ||
+        message.includes("section_id")
     );
 }
 
 export function normalizeTodoRow(row: TodoRow): TodoRow {
     return {
         ...row,
+        section_id: row.section_id ?? null,
         estimated_minutes: row.estimated_minutes ?? null,
         completed_at: row.completed_at ?? (row.is_done ? row.updated_at ?? row.inserted_at : null),
         updated_at: row.updated_at ?? row.inserted_at,
@@ -53,9 +57,18 @@ export function normalizeTodoRow(row: TodoRow): TodoRow {
 
 export async function createTask(
     supabase: SupabaseClient,
-    { userId, listId, title, description, dueDate, priority, estimatedMinutes }: CreateTaskInput,
+    { userId, listId, sectionId, title, description, dueDate, priority, estimatedMinutes }: CreateTaskInput,
 ): Promise<TodoRow> {
     const basePayload = {
+        user_id: userId,
+        list_id: listId,
+        section_id: sectionId ?? null,
+        title: title.trim(),
+        description: description?.trim() ? description.trim() : null,
+        due_date: toStoredDueDate(dueDate),
+        priority: priority ?? null,
+    };
+    const legacyPayload = {
         user_id: userId,
         list_id: listId,
         title: title.trim(),
@@ -83,7 +96,7 @@ export async function createTask(
 
     const { data: legacyData, error: legacyError } = await supabase
         .from("todos")
-        .insert(basePayload)
+        .insert(legacyPayload)
         .select(LEGACY_TODO_FIELDS)
         .single();
 
@@ -93,6 +106,14 @@ export async function createTask(
 
 export async function updateTask(supabase: SupabaseClient, input: UpdateTaskInput): Promise<TodoRow> {
     const basePayload = {
+        title: input.title.trim(),
+        description: input.description?.trim() ? input.description.trim() : null,
+        due_date: toStoredDueDate(input.dueDate),
+        priority: input.priority ?? null,
+        list_id: input.listId,
+        section_id: input.sectionId ?? null,
+    };
+    const legacyPayload = {
         title: input.title.trim(),
         description: input.description?.trim() ? input.description.trim() : null,
         due_date: toStoredDueDate(input.dueDate),
@@ -120,7 +141,7 @@ export async function updateTask(supabase: SupabaseClient, input: UpdateTaskInpu
 
     const { data: legacyData, error: legacyError } = await supabase
         .from("todos")
-        .update(basePayload)
+        .update(legacyPayload)
         .eq("id", input.id)
         .select(LEGACY_TODO_FIELDS)
         .single();

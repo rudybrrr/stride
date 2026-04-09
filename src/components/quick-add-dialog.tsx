@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, Folder, Hourglass, Paperclip, Plus, SendHorizontal } from "lucide-react";
+import { Flag, Folder, Hourglass, Paperclip, Plus, Rows3, SendHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { Textarea } from "~/components/ui/textarea";
 import { useTaskDataset } from "~/hooks/use-task-dataset";
+import { useTaskSections } from "~/hooks/use-task-sections";
 import { parseQuickAddInput, type QuickAddMatchedToken } from "~/lib/quick-add-parser";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { createTask, uploadTaskAttachments } from "~/lib/task-actions";
@@ -27,6 +28,7 @@ import { cn } from "~/lib/utils";
 
 interface QuickAddDefaults {
     listId?: string | null;
+    sectionId?: string | null;
     title?: string;
     dueDate?: string | null;
 }
@@ -128,6 +130,7 @@ export function QuickAddDialog({
 
     const [inputValue, setInputValue] = useState("");
     const [manualListId, setManualListId] = useState<string | undefined>(undefined);
+    const [manualSectionId, setManualSectionId] = useState<string | undefined>(undefined);
     const [manualPriority, setManualPriority] = useState<"high" | "medium" | "low" | "" | undefined>(undefined);
     const [manualDueDate, setManualDueDate] = useState<string | undefined>(undefined);
     const [manualEstimatedMinutes, setManualEstimatedMinutes] = useState<string | undefined>(undefined);
@@ -138,6 +141,15 @@ export function QuickAddDialog({
     const [saving, setSaving] = useState(false);
     const parsedInput = useMemo(() => parseQuickAddInput(inputValue, lists), [inputValue, lists]);
     const effectiveListId = manualListId ?? parsedInput.listId ?? defaultListId;
+    const activeList = lists.find((list) => list.id === effectiveListId) ?? null;
+    const sectionsEnabled = Boolean(activeList && activeList.name.toLowerCase() !== "inbox");
+    const { sections, loading: sectionsLoading } = useTaskSections(effectiveListId || null, { enabled: sectionsEnabled });
+    const defaultSectionId = useMemo(() => {
+        if (!defaults?.sectionId || !defaults?.listId) return "";
+        return defaults.listId === effectiveListId ? defaults.sectionId : "";
+    }, [defaults?.listId, defaults?.sectionId, effectiveListId]);
+    const effectiveSectionId = manualSectionId ?? defaultSectionId;
+    const showSectionSelector = sectionsEnabled && (sectionsLoading || sections.length > 0 || Boolean(effectiveSectionId));
     const effectivePriority = manualPriority ?? parsedInput.priority ?? "";
     const effectiveDueDate = manualDueDate ?? parsedInput.dueDate ?? defaultDueDate;
     const effectiveEstimatedMinutes = manualEstimatedMinutes
@@ -151,6 +163,7 @@ export function QuickAddDialog({
 
         setInputValue(defaults?.title ?? "");
         setManualListId(undefined);
+        setManualSectionId(undefined);
         setManualPriority(undefined);
         setManualDueDate(undefined);
         setManualEstimatedMinutes(undefined);
@@ -166,6 +179,24 @@ export function QuickAddDialog({
             inputHighlightRef.current.style.transform = "translate(0px, 0px)";
         }
     }, [defaults, open]);
+
+    useEffect(() => {
+        if (!sectionsEnabled) {
+            if ((manualSectionId ?? defaultSectionId) !== "") {
+                setManualSectionId("");
+            }
+            return;
+        }
+
+        if (sectionsLoading) return;
+
+        const normalizedSectionId = manualSectionId ?? defaultSectionId;
+        if (!normalizedSectionId) return;
+
+        if (!sections.some((section) => section.id === normalizedSectionId)) {
+            setManualSectionId("");
+        }
+    }, [defaultSectionId, manualSectionId, sections, sectionsEnabled, sectionsLoading]);
 
     useEffect(() => {
         if (!open) return;
@@ -185,6 +216,7 @@ export function QuickAddDialog({
             const createdTask = await createTask(supabase, {
                 userId,
                 listId: effectiveListId,
+                sectionId: effectiveSectionId || null,
                 title: cleanedTitle,
                 description,
                 dueDate: effectiveDueDate || null,
@@ -213,7 +245,7 @@ export function QuickAddDialog({
             <DialogContent className="max-w-xl gap-0 rounded-[1.5rem] border-border/60 p-0">
                 <DialogHeader className="sr-only">
                     <DialogTitle>Quick Add</DialogTitle>
-                    <DialogDescription>Add a task with project, date, priority, and estimate controls.</DialogDescription>
+                    <DialogDescription>Add a task with project, date, priority, and duration controls.</DialogDescription>
                 </DialogHeader>
 
                 <div className="p-3 sm:p-4">
@@ -306,7 +338,13 @@ export function QuickAddDialog({
                         <div className="border-t border-border/60 px-3.5 py-3 sm:px-4">
                             <div className="flex items-end gap-2">
                                 <div className="flex flex-1 flex-wrap items-center gap-2">
-                                    <Select value={effectiveListId || ""} onValueChange={(value) => setManualListId(value)}>
+                                    <Select
+                                        value={effectiveListId || ""}
+                                        onValueChange={(value) => {
+                                            setManualListId(value);
+                                            setManualSectionId("");
+                                        }}
+                                    >
                                         <SelectTrigger id="quickAddProject" className={cn(ACTION_CHIP_CLASS, "max-w-[14rem]")}>
                                             <span className="inline-flex min-w-0 items-center gap-2">
                                                 <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -321,6 +359,25 @@ export function QuickAddDialog({
                                             ))}
                                         </SelectContent>
                                     </Select>
+
+                                    {showSectionSelector ? (
+                                        <Select value={effectiveSectionId || "none"} onValueChange={(value) => setManualSectionId(value === "none" ? "" : value)}>
+                                            <SelectTrigger id="quickAddSection" className={cn(ACTION_CHIP_CLASS, "max-w-[12rem]")}>
+                                                <span className="inline-flex min-w-0 items-center gap-2">
+                                                    <Rows3 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                                    <SelectValue placeholder="Section" />
+                                                </span>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">No section</SelectItem>
+                                                {sections.map((section) => (
+                                                    <SelectItem key={section.id} value={section.id}>
+                                                        {section.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    ) : null}
 
                                     <TaskDueDatePicker
                                         id="quickAddDue"
@@ -359,7 +416,7 @@ export function QuickAddDialog({
                                                 <span className="truncate">
                                                     {parsedEstimateMinutes && !Number.isNaN(parsedEstimateMinutes)
                                                         ? formatEstimateLabel(parsedEstimateMinutes)
-                                                        : "Estimate"}
+                                                        : "Duration"}
                                                 </span>
                                             </button>
                                         </PopoverTrigger>

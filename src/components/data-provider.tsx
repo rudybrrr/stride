@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import type { FocusSession, TodoList, TodoRow } from "~/lib/types";
 
@@ -223,6 +223,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [profile, setProfile] = useState<DataProfile | null>(null);
     const [stats, setStats] = useState<AppStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const inboxProvisionAttemptedForRef = useRef<string | null>(null);
 
     const fetchShellData = useCallback(async (uid: string) => {
         const [listsRes, profileRes] = await Promise.all([
@@ -353,16 +354,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }
     }, [fetchShellData, fetchStatsData]);
 
+    const ensureDefaultInbox = useCallback(async (uid: string) => {
+        const { error } = await supabase.rpc("ensure_default_inbox");
+        if (error) throw error;
+
+        await Promise.all([
+            fetchShellData(uid),
+            fetchStatsData(uid),
+        ]);
+    }, [fetchShellData, fetchStatsData, supabase]);
+
     useEffect(() => {
         const checkAuth = async () => {
             const { data: { user } } = await supabase.auth.getUser();
 
             if (user) {
+                inboxProvisionAttemptedForRef.current = null;
                 setUserId(user.id);
                 void loadUserData(user.id);
                 return;
             }
 
+            inboxProvisionAttemptedForRef.current = null;
             setUserId(null);
             setLists([]);
             setProfile(null);
@@ -374,6 +387,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (session?.user) {
+                inboxProvisionAttemptedForRef.current = null;
                 setUserId((prevUserId) => {
                     if (prevUserId === session.user.id) return prevUserId;
                     void loadUserData(session.user.id);
@@ -382,6 +396,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 return;
             }
 
+            inboxProvisionAttemptedForRef.current = null;
             setUserId(null);
             setLists([]);
             setProfile(null);
@@ -404,6 +419,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             }
         }
     }, [fetchShellData, fetchStatsData, userId]);
+
+    useEffect(() => {
+        if (!userId || loading || lists.length > 0) return;
+        if (inboxProvisionAttemptedForRef.current === userId) return;
+
+        inboxProvisionAttemptedForRef.current = userId;
+
+        void ensureDefaultInbox(userId).catch((error) => {
+            console.error("Default Inbox provisioning failed:", error);
+        });
+    }, [ensureDefaultInbox, lists.length, loading, userId]);
 
     useEffect(() => {
         if (!userId) return;

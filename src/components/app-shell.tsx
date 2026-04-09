@@ -17,6 +17,7 @@ import {
     Search,
     Settings,
     Sun,
+    Timer,
     Users,
 } from "lucide-react";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
@@ -52,7 +53,7 @@ import { resolveThemeSelection } from "~/lib/theme-options";
 import { cn } from "~/lib/utils";
 
 interface ShellActionsContextValue {
-    openQuickAdd: (defaults?: { listId?: string | null; title?: string; dueDate?: string | null }) => void;
+    openQuickAdd: (defaults?: { listId?: string | null; sectionId?: string | null; title?: string; dueDate?: string | null }) => void;
     enterPrimaryActivity: (activityId: string) => void;
     registerPrimaryActivityReset: (activityId: string, reset: () => void) => () => void;
 }
@@ -68,6 +69,7 @@ const DESKTOP_SIDEBAR_PREVIEW_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 const PRIMARY_ITEMS = [
     { href: "/tasks", label: "Today", icon: CheckSquare2 },
     { href: "/calendar", label: "Calendar", icon: CalendarRange },
+    { href: "/focus", label: "Focus", icon: Timer },
 ] as const;
 
 const SMART_VIEW_ITEMS = [
@@ -79,6 +81,7 @@ const SMART_VIEW_ITEMS = [
 const GLOBAL_SEARCH_VIEW_ITEMS = [
     { href: "/tasks", label: "Today", icon: CheckSquare2, keywords: ["tasks", "focus"] },
     { href: "/calendar", label: "Calendar", icon: CalendarRange, keywords: ["plan"] },
+    { href: "/focus", label: "Focus", icon: Timer, keywords: ["pomodoro", "timer", "study"] },
     { href: "/projects", label: "Projects", icon: FolderKanban, keywords: ["workspace"] },
     { href: "/tasks?view=upcoming", label: "Upcoming", icon: CalendarRange, keywords: ["schedule"] },
     { href: "/tasks?view=inbox", label: "No Due Date", icon: Inbox, keywords: ["inbox"] },
@@ -130,7 +133,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     const [mobileProfileMenuSource, setMobileProfileMenuSource] = useState<"sidebar" | "topbar" | null>(null);
     const [desktopProfileMenuId, setDesktopProfileMenuId] = useState<string | null>(null);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
-    const [quickAddDefaults, setQuickAddDefaults] = useState<{ listId?: string | null; title?: string; dueDate?: string | null } | null>(null);
+    const [quickAddDefaults, setQuickAddDefaults] = useState<{ listId?: string | null; sectionId?: string | null; title?: string; dueDate?: string | null } | null>(null);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
     const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
     const [globalSearchQuery, setGlobalSearchQuery] = useState("");
@@ -287,7 +290,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    const openQuickAdd = useCallback((defaults?: { listId?: string | null; title?: string; dueDate?: string | null }) => {
+    const openQuickAdd = useCallback((defaults?: { listId?: string | null; sectionId?: string | null; title?: string; dueDate?: string | null }) => {
         enterPrimaryActivity("shell:quick-add");
         setQuickAddDefaults(defaults ?? null);
         setQuickAddOpen(true);
