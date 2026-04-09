@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { bootstrapUserWorkspace } from "~/lib/bootstrap-user";
+import { subscribeToFocusSessionCompleted } from "~/lib/focus-session-events";
 import type { FocusSession, TodoList, TodoRow } from "~/lib/types";
 
 interface WeeklyStatPoint {
@@ -217,6 +218,14 @@ function areStatsEqual(current: AppStats | null, next: AppStats | null) {
         && areSubjectDataEqual(current.subjectData, next.subjectData);
 }
 
+function getRealtimeInsertedRowId(payload: { new?: unknown }) {
+    const nextRecord = payload.new;
+    if (!nextRecord || typeof nextRecord !== "object") return null;
+
+    const nextId = (nextRecord as { id?: unknown }).id;
+    return typeof nextId === "string" ? nextId : null;
+}
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
     const [userId, setUserId] = useState<string | null>(null);
@@ -225,6 +234,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [stats, setStats] = useState<AppStats | null>(null);
     const [loading, setLoading] = useState(true);
     const inboxProvisionAttemptedForRef = useRef<string | null>(null);
+    const focusSessionsRef = useRef<FocusSession[]>([]);
+    const knownFocusSessionIdsRef = useRef<Set<string>>(new Set());
+    const locallyPatchedFocusSessionIdsRef = useRef<Set<string>>(new Set());
 
     const fetchShellData = useCallback(async (uid: string) => {
         const [listsRes, profileRes] = await Promise.all([
@@ -265,7 +277,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (sessionsRes.error) throw sessionsRes.error;
         if (todosRes.error) throw todosRes.error;
 
-        const nextStats = buildStatsFromSessions((sessionsRes.data ?? []) as FocusSession[], todosRes.count ?? 0);
+        const nextSessions = (sessionsRes.data ?? []) as FocusSession[];
+        focusSessionsRef.current = nextSessions;
+        knownFocusSessionIdsRef.current = new Set(nextSessions.map((session) => session.id));
+        for (const sessionId of Array.from(locallyPatchedFocusSessionIdsRef.current)) {
+            if (knownFocusSessionIdsRef.current.has(sessionId)) {
+                locallyPatchedFocusSessionIdsRef.current.delete(sessionId);
+            }
+        }
+        const nextStats = buildStatsFromSessions(nextSessions, todosRes.count ?? 0);
         setStats((current) => areStatsEqual(current, nextStats) ? current : nextStats);
     }, [supabase]);
 
@@ -298,10 +318,18 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             .order("inserted_at", { ascending: true });
 
         if (error) throw error;
+        const nextSessions = (data ?? []) as FocusSession[];
+        focusSessionsRef.current = nextSessions;
+        knownFocusSessionIdsRef.current = new Set(nextSessions.map((session) => session.id));
+        for (const sessionId of Array.from(locallyPatchedFocusSessionIdsRef.current)) {
+            if (knownFocusSessionIdsRef.current.has(sessionId)) {
+                locallyPatchedFocusSessionIdsRef.current.delete(sessionId);
+            }
+        }
 
         setStats((current) => {
             const tasksCompleted = current?.tasksCompleted ?? 0;
-            const nextStats = buildStatsFromSessions((data ?? []) as FocusSession[], tasksCompleted);
+            const nextStats = buildStatsFromSessions(nextSessions, tasksCompleted);
             return areStatsEqual(current, nextStats) ? current : nextStats;
         });
     }, [supabase]);
@@ -366,6 +394,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             fetchStatsData(uid),
         ]);
     }, [fetchShellData, fetchStatsData, lists, profile, supabase]);
+
+    useEffect(() => {
+        focusSessionsRef.current = [];
+        knownFocusSessionIdsRef.current = new Set();
+        locallyPatchedFocusSessionIdsRef.current = new Set();
+    }, [userId]);
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -461,7 +495,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             .on(
                 "postgres_changes",
                 { event: "*", schema: "public", table: "focus_sessions", filter: `user_id=eq.${userId}` },
-                () => void fetchFocusStats(userId),
+                (payload) => {
+                    const nextSessionId = getRealtimeInsertedRowId(payload);
+                    if (payload.eventType === "INSERT" && nextSessionId && locallyPatchedFocusSessionIdsRef.current.has(nextSessionId)) {
+                        locallyPatchedFocusSessionIdsRef.current.delete(nextSessionId);
+                        knownFocusSessionIdsRef.current.add(nextSessionId);
+                        return;
+                    }
+
+                    void fetchFocusStats(userId);
+                },
             )
             .subscribe();
 
@@ -469,6 +512,40 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             void supabase.removeChannel(syncChannel);
         };
     }, [fetchCompletedTaskCount, fetchFocusStats, supabase, updateCompletedTaskCountFromPayload, userId]);
+
+    useEffect(() => {
+        if (!userId) return;
+
+        return subscribeToFocusSessionCompleted((detail) => {
+            if (detail.mode !== "focus") return;
+            if (knownFocusSessionIdsRef.current.has(detail.sessionId)) return;
+            if (locallyPatchedFocusSessionIdsRef.current.has(detail.sessionId)) return;
+
+            const listName = detail.listId
+                ? (lists.find((list) => list.id === detail.listId)?.name ?? "General")
+                : "General";
+
+            const nextSession: FocusSession = {
+                id: detail.sessionId,
+                user_id: userId,
+                list_id: detail.listId,
+                duration_seconds: detail.durationSeconds,
+                mode: detail.mode,
+                inserted_at: detail.insertedAt,
+                todo_lists: listName ? { name: listName } : null,
+            };
+
+            locallyPatchedFocusSessionIdsRef.current.add(detail.sessionId);
+            knownFocusSessionIdsRef.current.add(detail.sessionId);
+            focusSessionsRef.current = [...focusSessionsRef.current, nextSession];
+
+            setStats((current) => {
+                const tasksCompleted = current?.tasksCompleted ?? 0;
+                const nextStats = buildStatsFromSessions(focusSessionsRef.current, tasksCompleted);
+                return areStatsEqual(current, nextStats) ? current : nextStats;
+            });
+        });
+    }, [lists, userId]);
 
     const value = useMemo(() => ({
         lists,

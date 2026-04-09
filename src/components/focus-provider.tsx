@@ -1,11 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Brain, Coffee, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import confetti from "canvas-confetti";
 
+import { emitFocusSessionCompleted } from "~/lib/focus-session-events";
 import type { TimerMode } from "~/lib/types";
 
 export const MODE_CONFIG = {
@@ -61,21 +62,23 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     const [isActive, setIsActive] = useState(false);
     const [currentListId, setCurrentListId] = useState<string | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
+    const completionHandledRef = useRef(false);
 
     // Initial Load from localStorage
     useEffect(() => {
         const savedMode = localStorage.getItem("focus-mode") as TimerMode;
         const savedTime = localStorage.getItem("focus-time");
-        const savedIsActive = localStorage.getItem("focus-active") === "true";
+        const nextMode = savedMode && MODE_CONFIG[savedMode] ? savedMode : "focus";
+        const parsedTime = savedTime ? parseInt(savedTime, 10) : NaN;
+        const nextTime = Number.isFinite(parsedTime) && parsedTime > 0
+            ? parsedTime
+            : MODE_CONFIG[nextMode].duration;
 
-        if (savedMode && MODE_CONFIG[savedMode]) {
-            setMode(savedMode);
-        }
-        if (savedTime) {
-            setTimeLeft(parseInt(savedTime, 10));
-        }
-        // We don't auto-start on refresh for better UX, but we keep the state if it was active
-        setIsActive(savedIsActive);
+        setMode(nextMode);
+        setTimeLeft(nextTime);
+        // Until the timer is wall-clock based, never auto-resume on refresh.
+        setIsActive(false);
+        completionHandledRef.current = false;
         setIsInitialized(true);
     }, []);
 
@@ -88,15 +91,30 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     }, [mode, timeLeft, isActive, isInitialized]);
 
     const toggleTimer = useCallback(() => {
-        setIsActive((prev) => !prev);
-    }, []);
+        if (isActive) {
+            setIsActive(false);
+            return;
+        }
+
+        completionHandledRef.current = false;
+
+        if (timeLeft <= 0) {
+            setTimeLeft(MODE_CONFIG[mode].duration);
+            setIsActive(true);
+            return;
+        }
+
+        setIsActive(true);
+    }, [isActive, mode, timeLeft]);
 
     const resetTimer = useCallback(() => {
+        completionHandledRef.current = false;
         setIsActive(false);
         setTimeLeft(MODE_CONFIG[mode].duration);
     }, [mode]);
 
     const handleModeChange = useCallback((newMode: TimerMode) => {
+        completionHandledRef.current = false;
         setMode(newMode);
         setIsActive(false);
         setTimeLeft(MODE_CONFIG[newMode].duration);
@@ -105,16 +123,31 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     const saveSession = useCallback(async () => {
         if (!userId) return;
 
-        const { error } = await supabase.from("focus_sessions").insert({
+        const sessionPayload = {
             user_id: userId,
             duration_seconds: MODE_CONFIG[mode].duration,
-            mode: mode,
+            mode,
             list_id: currentListId,
-        });
+        };
+
+        const { data, error } = await supabase
+            .from("focus_sessions")
+            .insert(sessionPayload)
+            .select("id, inserted_at")
+            .single();
 
         if (error) {
             console.error("Error saving focus session:", error);
+            return;
         }
+
+        emitFocusSessionCompleted({
+            sessionId: typeof data?.id === "string" ? data.id : `${userId}-${mode}-${Date.now()}`,
+            durationSeconds: MODE_CONFIG[mode].duration,
+            mode,
+            listId: currentListId,
+            insertedAt: typeof data?.inserted_at === "string" ? data.inserted_at : new Date().toISOString(),
+        });
     }, [supabase, mode, currentListId, userId]);
 
     useEffect(() => {
@@ -125,6 +158,11 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
                 setTimeLeft((prev) => prev - 1);
             }, 1000);
         } else if (timeLeft === 0 && isActive) {
+            if (completionHandledRef.current) {
+                return () => clearInterval(interval);
+            }
+
+            completionHandledRef.current = true;
             setIsActive(false);
             void saveSession();
 

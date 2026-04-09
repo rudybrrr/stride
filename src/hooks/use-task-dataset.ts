@@ -6,6 +6,7 @@ import { addDays, startOfDay } from "date-fns";
 
 import { useData } from "~/components/data-provider";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { subscribeToFocusSessionCompleted } from "~/lib/focus-session-events";
 import { isMissingAttachmentMetadataError } from "~/lib/task-attachments";
 import {
     LEGACY_TODO_FIELDS,
@@ -58,8 +59,10 @@ interface ListMemberCountRow {
 }
 
 interface FocusSessionSummaryRow {
+    id: string;
     duration_seconds: number;
     mode: string;
+    inserted_at: string;
 }
 
 const PROJECT_ORDER_STORAGE_KEY_PREFIX = "list-order-";
@@ -208,6 +211,14 @@ function isOverdue(task: TodoRow) {
     return new Date(task.due_date).getTime() < new Date().setHours(0, 0, 0, 0);
 }
 
+function getRealtimeInsertedRowId(payload: { new?: unknown }) {
+    const nextRecord = payload.new;
+    if (!nextRecord || typeof nextRecord !== "object") return null;
+
+    const nextId = (nextRecord as { id?: unknown }).id;
+    return typeof nextId === "string" ? nextId : null;
+}
+
 function useTaskDatasetState(): TaskDatasetValue {
     const { userId, lists, loading: dataLoading } = useData();
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
@@ -219,6 +230,8 @@ function useTaskDatasetState(): TaskDatasetValue {
     const [loading, setLoading] = useState(true);
     const [projectOrder, setProjectOrder] = useState<string[]>([]);
     const pendingRealtimeEchoCountsRef = useRef<Map<string, number>>(new Map());
+    const knownFocusSessionIdsRef = useRef<Set<string>>(new Set());
+    const locallyPatchedFocusSessionIdsRef = useRef<Set<string>>(new Set());
 
     const listIdSignature = useMemo(() => {
         return Array.from(new Set(lists.map((list) => list.id)))
@@ -278,7 +291,7 @@ function useTaskDatasetState(): TaskDatasetValue {
                     .in("list_id", listIds),
                 supabase
                     .from("focus_sessions")
-                    .select("duration_seconds, mode")
+                    .select("id, duration_seconds, mode, inserted_at")
                     .eq("user_id", userId)
                     .gte("inserted_at", startOfDay(new Date()).toISOString())
                     .lt("inserted_at", addDays(startOfDay(new Date()), 1).toISOString()),
@@ -308,7 +321,15 @@ function useTaskDatasetState(): TaskDatasetValue {
                 nextMemberCounts[row.list_id] = (nextMemberCounts[row.list_id] ?? 0) + 1;
             }
 
-            const focusMinutes = ((focusResponse.data ?? []) as FocusSessionSummaryRow[])
+            const focusSessions = (focusResponse.data ?? []) as FocusSessionSummaryRow[];
+            knownFocusSessionIdsRef.current = new Set(focusSessions.map((session) => session.id));
+            for (const sessionId of Array.from(locallyPatchedFocusSessionIdsRef.current)) {
+                if (knownFocusSessionIdsRef.current.has(sessionId)) {
+                    locallyPatchedFocusSessionIdsRef.current.delete(sessionId);
+                }
+            }
+
+            const focusMinutes = focusSessions
                 .filter((session) => session.mode === "focus")
                 .reduce((total, session) => total + Math.round(session.duration_seconds / 60), 0);
 
@@ -324,6 +345,13 @@ function useTaskDatasetState(): TaskDatasetValue {
             setLoading(false);
         }
     }, [dataLoading, listIds, supabase, userId]);
+
+    useEffect(() => {
+        if (!userId) {
+            knownFocusSessionIdsRef.current = new Set();
+            locallyPatchedFocusSessionIdsRef.current = new Set();
+        }
+    }, [userId]);
 
     useEffect(() => {
         void loadDataset();
@@ -398,7 +426,16 @@ function useTaskDatasetState(): TaskDatasetValue {
             })
             .on("postgres_changes", { event: "*", schema: "public", table: "todo_images" }, () => void loadDataset({ silent: true }))
             .on("postgres_changes", { event: "*", schema: "public", table: "planned_focus_blocks", filter: `user_id=eq.${userId}` }, () => void loadDataset({ silent: true }))
-            .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions", filter: `user_id=eq.${userId}` }, () => void loadDataset({ silent: true }))
+            .on("postgres_changes", { event: "*", schema: "public", table: "focus_sessions", filter: `user_id=eq.${userId}` }, (payload) => {
+                const nextSessionId = getRealtimeInsertedRowId(payload);
+                if (payload.eventType === "INSERT" && nextSessionId && locallyPatchedFocusSessionIdsRef.current.has(nextSessionId)) {
+                    locallyPatchedFocusSessionIdsRef.current.delete(nextSessionId);
+                    knownFocusSessionIdsRef.current.add(nextSessionId);
+                    return;
+                }
+
+                void loadDataset({ silent: true });
+            })
             .on("postgres_changes", { event: "*", schema: "public", table: "todo_list_members" }, () => void loadDataset({ silent: true }))
             .subscribe();
 
@@ -406,6 +443,22 @@ function useTaskDatasetState(): TaskDatasetValue {
             void supabase.removeChannel(channel);
         };
     }, [listIdSet, loadDataset, plannedBlocks, shouldSuppressRealtimeEcho, supabase, userId]);
+
+    useEffect(() => {
+        return subscribeToFocusSessionCompleted((detail) => {
+            if (detail.mode !== "focus") return;
+            if (knownFocusSessionIdsRef.current.has(detail.sessionId)) return;
+            if (locallyPatchedFocusSessionIdsRef.current.has(detail.sessionId)) return;
+
+            const sessionDay = startOfDay(new Date(detail.insertedAt)).getTime();
+            const today = startOfDay(new Date()).getTime();
+            if (sessionDay !== today) return;
+
+            locallyPatchedFocusSessionIdsRef.current.add(detail.sessionId);
+            knownFocusSessionIdsRef.current.add(detail.sessionId);
+            setTodayFocusMinutes((current) => current + Math.round(detail.durationSeconds / 60));
+        });
+    }, []);
 
     const projectSummaries = useMemo<ProjectSummary[]>(() => {
         return lists.map((list) => {

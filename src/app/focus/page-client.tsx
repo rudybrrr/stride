@@ -117,8 +117,8 @@ export default function FocusClient() {
 }
 
 function FocusPageContent() {
-    const { profile, stats, userId } = useData();
-    const { todayFocusMinutes, orderedProjectSummaries } = useTaskDataset();
+    const { profile, stats, userId, loading: dataLoading } = useData();
+    const { todayFocusMinutes, orderedProjectSummaries, loading: datasetLoading } = useTaskDataset();
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
     const [communityRank, setCommunityRank] = useState<number | null | undefined>(undefined);
     const {
@@ -132,6 +132,7 @@ function FocusPageContent() {
         setCurrentListId,
     } = useFocus();
 
+    const isFocusDataLoading = dataLoading || datasetLoading;
     const config = MODE_CONFIG[mode];
     const tone = getModeTone(mode);
     const dailyGoal = profile?.daily_focus_goal_minutes ?? 120;
@@ -284,12 +285,14 @@ function FocusPageContent() {
                                         <div className="space-y-1">
                                             <p className="eyebrow">Daily goal</p>
                                             <p className="text-base font-semibold tracking-[-0.04em] text-foreground">
-                                                {todayFocusMinutes}m / {dailyGoal}m today
+                                                {isFocusDataLoading
+                                                    ? "Loading focus data"
+                                                    : `${todayFocusMinutes}m / ${dailyGoal}m today`}
                                             </p>
                                         </div>
                                         <div className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/72 px-3 py-1.5 text-xs font-medium text-muted-foreground">
                                             <Brain className="h-3.5 w-3.5" />
-                                            {stats?.streak ?? 0} day streak
+                                            {isFocusDataLoading ? "--" : (stats?.streak ?? 0)} day streak
                                         </div>
                                     </div>
 
@@ -301,9 +304,11 @@ function FocusPageContent() {
                                             />
                                         </div>
                                         <p className="text-sm text-muted-foreground">
-                                            {remainingMinutes > 0
-                                                ? `${remainingMinutes} minutes left to goal`
-                                                : "Daily focus goal reached"}
+                                            {isFocusDataLoading
+                                                ? "Syncing goal and session totals"
+                                                : remainingMinutes > 0
+                                                    ? `${remainingMinutes} minutes left to goal`
+                                                    : "Daily focus goal reached"}
                                         </p>
                                     </div>
 
@@ -316,11 +321,15 @@ function FocusPageContent() {
                                         </div>
                                         <div className="rounded-xl border border-border/65 bg-background/72 px-3 py-2.5">
                                             <p className="eyebrow">Typical</p>
-                                            <p className="mt-1 text-sm font-semibold text-foreground">{stats?.avgSession ?? "0m"}</p>
+                                            <p className="mt-1 text-sm font-semibold text-foreground">
+                                                {isFocusDataLoading ? "--" : (stats?.avgSession ?? "0m")}
+                                            </p>
                                         </div>
                                         <div className="rounded-xl border border-border/65 bg-background/72 px-3 py-2.5">
                                             <p className="eyebrow">Goal</p>
-                                            <p className="mt-1 text-sm font-semibold text-foreground">{Math.round(focusProgress)}%</p>
+                                            <p className="mt-1 text-sm font-semibold text-foreground">
+                                                {isFocusDataLoading ? "--" : `${Math.round(focusProgress)}%`}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -334,7 +343,7 @@ function FocusPageContent() {
                         href="/progress"
                         icon={BarChart3}
                         title="Progress"
-                        description={stats ? `${stats.totalHours} total focus` : "No focus logged yet"}
+                        description={isFocusDataLoading ? "Loading focus data" : stats ? `${stats.totalHours} total focus` : "No focus logged yet"}
                     />
 
                     <FocusLinkCard
