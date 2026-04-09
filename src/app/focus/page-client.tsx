@@ -343,7 +343,7 @@ function FocusPageContent() {
                         href="/progress"
                         icon={BarChart3}
                         title="Progress"
-                        description={isFocusDataLoading ? "Loading focus data" : stats ? `${stats.totalHours} total focus` : "No focus logged yet"}
+                        description={isFocusDataLoading ? "Loading focus data" : stats ? `${stats.totalFocus} total focus` : "No focus logged yet"}
                     />
 
                     <FocusLinkCard

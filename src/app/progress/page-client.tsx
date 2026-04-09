@@ -29,7 +29,7 @@ export default function ProgressClient() {
                 <PageHeader
                     title="Progress"
                     description={stats
-                        ? `${stats.totalHours}h focus, ${stats.tasksCompleted} tasks, ${stats.streak}-day streak.`
+                        ? `${stats.totalFocus} focus, ${stats.tasksCompleted} tasks, ${stats.streak}-day streak.`
                         : undefined}
                 />
 
@@ -53,6 +53,7 @@ export default function ProgressClient() {
                                             <Area
                                                 type="monotone"
                                                 dataKey="minutes"
+                                                isAnimationActive={false}
                                                 stroke="var(--chart-1)"
                                                 fill="color-mix(in oklab, var(--chart-1) 22%, transparent)"
                                                 strokeWidth={3}
@@ -68,7 +69,14 @@ export default function ProgressClient() {
                                         <div className="h-56">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <PieChart>
-                                                    <Pie data={stats.subjectData} dataKey="value" innerRadius={56} outerRadius={82} paddingAngle={4}>
+                                                    <Pie
+                                                        data={stats.subjectData}
+                                                        dataKey="value"
+                                                        innerRadius={56}
+                                                        outerRadius={82}
+                                                        paddingAngle={4}
+                                                        isAnimationActive={false}
+                                                    >
                                                         {stats.subjectData.map((entry, index) => (
                                                             <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                                                         ))}

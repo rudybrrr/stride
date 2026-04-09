@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { bootstrapUserWorkspace } from "~/lib/bootstrap-user";
 import { subscribeToFocusSessionCompleted } from "~/lib/focus-session-events";
+import { formatMinutesCompact } from "~/lib/planning";
 import type { FocusSession, TodoList, TodoRow } from "~/lib/types";
 
 interface WeeklyStatPoint {
@@ -18,7 +19,7 @@ interface SubjectStatPoint {
 }
 
 interface AppStats {
-    totalHours: string;
+    totalFocus: string;
     tasksCompleted: number;
     streak: number;
     avgSession: string;
@@ -133,11 +134,14 @@ function buildStatsFromSessions(sessions: FocusSession[], tasksCompleted: number
         subjects[subjectName] = (subjects[subjectName] ?? 0) + Math.round(session.duration_seconds / 60);
     });
 
+    const totalMinutes = Math.round(totalSeconds / 60);
+    const averageSessionMinutes = focusSessionCount > 0 ? Math.round(totalMinutes / focusSessionCount) : 0;
+
     return {
-        totalHours: `${(totalSeconds / 3600).toFixed(1)}h`,
+        totalFocus: formatMinutesCompact(totalMinutes),
         tasksCompleted,
         streak: calculateStreak(sessions),
-        avgSession: focusSessionCount > 0 ? `${Math.round((totalSeconds / 60) / focusSessionCount)}m` : "0m",
+        avgSession: formatMinutesCompact(averageSessionMinutes),
         weeklyData,
         subjectData: Object.entries(subjects).map(([name, value]) => ({ name, value })),
     };
@@ -145,7 +149,7 @@ function buildStatsFromSessions(sessions: FocusSession[], tasksCompleted: number
 
 function createEmptyStats(tasksCompleted = 0): AppStats {
     return {
-        totalHours: "0.0h",
+        totalFocus: "0m",
         tasksCompleted,
         streak: 0,
         avgSession: "0m",
@@ -210,7 +214,7 @@ function areStatsEqual(current: AppStats | null, next: AppStats | null) {
     if (current === next) return true;
     if (!current || !next) return false;
 
-    return current.totalHours === next.totalHours
+    return current.totalFocus === next.totalFocus
         && current.tasksCompleted === next.tasksCompleted
         && current.streak === next.streak
         && current.avgSession === next.avgSession
