@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { addDays, addMonths, format, isSameDay, isToday, startOfDay, subDays, subMonths } from "date-fns";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { addDays, addMonths, format, isSameDay, isToday, parseISO, startOfDay, subDays, subMonths } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { DayButtonProps } from "react-day-picker";
 import { toast } from "sonner";
 
@@ -82,6 +82,23 @@ function createBlockForm(listId: string, date = toDateKey(new Date())): BlockFor
         date,
         startTime: "09:00",
         durationMinutes: "60",
+    };
+}
+
+function createBlockFormFromPlannedBlock(block: PlannedFocusBlock): BlockFormState {
+    const durationMinutes = Math.max(
+        15,
+        Math.round((new Date(block.scheduled_end).getTime() - new Date(block.scheduled_start).getTime()) / 60000),
+    );
+
+    return {
+        id: block.id,
+        title: block.title,
+        listId: block.list_id,
+        todoId: block.todo_id,
+        date: format(new Date(block.scheduled_start), "yyyy-MM-dd"),
+        startTime: format(new Date(block.scheduled_start), "HH:mm"),
+        durationMinutes: String(durationMinutes),
     };
 }
 
@@ -211,13 +228,17 @@ export default function CalendarClient() {
 }
 
 function CalendarContent() {
+    const router = useRouter();
+    const pathname = usePathname();
     const searchParams = useSearchParams();
     const { profile, userId } = useData();
     const { lists, tasks, plannedBlocks, todayFocusMinutes, loading, refresh } = useTaskDataset();
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
 
     const searchListId = searchParams.get("listId");
+    const searchBlockId = searchParams.get("blockId");
     const searchTaskId = searchParams.get("taskId");
+    const searchDate = searchParams.get("date");
 
     const [view, setView] = useState<PlannerView>("week");
     const [anchorDate, setAnchorDate] = useState(startOfDay(new Date()));
@@ -227,6 +248,24 @@ function CalendarContent() {
     const [saving, setSaving] = useState(false);
     const [form, setForm] = useState<BlockFormState>(() => createBlockForm(""));
     const [now, setNow] = useState(() => new Date());
+    const consumedBlockPrefillRef = useRef<string | null>(null);
+    const consumedTaskPrefillRef = useRef<string | null>(null);
+
+    const clearDeepLinkParams = useCallback((keys: string[]) => {
+        const nextParams = new URLSearchParams(searchParams.toString());
+        let changed = false;
+
+        keys.forEach((key) => {
+            if (!nextParams.has(key)) return;
+            nextParams.delete(key);
+            changed = true;
+        });
+
+        if (!changed) return;
+
+        const nextQuery = nextParams.toString();
+        router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+    }, [pathname, router, searchParams]);
 
     useEffect(() => {
         const timer = window.setInterval(() => {
@@ -257,11 +296,50 @@ function CalendarContent() {
     }, [lists, selectedListId]);
 
     useEffect(() => {
-        if (!searchTaskId) return;
+        if (!searchBlockId) {
+            consumedBlockPrefillRef.current = null;
+            return;
+        }
+
+        const prefillKey = `${searchBlockId}:${searchListId ?? ""}`;
+        if (consumedBlockPrefillRef.current === prefillKey) return;
+
+        const block = plannedBlocks.find((item) => item.id === searchBlockId);
+        if (!block) return;
+
+        const blockDate = startOfDay(new Date(block.scheduled_start));
+
+        consumedBlockPrefillRef.current = prefillKey;
+        setForm(createBlockFormFromPlannedBlock(block));
+        setSelectedDate(blockDate);
+        setAnchorDate(blockDate);
+        setSelectedListId(block.list_id);
+        setDialogOpen(true);
+        clearDeepLinkParams(["blockId", "taskId", "date"]);
+    }, [clearDeepLinkParams, plannedBlocks, searchBlockId, searchListId]);
+
+    useEffect(() => {
+        if (!searchTaskId) {
+            consumedTaskPrefillRef.current = null;
+            return;
+        }
+
+        if (searchBlockId) return;
+
+        const prefillKey = `${searchTaskId}:${searchListId ?? ""}:${searchDate ?? ""}`;
+        if (consumedTaskPrefillRef.current === prefillKey) return;
+
         const task = tasks.find((item) => item.id === searchTaskId);
         if (!task) return;
 
-        const taskDate = task.due_date ? startOfDay(new Date(task.due_date)) : startOfDay(new Date());
+        const requestedDate = searchDate ? parseISO(searchDate) : null;
+        const taskDate = requestedDate && !Number.isNaN(requestedDate.getTime())
+            ? startOfDay(requestedDate)
+            : task.due_date
+                ? startOfDay(new Date(task.due_date))
+                : startOfDay(new Date());
+
+        consumedTaskPrefillRef.current = prefillKey;
         setForm({
             id: null,
             title: task.title,
@@ -275,7 +353,8 @@ function CalendarContent() {
         setAnchorDate(taskDate);
         setSelectedListId(task.list_id);
         setDialogOpen(true);
-    }, [searchTaskId, tasks]);
+        clearDeepLinkParams(["taskId", "date"]);
+    }, [clearDeepLinkParams, searchBlockId, searchDate, searchListId, searchTaskId, tasks]);
 
     const filteredTasks = useMemo(() => {
         const scoped = selectedListId === "all"
@@ -378,19 +457,7 @@ function CalendarContent() {
     }, [lists, selectedDate, selectedListId, tasks]);
 
     const editBlock = useCallback((block: PlannedFocusBlock) => {
-        const durationMinutes = Math.max(
-            15,
-            Math.round((new Date(block.scheduled_end).getTime() - new Date(block.scheduled_start).getTime()) / 60000),
-        );
-        setForm({
-            id: block.id,
-            title: block.title,
-            listId: block.list_id,
-            todoId: block.todo_id,
-            date: format(new Date(block.scheduled_start), "yyyy-MM-dd"),
-            startTime: format(new Date(block.scheduled_start), "HH:mm"),
-            durationMinutes: String(durationMinutes),
-        });
+        setForm(createBlockFormFromPlannedBlock(block));
         setDialogOpen(true);
     }, []);
 

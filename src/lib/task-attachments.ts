@@ -72,18 +72,3 @@ export function formatAttachmentSize(sizeBytes: number | string | null | undefin
 
     return null;
 }
-
-export function isMissingAttachmentMetadataError(error: unknown) {
-    if (!error || typeof error !== "object") return false;
-
-    const code = "code" in error ? String(error.code) : "";
-    const message = "message" in error ? String(error.message) : "";
-
-    return (
-        code === "PGRST204"
-        || code === "42703"
-        || message.includes("original_name")
-        || message.includes("mime_type")
-        || message.includes("size_bytes")
-    );
-}

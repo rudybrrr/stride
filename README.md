@@ -28,14 +28,6 @@ Stride is an execution-first academic planner built on Next.js and Supabase. The
 - `/community`
 - `/settings`
 
-### Legacy redirects
-
-- `/home` -> `/tasks`
-- `/dashboard` -> `/tasks`
-- `/todos` -> `/tasks`
-- `/planning` -> `/calendar`
-- `/study-hall` -> `/community`
-
 ## Current UX Model
 
 - Collapsible desktop sidebar with smart views, `Focus`, projects, quick add, and account utilities
@@ -516,7 +508,7 @@ alter table public.planned_focus_blocks replica identity full;
 
 Create two public buckets:
 
-- `todo-images` (task attachments; retained name for compatibility)
+- `todo-images` (task attachments)
 - `profile-avatars`
 
 Recommended storage policies:
@@ -546,8 +538,7 @@ The checked-in migration list above already includes `20260322_attachment_metada
 - `todo_steps` stores checklist-style task steps
 - `todos.estimated_minutes` supports task duration, quick add parsing, planning, and next-task selection
 - `todos.completed_at` is used for correct completed-task ordering
-- `todo_images` stores mixed task attachments and now supports `original_name`, `mime_type`, and `size_bytes`
-- the `todo-images` bucket still holds all task attachments, even though the legacy name mentions images
+- `todo_images` stores mixed task attachments and supports `original_name`, `mime_type`, and `size_bytes`
 - `profiles.daily_focus_goal_minutes` powers Today, Calendar, and Focus goal progress
 - `planned_focus_blocks.todo_id` is optional, so a planned block can exist without a linked task
 - `20260403_baseline_indexes.sql` adds baseline indexes for common foreign-key and high-frequency query paths across `todo_lists`, `todo_list_members`, `todos`, `focus_sessions`, `todo_images`, and `planned_focus_blocks`

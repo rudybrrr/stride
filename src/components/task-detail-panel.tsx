@@ -29,7 +29,7 @@ import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { formatAttachmentSize, getAttachmentDisplayName, getAttachmentExtension, isImageAttachment } from "~/lib/task-attachments";
 import { deleteTask, deleteTaskAttachment, setTaskCompletion, updateTask } from "~/lib/task-actions";
 import { getDateInputValue } from "~/lib/task-views";
-import type { TodoImageRow, TodoList } from "~/lib/types";
+import type { PlannedFocusBlock, TodoImageRow, TodoList } from "~/lib/types";
 import { cn } from "~/lib/utils";
 
 type TaskDetailFormSnapshot = {
@@ -43,6 +43,12 @@ type TaskDetailFormSnapshot = {
 };
 
 type TaskDetailFormSyncInput = Pick<TaskDatasetRecord, "id" | "title" | "description" | "priority" | "due_date" | "estimated_minutes" | "list_id" | "section_id" | "is_done">;
+
+type TaskDetailSnapshotComparisonContext = {
+    sectionsEnabled: boolean;
+    sectionsLoading: boolean;
+    validSectionIds: ReadonlySet<string>;
+};
 
 function createTaskDetailFormSnapshot(
     task: Pick<TaskDatasetRecord, "title" | "description" | "priority" | "due_date" | "estimated_minutes" | "list_id" | "section_id">,
@@ -66,6 +72,68 @@ function areTaskDetailFormSnapshotsEqual(a: TaskDetailFormSnapshot, b: TaskDetai
         && a.estimatedMinutes === b.estimatedMinutes
         && a.listId === b.listId
         && a.sectionId === b.sectionId;
+}
+
+function normalizeTaskDetailLineBreaks(value: string) {
+    return value.replace(/\r\n?/g, "\n");
+}
+
+function normalizeTaskDetailRequiredText(value: string) {
+    return normalizeTaskDetailLineBreaks(value).trim();
+}
+
+function normalizeTaskDetailOptionalText(value: string) {
+    const normalized = normalizeTaskDetailLineBreaks(value).trim();
+    return normalized ? normalized : "";
+}
+
+function normalizeTaskDetailEstimatedMinutes(value: string) {
+    const normalized = value.trim();
+
+    if (!normalized) return "";
+    if (/^\d+$/.test(normalized)) {
+        return String(Number.parseInt(normalized, 10));
+    }
+
+    return normalized;
+}
+
+function normalizeTaskDetailSectionId(sectionId: string, context: TaskDetailSnapshotComparisonContext) {
+    const normalizedSectionId = sectionId || "";
+
+    if (!context.sectionsEnabled) return "";
+    if (context.sectionsLoading) return normalizedSectionId;
+    if (!normalizedSectionId) return "";
+
+    return context.validSectionIds.has(normalizedSectionId) ? normalizedSectionId : "";
+}
+
+function createComparableTaskDetailFormSnapshot(
+    snapshot: TaskDetailFormSnapshot,
+    context: TaskDetailSnapshotComparisonContext,
+): TaskDetailFormSnapshot {
+    return {
+        title: normalizeTaskDetailRequiredText(snapshot.title),
+        description: normalizeTaskDetailOptionalText(snapshot.description),
+        priority: snapshot.priority || "",
+        dueDate: snapshot.dueDate || "",
+        estimatedMinutes: normalizeTaskDetailEstimatedMinutes(snapshot.estimatedMinutes),
+        listId: snapshot.listId,
+        sectionId: normalizeTaskDetailSectionId(snapshot.sectionId, context),
+    };
+}
+
+function selectPreferredPlannedBlock(blocks: PlannedFocusBlock[]) {
+    if (blocks.length === 0) return null;
+
+    const now = Date.now();
+    const upcomingBlock = [...blocks]
+        .filter((block) => new Date(block.scheduled_start).getTime() >= now)
+        .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start))[0];
+
+    if (upcomingBlock) return upcomingBlock;
+
+    return [...blocks].sort((a, b) => b.scheduled_start.localeCompare(a.scheduled_start))[0] ?? null;
 }
 
 function TaskDetailForm({
@@ -96,7 +164,7 @@ function TaskDetailForm({
     onDeleted: () => void;
 }) {
     const router = useRouter();
-    const { applyTaskPatch, refresh, removeTask, upsertTask } = useTaskDataset();
+    const { applyTaskPatch, plannedBlocks, refresh, removeTask, upsertTask } = useTaskDataset();
     const supabase = useMemo(() => createSupabaseBrowserClient(), []);
     const { setCurrentListId, handleModeChange, setIsActive } = useFocus();
     const [title, setTitle] = useState(task.title);
@@ -116,6 +184,15 @@ function TaskDetailForm({
     const sectionsEnabled = Boolean(activeList && activeList.name.toLowerCase() !== "inbox");
     const { sections, loading: sectionsLoading } = useTaskSections(listId, { enabled: sectionsEnabled });
     const showSectionSelector = sectionsEnabled && (sectionsLoading || sections.length > 0 || Boolean(sectionId));
+    const validSectionIds = useMemo(() => new Set(sections.map((section) => section.id)), [sections]);
+    const linkedPlannedBlocks = useMemo(
+        () => plannedBlocks.filter((block) => block.todo_id === task.id),
+        [plannedBlocks, task.id],
+    );
+    const preferredPlannedBlock = useMemo(
+        () => selectPreferredPlannedBlock(linkedPlannedBlocks),
+        [linkedPlannedBlocks],
+    );
 
     const currentFormSnapshot = useMemo<TaskDetailFormSnapshot>(() => ({
         title,
@@ -127,6 +204,23 @@ function TaskDetailForm({
         sectionId,
     }), [description, dueDate, estimatedMinutes, listId, priority, sectionId, title]);
     const taskSnapshot = useMemo(() => createTaskDetailFormSnapshot(task), [task]);
+    const comparableCurrentFormSnapshot = useMemo(() => createComparableTaskDetailFormSnapshot(currentFormSnapshot, {
+        sectionsEnabled,
+        sectionsLoading,
+        validSectionIds,
+    }), [currentFormSnapshot, sectionsEnabled, sectionsLoading, validSectionIds]);
+    const comparableTaskSnapshot = useMemo(() => createComparableTaskDetailFormSnapshot(taskSnapshot, {
+        sectionsEnabled,
+        sectionsLoading,
+        validSectionIds,
+    }), [sectionsEnabled, sectionsLoading, taskSnapshot, validSectionIds]);
+    const comparableLastSyncedSnapshot = lastSyncedSnapshotRef.current
+        ? createComparableTaskDetailFormSnapshot(lastSyncedSnapshotRef.current, {
+            sectionsEnabled,
+            sectionsLoading,
+            validSectionIds,
+        })
+        : null;
 
     const syncFormState = useCallback((nextTask: TaskDetailFormSyncInput) => {
         const nextSnapshot = createTaskDetailFormSnapshot(nextTask);
@@ -145,12 +239,11 @@ function TaskDetailForm({
 
     useEffect(() => {
         const switchingTasks = initializedTaskIdRef.current !== task.id;
-        const lastSyncedSnapshot = lastSyncedSnapshotRef.current;
-        const hasLocalEdits = lastSyncedSnapshot
-            ? !areTaskDetailFormSnapshotsEqual(currentFormSnapshot, lastSyncedSnapshot)
+        const hasLocalEdits = comparableLastSyncedSnapshot
+            ? !areTaskDetailFormSnapshotsEqual(comparableCurrentFormSnapshot, comparableLastSyncedSnapshot)
             : false;
-        const taskSnapshotChanged = lastSyncedSnapshot
-            ? !areTaskDetailFormSnapshotsEqual(lastSyncedSnapshot, taskSnapshot)
+        const taskSnapshotChanged = comparableLastSyncedSnapshot
+            ? !areTaskDetailFormSnapshotsEqual(comparableLastSyncedSnapshot, comparableTaskSnapshot)
             : true;
 
         if (!switchingTasks && (hasLocalEdits || !taskSnapshotChanged)) {
@@ -162,10 +255,10 @@ function TaskDetailForm({
         if (switchingTasks) {
             setDeletingAttachmentId(null);
         }
-    }, [currentFormSnapshot, syncFormState, task, taskSnapshot]);
+    }, [comparableCurrentFormSnapshot, comparableLastSyncedSnapshot, comparableTaskSnapshot, syncFormState, task]);
 
-    const isDirty = initializedTaskIdRef.current === task.id && lastSyncedSnapshotRef.current
-        ? !areTaskDetailFormSnapshotsEqual(currentFormSnapshot, lastSyncedSnapshotRef.current)
+    const isDirty = initializedTaskIdRef.current === task.id && comparableLastSyncedSnapshot
+        ? !areTaskDetailFormSnapshotsEqual(comparableCurrentFormSnapshot, comparableLastSyncedSnapshot)
         : false;
 
     useEffect(() => {
@@ -279,8 +372,20 @@ function TaskDetailForm({
     }
 
     function handlePlanBlock() {
-        const nextDate = dueDate ? `&date=${dueDate}` : "";
-        router.push(`/calendar?taskId=${task.id}&listId=${task.list_id}${nextDate}`);
+        const nextParams = new URLSearchParams({
+            listId: preferredPlannedBlock?.list_id ?? task.list_id,
+        });
+
+        if (preferredPlannedBlock) {
+            nextParams.set("blockId", preferredPlannedBlock.id);
+        } else {
+            nextParams.set("taskId", task.id);
+            if (dueDate) {
+                nextParams.set("date", dueDate);
+            }
+        }
+
+        router.push(`/calendar?${nextParams.toString()}`);
         onClose?.();
     }
 
@@ -524,7 +629,7 @@ function TaskDetailForm({
                     </Button>
                     <Button variant="outline" size="xs" onClick={handlePlanBlock}>
                         <CalendarRange className="h-3.5 w-3.5" />
-                        Plan block
+                        {preferredPlannedBlock ? "Edit block" : "Plan block"}
                     </Button>
                 </section>
 

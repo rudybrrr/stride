@@ -7,11 +7,8 @@ import { addDays, startOfDay } from "date-fns";
 import { useData } from "~/components/data-provider";
 import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { subscribeToFocusSessionCompleted } from "~/lib/focus-session-events";
-import { isMissingAttachmentMetadataError } from "~/lib/task-attachments";
 import {
-    LEGACY_TODO_FIELDS,
     TODO_FIELDS,
-    isMissingTaskMetadataError,
     normalizeTodoRow,
 } from "~/lib/task-actions";
 import { getSmartViewTasks, type SmartView } from "~/lib/task-views";
@@ -67,7 +64,6 @@ interface FocusSessionSummaryRow {
 
 const PROJECT_ORDER_STORAGE_KEY_PREFIX = "list-order-";
 const ATTACHMENT_FIELDS = "id, todo_id, user_id, list_id, path, original_name, mime_type, size_bytes, inserted_at";
-const LEGACY_ATTACHMENT_FIELDS = "id, todo_id, user_id, list_id, path, inserted_at";
 
 function sortTasksByInsertedAt(tasks: TaskDatasetRecord[]) {
     return [...tasks].sort((a, b) => (a.inserted_at ?? "").localeCompare(b.inserted_at ?? ""));
@@ -136,21 +132,8 @@ async function loadTodoRows(
         .select(TODO_FIELDS)
         .in("list_id", listIds);
 
-    if (!error) {
-        return ((data ?? []) as TodoRow[]).map(normalizeTodoRow);
-    }
-
-    if (!isMissingTaskMetadataError(error)) {
-        throw error;
-    }
-
-    const { data: legacyData, error: legacyError } = await supabase
-        .from("todos")
-        .select(LEGACY_TODO_FIELDS)
-        .in("list_id", listIds);
-
-    if (legacyError) throw legacyError;
-    return ((legacyData ?? []) as TodoRow[]).map(normalizeTodoRow);
+    if (error) throw error;
+    return ((data ?? []) as TodoRow[]).map(normalizeTodoRow);
 }
 
 async function loadPlannedBlocks(
@@ -182,21 +165,8 @@ async function loadTodoAttachments(
         .select(ATTACHMENT_FIELDS)
         .in("list_id", listIds);
 
-    if (!error) {
-        return (data ?? []) as TodoImageRow[];
-    }
-
-    if (!isMissingAttachmentMetadataError(error)) {
-        throw error;
-    }
-
-    const { data: legacyData, error: legacyError } = await supabase
-        .from("todo_images")
-        .select(LEGACY_ATTACHMENT_FIELDS)
-        .in("list_id", listIds);
-
-    if (legacyError) throw legacyError;
-    return (legacyData ?? []) as TodoImageRow[];
+    if (error) throw error;
+    return (data ?? []) as TodoImageRow[];
 }
 
 function isDueSoon(task: TodoRow) {

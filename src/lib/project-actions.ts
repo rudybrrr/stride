@@ -23,20 +23,6 @@ interface CreateProjectInput {
 }
 
 const PROJECT_FIELDS = "id, name, owner_id, inserted_at, color_token, icon_token";
-const LEGACY_PROJECT_FIELDS = "id, name, owner_id, inserted_at";
-
-function isMissingProjectMetadataError(error: unknown) {
-    if (!error || typeof error !== "object") return false;
-
-    const code = "code" in error ? String(error.code) : "";
-    const message = "message" in error ? String(error.message) : "";
-
-    return (
-        code === "PGRST204" ||
-        message.includes("color_token") ||
-        message.includes("icon_token")
-    );
-}
 
 function normalizeProjectRow(row: TodoListRow): TodoList {
     return {
@@ -70,19 +56,9 @@ export async function createProject(
         .select(PROJECT_FIELDS)
         .single();
 
-    let createdList = list as TodoListRow | null;
-    if (listError) {
-        if (!isMissingProjectMetadataError(listError)) throw listError;
+    if (listError) throw listError;
 
-        const { data: legacyList, error: legacyError } = await supabase
-            .from("todo_lists")
-            .insert(basePayload)
-            .select(LEGACY_PROJECT_FIELDS)
-            .single();
-
-        if (legacyError) throw legacyError;
-        createdList = legacyList as TodoListRow | null;
-    }
+    const createdList = list as TodoListRow | null;
 
     if (!createdList) {
         throw new Error("Project creation returned no data.");
@@ -116,28 +92,8 @@ export async function updateProject(
         .select(PROJECT_FIELDS)
         .single();
 
-    if (!error) {
-        return normalizeProjectRow(data as TodoListRow);
-    }
-
-    if (!isMissingProjectMetadataError(error)) {
-        throw error;
-    }
-
-    const legacyPayload: Partial<Pick<TodoList, "name">> = {};
-    if (payload.name) {
-        legacyPayload.name = payload.name;
-    }
-
-    const { data: legacyData, error: legacyError } = await supabase
-        .from("todo_lists")
-        .update(legacyPayload)
-        .eq("id", listId)
-        .select(LEGACY_PROJECT_FIELDS)
-        .single();
-
-    if (legacyError) throw legacyError;
-    return normalizeProjectRow(legacyData as TodoListRow);
+    if (error) throw error;
+    return normalizeProjectRow(data as TodoListRow);
 }
 
 export async function inviteProjectMember(supabase: SupabaseClient, listId: string, username: string) {

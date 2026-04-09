@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { isMissingAttachmentMetadataError, sanitizeAttachmentFileName } from "~/lib/task-attachments";
+import { sanitizeAttachmentFileName } from "~/lib/task-attachments";
 import { toStoredDueDate } from "~/lib/task-views";
 import type { TodoImageRow, TodoRow } from "~/lib/types";
 
@@ -28,22 +28,6 @@ interface UpdateTaskInput {
 
 export const TODO_FIELDS =
     "id, user_id, list_id, section_id, title, is_done, inserted_at, description, due_date, priority, estimated_minutes, completed_at, updated_at";
-export const LEGACY_TODO_FIELDS =
-    "id, user_id, list_id, title, is_done, inserted_at, description, due_date, priority, updated_at";
-
-export function isMissingTaskMetadataError(error: unknown) {
-    if (!error || typeof error !== "object") return false;
-
-    const code = "code" in error ? String(error.code) : "";
-    const message = "message" in error ? String(error.message) : "";
-
-    return (
-        code === "PGRST204" ||
-        message.includes("estimated_minutes") ||
-        message.includes("completed_at") ||
-        message.includes("section_id")
-    );
-}
 
 export function normalizeTodoRow(row: TodoRow): TodoRow {
     return {
@@ -59,95 +43,43 @@ export async function createTask(
     supabase: SupabaseClient,
     { userId, listId, sectionId, title, description, dueDate, priority, estimatedMinutes }: CreateTaskInput,
 ): Promise<TodoRow> {
-    const basePayload = {
-        user_id: userId,
-        list_id: listId,
-        section_id: sectionId ?? null,
-        title: title.trim(),
-        description: description?.trim() ? description.trim() : null,
-        due_date: toStoredDueDate(dueDate),
-        priority: priority ?? null,
-    };
-    const legacyPayload = {
-        user_id: userId,
-        list_id: listId,
-        title: title.trim(),
-        description: description?.trim() ? description.trim() : null,
-        due_date: toStoredDueDate(dueDate),
-        priority: priority ?? null,
-    };
-
     const { data, error } = await supabase
         .from("todos")
         .insert({
-            ...basePayload,
+            user_id: userId,
+            list_id: listId,
+            section_id: sectionId ?? null,
+            title: title.trim(),
+            description: description?.trim() ? description.trim() : null,
+            due_date: toStoredDueDate(dueDate),
+            priority: priority ?? null,
             estimated_minutes: estimatedMinutes ?? null,
         })
         .select(TODO_FIELDS)
         .single();
 
-    if (!error) {
-        return normalizeTodoRow(data as TodoRow);
-    }
-
-    if (!isMissingTaskMetadataError(error)) {
-        throw error;
-    }
-
-    const { data: legacyData, error: legacyError } = await supabase
-        .from("todos")
-        .insert(legacyPayload)
-        .select(LEGACY_TODO_FIELDS)
-        .single();
-
-    if (legacyError) throw legacyError;
-    return normalizeTodoRow(legacyData as TodoRow);
+    if (error) throw error;
+    return normalizeTodoRow(data as TodoRow);
 }
 
 export async function updateTask(supabase: SupabaseClient, input: UpdateTaskInput): Promise<TodoRow> {
-    const basePayload = {
-        title: input.title.trim(),
-        description: input.description?.trim() ? input.description.trim() : null,
-        due_date: toStoredDueDate(input.dueDate),
-        priority: input.priority ?? null,
-        list_id: input.listId,
-        section_id: input.sectionId ?? null,
-    };
-    const legacyPayload = {
-        title: input.title.trim(),
-        description: input.description?.trim() ? input.description.trim() : null,
-        due_date: toStoredDueDate(input.dueDate),
-        priority: input.priority ?? null,
-        list_id: input.listId,
-    };
-
     const { data, error } = await supabase
         .from("todos")
         .update({
-            ...basePayload,
+            title: input.title.trim(),
+            description: input.description?.trim() ? input.description.trim() : null,
+            due_date: toStoredDueDate(input.dueDate),
+            priority: input.priority ?? null,
+            list_id: input.listId,
+            section_id: input.sectionId ?? null,
             estimated_minutes: input.estimatedMinutes ?? null,
         })
         .eq("id", input.id)
         .select(TODO_FIELDS)
         .single();
 
-    if (!error) {
-        return normalizeTodoRow(data as TodoRow);
-    }
-
-    if (!isMissingTaskMetadataError(error)) {
-        throw error;
-    }
-
-    const { data: legacyData, error: legacyError } = await supabase
-        .from("todos")
-        .update(legacyPayload)
-        .eq("id", input.id)
-        .select(LEGACY_TODO_FIELDS)
-        .single();
-
-    if (legacyError) throw legacyError;
-    return normalizeTodoRow(legacyData as TodoRow);
+    if (error) throw error;
+    return normalizeTodoRow(data as TodoRow);
 }
 
 export async function setTaskCompletion(
@@ -165,25 +97,8 @@ export async function setTaskCompletion(
         .select(TODO_FIELDS)
         .single();
 
-    if (!error) {
-        return normalizeTodoRow(data as TodoRow);
-    }
-
-    if (!isMissingTaskMetadataError(error)) {
-        throw error;
-    }
-
-    const { data: legacyData, error: legacyError } = await supabase
-        .from("todos")
-        .update({
-            is_done: nextIsDone,
-        })
-        .eq("id", taskId)
-        .select(LEGACY_TODO_FIELDS)
-        .single();
-
-    if (legacyError) throw legacyError;
-    return normalizeTodoRow(legacyData as TodoRow);
+    if (error) throw error;
+    return normalizeTodoRow(data as TodoRow);
 }
 
 export async function deleteTask(supabase: SupabaseClient, taskId: string) {
@@ -235,19 +150,6 @@ export async function uploadTaskAttachments(
         const { error: dbError } = await supabase.from("todo_images").insert(metadataPayload);
 
         if (!dbError) continue;
-
-        if (isMissingAttachmentMetadataError(dbError)) {
-            const { error: legacyDbError } = await supabase.from("todo_images").insert({
-                todo_id: taskId,
-                user_id: userId,
-                list_id: listId,
-                path,
-            });
-
-            if (!legacyDbError) continue;
-            await supabase.storage.from("todo-images").remove([path]);
-            throw legacyDbError;
-        }
 
         await supabase.storage.from("todo-images").remove([path]);
         throw dbError;
