@@ -42,7 +42,7 @@ Key entities (representative, not exhaustive):
 
 Storage:
 
-- Buckets are expected for attachments and avatars (see `README.md` for names).
+- Buckets are expected for attachments and avatars (see `../README.md` for names).
 - Attachment metadata is stored in tables alongside Storage objects.
 
 ## Authentication
@@ -77,11 +77,11 @@ Storage:
 ## Deployment (Inferred)
 
 - The repository is structured like a standard Next.js deployment and includes Vercel Speed Insights integration.
-- The live demo URL is documented in `README.md`, but the repo does not enforce a single deployment target in code.
+- The live demo URL is documented in `../README.md`, but the repo does not enforce a single deployment target in code.
 
 ## Limitations / Future Work
 
-Grounded in `todo.md` (kept intentionally conservative here):
+Grounded in `./todo.md` (kept intentionally conservative here):
 
 - Add interaction-level regression protection for high-risk flows (planner blocks, quick add, task detail leave-guard, focus persistence).
 - Harden rollback/error paths for optimistic updates and improve failure instrumentation.

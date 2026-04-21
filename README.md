@@ -155,7 +155,7 @@ Ongoing work. The core routes and database-backed workflow are implemented, but 
 
 ## Next Steps
 
-Near-term priorities (see `todo.md` for the full backlog):
+Near-term priorities (see `docs/todo.md` for the full backlog):
 
 - Add interaction-level regression coverage for high-risk flows (planner blocks, quick add, task detail guard, focus persistence).
 - Improve rollback/error handling in optimistic mutations and tighten instrumentation in failure-prone flows.
