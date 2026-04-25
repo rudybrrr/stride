@@ -1,5 +1,6 @@
 import "~/styles/globals.css";
 
+import { ClerkProvider } from "@clerk/nextjs";
 import { type Metadata } from "next";
 import { IBM_Plex_Mono, Manrope } from "next/font/google";
 
@@ -41,6 +42,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
+    <ClerkProvider signInUrl="/login" signUpUrl="/sign-up">
     <html
       lang="en"
       suppressHydrationWarning
@@ -68,5 +70,6 @@ export default function RootLayout({
         <SpeedInsights />
       </body>
     </html>
+    </ClerkProvider>
   );
 }

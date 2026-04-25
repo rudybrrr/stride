@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useData } from "~/components/data-provider";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 
 const STORAGE_KEY = "study-sprint-compact-mode";
 
@@ -23,7 +23,7 @@ function applyCompactMode(isCompact: boolean) {
 }
 
 export function CompactModeProvider({ children }: { children: ReactNode }) {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const { profile, userId } = useData();
     const [isCompact, setIsCompactState] = useState<boolean>(false);
     const [mounted, setMounted] = useState(false);

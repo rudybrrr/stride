@@ -36,8 +36,8 @@ function PlannerTaskPreview({
   return (
     <div
       className={cn(
-        "rounded-md border border-border/70 bg-background/70 px-3 py-2.5 transition-colors hover:border-border hover:bg-background/90",
-        tone === "warning" && "border-amber-500/20 bg-amber-500/[0.04]",
+        "rounded-lg px-2.5 py-2 transition-colors hover:bg-muted/40",
+        tone === "warning" && "bg-amber-500/[0.04]",
       )}
     >
       <div className="flex items-start justify-between gap-3">
@@ -55,7 +55,7 @@ function PlannerTaskPreview({
               "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em]",
               tone === "warning"
                 ? "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-                : "border-border/70 bg-background/80 text-primary",
+                : "border-border/60 bg-background/82 text-primary",
             )}
           >
             {trailing}
@@ -69,7 +69,7 @@ function PlannerTaskPreview({
               key={action.label}
               type="button"
               onClick={action.onClick}
-              className="inline-flex items-center rounded-full border border-border/70 bg-background/80 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground transition-colors hover:border-ring/30 hover:text-foreground"
+              className="inline-flex items-center rounded-full border border-border/60 bg-background/82 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground transition-colors hover:border-ring/30 hover:text-foreground"
             >
               {action.label}
             </button>
@@ -97,7 +97,7 @@ function PlannerBlockPreview({
       type="button"
       onClick={() => onEditBlock(block)}
       className={cn(
-        "relative w-full overflow-hidden rounded-md border px-3 py-2.5 text-left transition-colors hover:bg-background/90",
+        "relative w-full overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors hover:bg-background/92",
         colors.soft,
         colors.border,
       )}
@@ -182,7 +182,7 @@ export function PlannerSidebar({
         onQuickCreate={onQuickCreate}
       />
 
-      <div className="rounded-lg border border-border/70 bg-card/96 p-3.5">
+      <div className="surface-card p-3.5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground">
@@ -193,10 +193,10 @@ export function PlannerSidebar({
             </h3>
           </div>
           <div className="flex flex-wrap justify-end gap-1.5 text-[11px] text-muted-foreground">
-            <span className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5">
+            <span className="rounded-full border border-border/60 bg-background/76 px-2.5 py-0.5">
               Due {selectedDayTasks.length}
             </span>
-            <span className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5">
+            <span className="rounded-full border border-border/60 bg-background/76 px-2.5 py-0.5">
               Blocks {selectedDayBlocks.length}
             </span>
           </div>
@@ -227,7 +227,7 @@ export function PlannerSidebar({
                 />
               );
             }) : (
-              <div className="rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-sm text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border/70 bg-background/28 px-3 py-3 text-sm text-muted-foreground">
                 No due tasks.
               </div>
             )}
@@ -253,7 +253,7 @@ export function PlannerSidebar({
                 onEditBlock={onEditBlock}
               />
             )) : (
-              <div className="rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-sm text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border/70 bg-background/28 px-3 py-3 text-sm text-muted-foreground">
                 No planned blocks.
               </div>
             )}
@@ -261,7 +261,7 @@ export function PlannerSidebar({
         </div>
       </div>
 
-      <div className="rounded-lg border border-border/70 bg-card/96 p-3.5">
+      <div className="surface-card p-3.5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground">
@@ -276,22 +276,22 @@ export function PlannerSidebar({
             </h3>
             <p className="mt-1 text-[11px] text-muted-foreground">{selectedScopeLabel}</p>
           </div>
-          <span className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
+          <span className="rounded-full border border-border/60 bg-background/76 px-2.5 py-0.5 text-[10px] font-mono text-muted-foreground">
             {activeQueueCount}
           </span>
         </div>
 
-        <div className="inline-flex w-full rounded-lg border border-border/70 bg-background/60 p-0.5">
+        <div className="inline-flex w-full rounded-full border border-border/60 bg-background/70 p-0.5">
           {queueTabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setQueueMode(tab.key)}
               className={cn(
-                "flex-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.12em] transition-colors",
+                "flex-1 rounded-full px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.12em] transition-colors",
                 queueMode === tab.key
-                  ? "bg-foreground text-background"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
               )}
             >
               {tab.label}
@@ -318,7 +318,7 @@ export function PlannerSidebar({
                 />
               );
             }) : (
-              <div className="rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-sm text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border/70 bg-background/28 px-3 py-3 text-sm text-muted-foreground">
                 Everything visible is already planned.
               </div>
             )
@@ -344,7 +344,7 @@ export function PlannerSidebar({
                 />
               );
             }) : (
-              <div className="rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-sm text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border/70 bg-background/28 px-3 py-3 text-sm text-muted-foreground">
                 No partially planned tasks in scope.
               </div>
             )
@@ -366,7 +366,7 @@ export function PlannerSidebar({
                 />
               );
             }) : (
-              <div className="rounded-md border border-dashed border-border/70 bg-background/40 px-3 py-3 text-sm text-muted-foreground">
+              <div className="rounded-xl border border-dashed border-border/70 bg-background/28 px-3 py-3 text-sm text-muted-foreground">
                 No upcoming items in scope.
               </div>
             )
@@ -391,11 +391,11 @@ export function PlannerSidebarActions({
   onQuickCreate: (date: Date) => void;
 }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-card/96 p-3.5">
+    <div className="surface-card p-3.5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border/70 bg-background/65">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-background/76">
               <Clock3 className="h-4 w-4 text-muted-foreground" />
             </div>
             <div>
@@ -413,7 +413,7 @@ export function PlannerSidebarActions({
           </div>
         </div>
 
-        <Button size="sm" className="h-9 rounded-md px-3.5" onClick={() => onQuickCreate(date)}>
+        <Button size="sm" className="h-9 rounded-full px-4" onClick={() => onQuickCreate(date)}>
           <Plus className="h-4 w-4" />
           New block
         </Button>

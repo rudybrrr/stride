@@ -13,7 +13,6 @@ import {
   Bell,
   CalendarRange,
   Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
@@ -67,7 +66,7 @@ import {
   parseQuickAddInput,
 } from "~/lib/quick-add-parser";
 import { createProject } from "~/lib/project-actions";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { getNextTaskPosition } from "~/lib/task-ordering";
 import {
   calculateTotalSize,
@@ -279,32 +278,6 @@ function createComparableTaskDetailFormSnapshot(
   };
 }
 
-function TaskDetailMetaField({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  hint?: ReactNode;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "grid gap-2 py-3 sm:grid-cols-[6.5rem_minmax(0,1fr)] sm:gap-3",
-        className,
-      )}
-    >
-      <div className="space-y-0.5 sm:pt-2">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {label}
-        </p>
-      </div>
-      <div className="min-w-0">{children}</div>
-    </div>
-  );
-}
 
 function TaskDetailForm({
   task,
@@ -345,7 +318,7 @@ function TaskDetailForm({
     upsertTaskLabels,
     membersByListId,
   } = useTaskDataset();
-  const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+  const supabase = useSupabaseBrowserClient();
   const [title, setTitle] = useState(task.title);
   const [composerSelection, setComposerSelection] = useState(task.title.length);
   const [selectionPosition, setSelectionPosition] = useState<number | null>(
@@ -1023,92 +996,73 @@ function TaskDetailForm({
   return (
     <>
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="border-border/60 border-b bg-background/95 px-4 py-3 sm:px-6 sm:py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-2">
-                <p className="text-foreground text-sm font-semibold tracking-tight">
-                  {taskPositionLabel ? `Task ${taskPositionLabel}` : "Task"}
-                </p>
-                <span
-                  className={cn(
-                    "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]",
-                    saving
-                      ? "border-border/60 bg-muted/60 text-muted-foreground"
-                      : isDirty
-                        ? "border-primary/25 bg-primary/10 text-primary"
-                        : "border-border/60 bg-muted/35 text-muted-foreground",
-                  )}
-                >
-                  {saving ? "Saving" : isDirty ? "Unsaved" : "Saved"}
-                </span>
-              </div>
-              <p className="truncate text-sm text-muted-foreground">
-                {headerContextLabel}
-              </p>
-            </div>
-
-            <div className="flex shrink-0 items-center gap-1.5">
-              {onNavigateToTask ? (
-                <div className="border-border/70 bg-muted/35 inline-flex items-center rounded-md border p-0.5">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="h-7 w-7 rounded-md"
-                    title={previousTask ? `Previous task: ${previousTask.title}` : "Previous task"}
-                    disabled={!previousTask}
-                    onClick={() => previousTask && onNavigateToTask(previousTask.id)}
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    className="h-7 w-7 rounded-md"
-                    title={nextTask ? `Next task: ${nextTask.title}` : "Next task"}
-                    disabled={!nextTask}
-                    onClick={() => nextTask && onNavigateToTask(nextTask.id)}
-                  >
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : null}
-
-              {isDirty ? (
+        <div className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-border/20 px-4">
+          <div className="flex min-w-0 items-center gap-1">
+            {onNavigateToTask ? (
+              <>
                 <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => void handleSave()}
-                  disabled={saving || !cleanedTitle}
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-6 w-6"
+                  title={previousTask ? `Previous: ${previousTask.title}` : "Previous task"}
+                  disabled={!previousTask}
+                  onClick={() => previousTask && onNavigateToTask(previousTask.id)}
                 >
-                  {saving ? "Saving..." : "Save changes"}
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
-              ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="h-6 w-6"
+                  title={nextTask ? `Next: ${nextTask.title}` : "Next task"}
+                  disabled={!nextTask}
+                  onClick={() => nextTask && onNavigateToTask(nextTask.id)}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+                <div className="mx-1.5 h-3.5 w-px bg-border/40" />
+              </>
+            ) : null}
+            <p className="min-w-0 truncate text-[12px] font-medium text-muted-foreground/45">
+              {headerContextLabel}
+            </p>
+          </div>
 
-              {onClose ? (
-                <Button type="button" variant="ghost" size="icon-sm" onClick={onClose}>
-                  <X className="h-4 w-4" />
-                </Button>
-              ) : null}
-            </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {isDirty ? (
+              <Button
+                variant="default"
+                size="sm"
+                className="h-7 px-3 text-[12px]"
+                onClick={() => void handleSave()}
+                disabled={saving || !cleanedTitle}
+              >
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            ) : null}
+            {onClose ? (
+              <Button type="button" variant="ghost" size="icon-xs" className="h-7 w-7" onClick={onClose}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
           </div>
         </div>
 
-        <div className="border-border/50 border-b px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex items-start gap-3">
+        <div className="border-b border-border/20 px-5 py-6 sm:px-6">
+          <div className="flex items-start gap-3.5">
             <button
               type="button"
               onClick={() => void handleToggleCompletion()}
               className={cn(
-                "mt-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors",
+                "mt-1 flex h-[1.75rem] w-[1.75rem] shrink-0 cursor-pointer items-center justify-center rounded-full border transition-all duration-200",
                 isDone
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-transparent hover:border-primary/60",
+                  : "border-border/50 bg-transparent text-transparent hover:border-primary/45 hover:bg-primary/5",
               )}
             >
-              <Check className="h-4 w-4" />
+              <Check className="h-3.5 w-3.5" />
             </button>
             <div className="min-w-0 flex-1">
               <TaskSyntaxComposer
@@ -1132,19 +1086,19 @@ function TaskDetailForm({
                 }}
                 onSubmit={() => void handleSave()}
                 rows={1}
-                className={cn("mt-0.5", isDone && "opacity-70")}
-                composerClassName="text-[1.15rem] leading-7 font-semibold tracking-[-0.02em] sm:text-[1.35rem]"
+                className={cn("mt-0.5", isDone && "opacity-50")}
+                composerClassName="text-[1.2rem] leading-7 font-semibold tracking-[-0.025em] sm:text-[1.35rem]"
               />
 
               {parsedTitleInput.chips.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {parsedTitleInput.chips.map((chip, index) => (
                     <span
                       key={`${chip.kind}-${chip.value}-${index}`}
-                      className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-[10px] font-medium text-muted-foreground"
+                      className="inline-flex items-center gap-1 rounded-full bg-muted/50 px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
                     >
-                      <span className="uppercase tracking-[0.14em]">{chip.label}</span>
-                      <span className="text-foreground">{chip.value}</span>
+                      <span className="opacity-55">{chip.label}</span>
+                      <span>{chip.value}</span>
                     </span>
                   ))}
                 </div>
@@ -1153,159 +1107,20 @@ function TaskDetailForm({
               {showEmptyTitleWarning ? (
                 <p className="mt-2 text-sm text-destructive">Add a task name.</p>
               ) : null}
-
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                {saving ? (
-                  <span className="text-muted-foreground">Saving changes...</span>
-                ) : isDirty ? (
-                  <span className="text-primary">Unsaved edits</span>
-                ) : (
-                  <span className="text-muted-foreground">Ready</span>
-                )}
-                {isDone ? (
-                  <span className="text-muted-foreground">Completed</span>
-                ) : null}
-              </div>
             </div>
           </div>
         </div>
 
         <div className="task-detail-scroll min-h-0 flex-1 overflow-y-auto lg:overscroll-y-contain">
-          <div className="grid min-h-0 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:gap-5">
-            <div className="min-w-0 space-y-4">
-              <section className="rounded-2xl border border-border/60 bg-card">
-                <div className="border-border/60 border-b px-4 py-4">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold tracking-[-0.02em] text-foreground">
-                      Description
-                    </h3>
-                    <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                      Context, links, notes
-                    </span>
-                  </div>
-                  <Textarea
-                    id="detailNotes"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Add details, links, or context"
-                    className="min-h-[120px] resize-none rounded-xl border-border/60 bg-background px-3.5 py-3 text-[15px] leading-6 shadow-none placeholder:text-muted-foreground/60 focus-visible:ring-0"
-                  />
-                </div>
+          <div className="flex min-h-full flex-col px-5 pb-8 sm:px-6">
 
-                <div className="px-4 py-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className="text-sm font-semibold tracking-[-0.02em] text-foreground">
-                      Attachments
-                    </h3>
-                    <div className="text-[10px] font-medium tabular-nums text-muted-foreground">
-                      {(totalAttachmentsSize / (1024 * 1024)).toFixed(1)} / {MAX_ATTACHMENT_SIZE_MB} MB
-                    </div>
-                  </div>
-                  <TaskAttachmentUpload
-                    userId={userId}
-                    todoId={task.id}
-                    listId={task.list_id}
-                    currentTotalSizeBytes={totalAttachmentsSize}
-                    onUploaded={handleAttachmentsUploaded}
-                  />
-                  {images.length > 0 ? (
-                    <div className="mt-3 space-y-2">
-                      {images.map((image) => {
-                        const publicUrl = supabase.storage.from("todo-images").getPublicUrl(image.path).data.publicUrl;
-                        const displayName = getAttachmentDisplayName(image);
-                        const extension = getAttachmentExtension(displayName).toUpperCase();
-                        const imageAttachment = isImageAttachment(image);
-                        const isDeleting = deletingAttachmentId === image.id;
-                        const metaLabel = [imageAttachment ? "Image" : extension || "File", formatAttachmentSize(image.size_bytes)].filter(Boolean).join(" - ");
+            {/* Properties grid */}
+            <div className="border-b border-border/15 py-5">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-4">
 
-                        return (
-                          <div key={image.id} className="border-border/60 flex items-center gap-3 rounded-xl border bg-background/70 px-3 py-2.5">
-                              <a href={publicUrl} target="_blank" rel="noreferrer" className="bg-card relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/50">
-                                {imageAttachment ? (
-                                  <Image
-                                    src={publicUrl}
-                                    alt={displayName}
-                                    fill
-                                    unoptimized
-                                    sizes="36px"
-                                    className="object-cover"
-                                  />
-                                ) : (
-                                  <FileText className="text-muted-foreground h-4 w-4" />
-                                )}
-                              </a>
-                            <a href={publicUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
-                              <p className="truncate text-xs text-muted-foreground">{metaLabel}</p>
-                            </a>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-xs"
-                              className="shrink-0 text-muted-foreground hover:text-destructive"
-                              disabled={isDeleting}
-                              onClick={() => void handleAttachmentDelete(image)}
-                            >
-                              {isDeleting ? (
-                                <div className="border-muted-foreground/35 border-t-muted-foreground h-3.5 w-3.5 animate-spin rounded-full border-2" />
-                              ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-
-              <TaskStepsSection taskId={task.id} />
-
-              <TaskCommentsSection
-                comments={comments}
-                loading={commentsLoading}
-                currentUserId={userId}
-                onAddComment={handleAddComment}
-                onDeleteComment={handleDeleteComment}
-              />
-            </div>
-
-            <section className="flex min-w-0 flex-col rounded-2xl border border-border/60 bg-background">
-              <div className="border-border/60 border-b px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold tracking-[-0.02em] text-foreground">
-                      Metadata
-                    </h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Project, timing, ownership, and planning details.
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowMoreMeta((open) => !open)}
-                  >
-                    <ChevronDown
-                      className={cn(
-                        "mr-1 h-4 w-4 transition-transform",
-                        showMoreMeta && "rotate-180",
-                      )}
-                    />
-                    {showMoreMeta ? "Fewer details" : "More details"}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="divide-y divide-border/50 px-4">
-                <TaskDetailMetaField
-                  label="Project"
-                  hint="Move the task to another workspace."
-                  className="py-4"
-                >
+                {/* Project */}
+                <div className="col-span-2 space-y-1.5">
+                  <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Project</p>
                   <Select
                     value={projectSelectValue}
                     onValueChange={(val) => {
@@ -1314,7 +1129,7 @@ function TaskDetailForm({
                       setManualSectionId("");
                     }}
                   >
-                    <SelectTrigger className="border-border/60 bg-background h-11 rounded-xl px-3.5 text-sm shadow-none focus-visible:ring-0">
+                    <SelectTrigger className="h-9 rounded-lg border-0 bg-muted/40 px-3 text-[13.5px] shadow-none transition-colors hover:bg-muted/60 focus-visible:ring-0">
                       <span className="truncate">{projectDisplayLabel}</span>
                     </SelectTrigger>
                     <SelectContent>
@@ -1330,36 +1145,32 @@ function TaskDetailForm({
                       ))}
                     </SelectContent>
                   </Select>
-                </TaskDetailMetaField>
+                </div>
 
-                <TaskDetailMetaField
-                  label="Date"
-                  hint="Deadline, time, and reminder timing."
-                  className="py-4"
-                >
-                  <div className="grid gap-2">
+                {/* Due date */}
+                <div className="space-y-1.5">
+                  <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Due date</p>
+                  <div className="space-y-1.5">
                     <TaskDueDatePicker
                       value={effectiveDueDate}
                       onChange={setManualDueDate}
                       allowClear
-                      className="border-border/60 bg-background h-11 rounded-xl px-3.5 text-sm shadow-none focus-visible:ring-0"
+                      className="h-9 rounded-lg border-0 bg-muted/40 px-3 text-[13.5px] shadow-none transition-colors hover:bg-muted/60 focus-visible:ring-0"
                     />
                     {(effectiveDueDate || effectiveDueTime) ? (
                       <TimeSelectField
                         value={effectiveDueTime}
                         onChange={setManualDueTime}
                         allowClear
-                        className="border-border/60 bg-background h-11 min-h-0 rounded-xl px-3.5 font-mono text-sm shadow-none focus-visible:ring-0"
+                        className="h-9 min-h-0 rounded-lg border-0 bg-muted/40 px-3 font-mono text-[13.5px] shadow-none transition-colors hover:bg-muted/60 focus-visible:ring-0"
                       />
                     ) : null}
                   </div>
-                </TaskDetailMetaField>
+                </div>
 
-                <TaskDetailMetaField
-                  label="Priority"
-                  hint="Use only for meaningful urgency."
-                  className="py-4"
-                >
+                {/* Priority */}
+                <div className="space-y-1.5">
+                  <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Priority</p>
                   <Select
                     value={effectivePriority || "none"}
                     onValueChange={(val) =>
@@ -1368,7 +1179,7 @@ function TaskDetailForm({
                       )
                     }
                   >
-                    <SelectTrigger className="border-border/60 bg-background h-11 rounded-xl px-3.5 text-sm shadow-none focus-visible:ring-0">
+                    <SelectTrigger className="h-9 rounded-lg border-0 bg-muted/40 px-3 text-[13.5px] shadow-none transition-colors hover:bg-muted/60 focus-visible:ring-0">
                       <SelectValue placeholder="No priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1378,186 +1189,260 @@ function TaskDetailForm({
                       <SelectItem value="low">Low</SelectItem>
                     </SelectContent>
                   </Select>
-                </TaskDetailMetaField>
+                </div>
 
-                <TaskDetailMetaField
-                  label="Estimate"
-                  hint="Useful for planning focus blocks."
-                  className="py-4"
-                >
-                  <div className="border-border/60 bg-background flex h-11 items-center gap-2 rounded-xl border px-3.5">
+                {/* Estimate */}
+                <div className="space-y-1.5">
+                  <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Estimate</p>
+                  <div className="flex h-9 items-center gap-2 rounded-lg bg-muted/40 px-3">
                     <Input
                       type="number"
                       min="1"
                       inputMode="numeric"
                       value={effectiveEstimatedMinutes}
                       onChange={(e) => setManualEstimatedMinutes(e.target.value)}
-                      placeholder="45"
-                      className="h-auto w-20 rounded-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0"
+                      placeholder="–"
+                      className="h-auto w-full rounded-none border-0 bg-transparent px-0 py-0 text-[13.5px] shadow-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                     />
-                    <span className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                      Min
-                    </span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground/35">min</span>
                   </div>
-                </TaskDetailMetaField>
+                </div>
 
-                <TaskDetailMetaField
-                  label="Plan"
-                  hint={reminderPreviewLabel ? `Reminder preview: ${reminderPreviewLabel}` : "Open the calendar with this task prefilled."}
-                  className="py-4"
-                >
-                  <Button
-                    variant="tonal"
-                    size="sm"
+                {/* Schedule */}
+                <div className="space-y-1.5">
+                  <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Schedule</p>
+                  <button
+                    type="button"
                     onClick={handlePlanBlock}
-                    className="w-full justify-start sm:w-auto"
+                    className="flex h-9 w-full items-center gap-2 rounded-lg bg-muted/40 px-3 text-[13.5px] text-muted-foreground/55 transition-colors hover:bg-muted/60 hover:text-foreground"
                   >
-                    <CalendarRange className="mr-2 h-4 w-4" /> Plan block in calendar
-                  </Button>
-                </TaskDetailMetaField>
+                    <CalendarRange className="h-3.5 w-3.5 shrink-0" />
+                    Plan block
+                  </button>
+                </div>
+              </div>
 
-                {showMoreMeta ? (
-                  <div className="divide-y divide-border/50">
-                    {showSectionSelector ? (
-                      <TaskDetailMetaField
-                        label="Section"
-                        hint="Keep work grouped inside the project."
-                        className="py-4"
-                      >
-                        <Select
-                          value={effectiveSectionId || "none"}
-                          onValueChange={(val) =>
-                            setManualSectionId(val === "none" ? "" : val)
-                          }
-                        >
-                          <SelectTrigger className="border-border/60 bg-background h-11 rounded-xl px-3.5 text-sm shadow-none focus-visible:ring-0">
-                            <SelectValue placeholder="No section" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No section</SelectItem>
-                            {sections.map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </TaskDetailMetaField>
-                    ) : null}
+              {/* More fields toggle */}
+              <button
+                type="button"
+                className="mt-5 flex items-center gap-1.5 text-[11.5px] text-muted-foreground/38 transition-colors hover:text-muted-foreground/70"
+                onClick={() => setShowMoreMeta((open) => !open)}
+              >
+                <ChevronRight className={cn("h-3 w-3 transition-transform duration-200", showMoreMeta && "rotate-90")} />
+                {showMoreMeta ? "Fewer fields" : "More fields"}
+              </button>
 
-                    <TaskDetailMetaField
-                      label="Assignee"
-                      hint="Ownership within the selected project."
-                      className="py-4"
-                    >
-                      <TaskDetailAssignee
-                        value={assigneeUserId}
-                        members={activeListMembers}
-                        onChange={setAssigneeUserId}
-                      />
-                    </TaskDetailMetaField>
-
-                    <TaskDetailMetaField
-                      label="Reminder"
-                      hint="A reminder is tied to the deadline."
-                      className="py-4"
-                    >
+              {showMoreMeta ? (
+                <div className="mt-4 grid grid-cols-2 gap-x-3 gap-y-4 border-t border-border/12 pt-4">
+                  {showSectionSelector ? (
+                    <div className="space-y-1.5">
+                      <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Section</p>
                       <Select
-                        value={effectiveReminderOffsetMinutes || "none"}
+                        value={effectiveSectionId || "none"}
                         onValueChange={(val) =>
-                          setManualReminderOffsetMinutes(val === "none" ? "" : val)
+                          setManualSectionId(val === "none" ? "" : val)
                         }
                       >
-                        <SelectTrigger className="border-border/60 bg-background h-11 rounded-xl px-3.5 text-sm shadow-none focus-visible:ring-0">
-                          <span className="inline-flex w-full items-center gap-2">
-                            <Bell className="text-muted-foreground h-4 w-4 shrink-0" />
-                            <span>{reminderLabel ?? "No reminder"}</span>
-                          </span>
+                        <SelectTrigger className="h-9 rounded-lg border-0 bg-muted/40 px-3 text-[13.5px] shadow-none transition-colors hover:bg-muted/60 focus-visible:ring-0">
+                          <SelectValue placeholder="No section" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No reminder</SelectItem>
-                          {REMINDER_OFFSET_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={String(opt.value)}>
-                              {opt.label}
+                          <SelectItem value="none">No section</SelectItem>
+                          {sections.map((s) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                    </TaskDetailMetaField>
+                    </div>
+                  ) : null}
 
-                    <TaskDetailMetaField
-                      label="Repeat"
-                      hint="Set a cadence for repeat work."
-                      className="py-4"
-                    >
-                      <Select
-                        value={effectiveRecurrenceRule || "none"}
-                        onValueChange={(val) =>
-                          setManualRecurrenceRule(
-                            val === "none" ? "" : (val as RecurrenceRule),
-                          )
-                        }
-                      >
-                        <SelectTrigger className="border-border/60 bg-background h-11 rounded-xl px-3.5 text-sm shadow-none focus-visible:ring-0">
-                          <SelectValue placeholder="Does not repeat" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Does not repeat</SelectItem>
-                          {RECURRENCE_RULE_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TaskDetailMetaField>
-
-                    <TaskDetailMetaField
-                      label="Labels"
-                      hint="Labels stay searchable but quiet."
-                      className="py-4"
-                    >
-                      <div className="space-y-3">
-                        <Input
-                          value={manualLabelsInput ?? formatTaskLabelInput(effectiveLabelNames.map((n) => ({ name: n })))}
-                          onChange={(e) => setManualLabelsInput(e.target.value)}
-                          placeholder="math, urgent"
-                          className="border-border/60 bg-background h-11 rounded-xl px-3.5 text-sm shadow-none focus-visible:ring-0"
-                        />
-                        {effectiveLabelNames.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5">
-                            {effectiveLabelNames.map((name) => (
-                              <TaskLabelBadge
-                                key={name.toLowerCase()}
-                                label={
-                                  taskLabels.find(
-                                    (l) => l.name.toLowerCase() === name.toLowerCase(),
-                                  ) ?? { name, color_token: "slate" }
-                                }
-                              />
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    </TaskDetailMetaField>
+                  <div className={cn("space-y-1.5", !showSectionSelector && "col-span-2")}>
+                    <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Assignee</p>
+                    <TaskDetailAssignee
+                      value={assigneeUserId}
+                      members={activeListMembers}
+                      onChange={setAssigneeUserId}
+                    />
                   </div>
-                ) : null}
-              </div>
 
-              <div className="border-t border-border/60 px-4 py-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full justify-start border-destructive/20 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => setDeleteOpen(true)}
-                  disabled={saving}
-                >
-                  <Trash2 className="mr-2 h-3.5 w-3.5" />
-                  Delete task
-                </Button>
+                  <div className="space-y-1.5">
+                    <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Reminder</p>
+                    <Select
+                      value={effectiveReminderOffsetMinutes || "none"}
+                      onValueChange={(val) =>
+                        setManualReminderOffsetMinutes(val === "none" ? "" : val)
+                      }
+                    >
+                      <SelectTrigger className="h-9 rounded-lg border-0 bg-muted/40 px-3 text-[13.5px] shadow-none transition-colors hover:bg-muted/60 focus-visible:ring-0">
+                        <span className="inline-flex w-full items-center gap-2">
+                          <Bell className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+                          <span>{reminderLabel ?? "No reminder"}</span>
+                        </span>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No reminder</SelectItem>
+                        {REMINDER_OFFSET_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={String(opt.value)}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Repeat</p>
+                    <Select
+                      value={effectiveRecurrenceRule || "none"}
+                      onValueChange={(val) =>
+                        setManualRecurrenceRule(
+                          val === "none" ? "" : (val as RecurrenceRule),
+                        )
+                      }
+                    >
+                      <SelectTrigger className="h-9 rounded-lg border-0 bg-muted/40 px-3 text-[13.5px] shadow-none transition-colors hover:bg-muted/60 focus-visible:ring-0">
+                        <SelectValue placeholder="Does not repeat" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Does not repeat</SelectItem>
+                        {RECURRENCE_RULE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="col-span-2 space-y-2">
+                    <p className="px-0.5 text-[10.5px] text-muted-foreground/40">Labels</p>
+                    <Input
+                      value={manualLabelsInput ?? formatTaskLabelInput(effectiveLabelNames.map((n) => ({ name: n })))}
+                      onChange={(e) => setManualLabelsInput(e.target.value)}
+                      placeholder="design, urgent"
+                      className="h-9 rounded-lg border-0 bg-muted/40 px-3 text-[13.5px] shadow-none focus-visible:ring-0"
+                    />
+                    {effectiveLabelNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {effectiveLabelNames.map((name) => (
+                          <TaskLabelBadge
+                            key={name.toLowerCase()}
+                            label={
+                              taskLabels.find(
+                                (l) => l.name.toLowerCase() === name.toLowerCase(),
+                              ) ?? { name, color_token: "slate" }
+                            }
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Notes */}
+            <div className="py-5">
+              <Textarea
+                id="detailNotes"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Add notes, links, or context..."
+                className="min-h-[100px] resize-none rounded-xl border-0 bg-muted/30 px-3.5 py-3 text-[13.5px] leading-relaxed shadow-none placeholder:text-muted-foreground/30 transition-colors duration-150 focus-visible:bg-muted/40 focus-visible:ring-0"
+              />
+            </div>
+
+            {/* Steps + Comments */}
+            <div className="space-y-4 border-t border-border/12 pt-4">
+              <TaskStepsSection taskId={task.id} />
+              <TaskCommentsSection
+                comments={comments}
+                loading={commentsLoading}
+                currentUserId={userId}
+                onAddComment={handleAddComment}
+                onDeleteComment={handleDeleteComment}
+              />
+            </div>
+
+            {/* Attachments */}
+            <div className="mt-4 border-t border-border/12 pt-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[10.5px] text-muted-foreground/38">Attachments</p>
+                <div className="text-[10px] tabular-nums text-muted-foreground/35">
+                  {(totalAttachmentsSize / (1024 * 1024)).toFixed(1)} / {MAX_ATTACHMENT_SIZE_MB} MB
+                </div>
               </div>
-            </section>
+              <TaskAttachmentUpload
+                userId={userId}
+                todoId={task.id}
+                listId={task.list_id}
+                currentTotalSizeBytes={totalAttachmentsSize}
+                onUploaded={handleAttachmentsUploaded}
+              />
+              {images.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {images.map((image) => {
+                    const publicUrl = supabase.storage.from("todo-images").getPublicUrl(image.path).data.publicUrl;
+                    const displayName = getAttachmentDisplayName(image);
+                    const extension = getAttachmentExtension(displayName).toUpperCase();
+                    const imageAttachment = isImageAttachment(image);
+                    const isDeleting = deletingAttachmentId === image.id;
+                    const metaLabel = [imageAttachment ? "Image" : extension || "File", formatAttachmentSize(image.size_bytes)].filter(Boolean).join(" · ");
+
+                    return (
+                      <div key={image.id} className="flex items-center gap-3 rounded-xl border border-border/35 bg-muted/25 px-3 py-2.5">
+                        <a href={publicUrl} target="_blank" rel="noreferrer" className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/35 bg-[var(--surface-elevated)]">
+                          {imageAttachment ? (
+                            <Image
+                              src={publicUrl}
+                              alt={displayName}
+                              fill
+                              unoptimized
+                              sizes="36px"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </a>
+                        <a href={publicUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-medium text-foreground">{displayName}</p>
+                          <p className="truncate text-[11px] text-muted-foreground/60">{metaLabel}</p>
+                        </a>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="shrink-0 text-muted-foreground/40 hover:text-destructive"
+                          disabled={isDeleting}
+                          onClick={() => void handleAttachmentDelete(image)}
+                        >
+                          {isDeleting ? (
+                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-muted-foreground/35 border-t-muted-foreground" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Delete */}
+            <div className="mt-6 border-t border-border/12 pt-4">
+              <button
+                type="button"
+                className="text-[12px] text-muted-foreground/28 transition-colors hover:text-destructive/65"
+                onClick={() => setDeleteOpen(true)}
+                disabled={saving}
+              >
+                Delete task
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -1634,7 +1519,7 @@ export function TaskDetailPanel({
         <DialogContent
           showCloseButton={false}
           className={cn(
-            "sm:!max-w-none w-[min(95vw,1420px)] h-[94vh] max-h-[94vh] p-0 overflow-hidden flex flex-col border-border/60 bg-background/95 backdrop-blur-xl shadow-2xl",
+            "task-detail-dialog sm:!max-w-none flex h-[90vh] max-h-[90vh] w-[min(92vw,680px)] flex-col overflow-hidden rounded-[1.5rem] border-0 bg-[var(--surface-elevated)] p-0 shadow-[var(--shadow-raised)]",
             className,
           )}
         >

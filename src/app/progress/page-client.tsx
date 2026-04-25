@@ -6,9 +6,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart3, Gauge, Target, TrendingUp } from "lucide-react";
 
 import { AppShell } from "~/components/app-shell";
-import { EmptyState, MetricTile, PageHeader, SectionCard } from "~/components/app-primitives";
+import { EmptyState, SectionCard } from "~/components/app-primitives";
 import { useData } from "~/components/data-provider";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
+import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import {
     Dialog,
@@ -71,6 +72,24 @@ function renderMeasuredTaskMeta(task: ProgressReviewMeasuredTask) {
     return `Est ${formatMinutesCompact(task.estimatedMinutes)} / Actual ${formatMinutesCompact(task.actualFocusMinutes)} / ${varianceLabel} / ${task.focusSessionCount} session${task.focusSessionCount === 1 ? "" : "s"}`;
 }
 
+function ProgressOverviewMetric({
+    label,
+    value,
+    meta,
+}: {
+    label: string;
+    value: string;
+    meta: string;
+}) {
+    return (
+        <div className="rounded-[1rem] border border-border/55 bg-background/60 px-3.5 py-3.5">
+            <p className="eyebrow">{label}</p>
+            <p className="mt-2 font-mono text-[1.15rem] font-semibold tracking-[-0.04em] text-foreground">{value}</p>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">{meta}</p>
+        </div>
+    );
+}
+
 interface PendingTaskLeaveAction {
     run: () => void;
 }
@@ -126,6 +145,8 @@ function ProgressContent() {
         ? (slippedTaskRecords[selectedTaskIndex + 1] ?? null)
         : null;
     const taskPositionLabel = selectedTaskIndex === -1 ? null : `${selectedTaskIndex + 1} of ${slippedTaskRecords.length}`;
+    const executionLabel = getProgressExecutionLabel(review.executionRate);
+    const overviewDescription = `You logged ${formatMinutesCompact(review.actualFocusMinutes)} of focus against ${formatMinutesCompact(review.plannedMinutes)} planned, completed ${review.completedCount} tasks, and ${review.carryoverRiskCount} still need attention before the week rolls over.`;
 
     const requestTaskLeave = useCallback((action: () => void) => {
         if (detailDirty && selectedTaskId) {
@@ -178,13 +199,10 @@ function ProgressContent() {
 
     return (
         <div className="page-container space-y-5">
-            <PageHeader
-                eyebrow={`Weekly review | ${review.window.label}`}
-                title="Progress"
-                description={loading || !stats
-                    ? "Preparing weekly execution review."
-                    : `${formatMinutesCompact(review.actualFocusMinutes)} focused this week, ${review.completedCount} completed, and ${review.carryoverRiskCount} tasks still carry risk. ${stats.totalFocus} total focus overall.`}
-            />
+            <div>
+                <h1 className="section-heading">Progress</h1>
+                <p className="mt-1 text-[13px] text-muted-foreground/60">{review.window.label}</p>
+            </div>
 
             {loading || !stats || datasetLoading ? (
                 <EmptyState
@@ -194,28 +212,54 @@ function ProgressContent() {
                 />
             ) : (
                 <div className="space-y-5">
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricTile
-                            label="Planned vs actual"
-                            value={`${formatMinutesCompact(review.actualFocusMinutes)} / ${formatMinutesCompact(review.plannedMinutes)}`}
-                            meta={`${getProgressExecutionLabel(review.executionRate)} | ${formatProgressMinuteDelta(review.actualFocusDeltaMinutes)}`}
-                        />
-                        <MetricTile
-                            label="Completed this week"
-                            value={`${review.completedCount}`}
-                            meta={formatProgressCountDelta(review.completedDelta, "tasks")}
-                        />
-                        <MetricTile
-                            label="Carryover risk"
-                            value={`${review.carryoverRiskCount}`}
-                            meta={`${review.overdueCarryoverCount} overdue | ${review.underplannedCarryoverCount} underplanned`}
-                        />
-                        <MetricTile
-                            label="Estimate accuracy"
-                            value={measuredTaskCount > 0 ? `${review.estimateAccuracyCounts.on_track}/${measuredTaskCount}` : "0"}
-                            meta={measuredTaskCount > 0 ? "Completed estimates on track this week" : "No estimated completions this week"}
-                        />
-                    </div>
+                    <section className="surface-card overflow-hidden">
+                        <div className="grid gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <p className="eyebrow">Weekly review</p>
+                                    <h2 className="text-xl font-semibold tracking-[-0.04em] text-foreground">
+                                        {executionLabel}
+                                    </h2>
+                                    <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                                        {overviewDescription}
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                                        {formatProgressMinuteDelta(review.actualFocusDeltaMinutes)} vs last week
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                                        {formatProgressCountDelta(review.completedDelta, "tasks")}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                                        {review.overdueCarryoverCount} overdue carryover
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                                <ProgressOverviewMetric
+                                    label="Planned vs actual"
+                                    value={`${formatMinutesCompact(review.actualFocusMinutes)} / ${formatMinutesCompact(review.plannedMinutes)}`}
+                                    meta={formatProgressMinuteDelta(review.actualFocusDeltaMinutes)}
+                                />
+                                <ProgressOverviewMetric
+                                    label="Completed this week"
+                                    value={`${review.completedCount}`}
+                                    meta={formatProgressCountDelta(review.completedDelta, "tasks")}
+                                />
+                                <ProgressOverviewMetric
+                                    label="Carryover risk"
+                                    value={`${review.carryoverRiskCount}`}
+                                    meta={`${review.overdueCarryoverCount} overdue | ${review.underplannedCarryoverCount} underplanned`}
+                                />
+                                <ProgressOverviewMetric
+                                    label="Estimate accuracy"
+                                    value={measuredTaskCount > 0 ? `${review.estimateAccuracyCounts.on_track}/${measuredTaskCount}` : "0"}
+                                    meta={measuredTaskCount > 0 ? "Completed estimates on track this week" : "No estimated completions this week"}
+                                />
+                            </div>
+                        </div>
+                    </section>
 
                     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
                         <div className="space-y-5">
@@ -230,9 +274,9 @@ function ProgressContent() {
                                                 key={task.taskId}
                                                 type="button"
                                                 onClick={() => handleOpenTaskDetail(task.taskId)}
-                                                className="flex w-full items-start gap-3 rounded-xl border border-border/60 bg-background/70 px-3 py-3 text-left transition-colors hover:border-ring/30 hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                                className="flex w-full items-start gap-3 rounded-xl border border-border/35 bg-background/50 px-3.5 py-3 text-left transition-colors duration-150 hover:border-border/55 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                                             >
-                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-secondary/50 text-muted-foreground">
+                                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/55 bg-secondary/55 text-muted-foreground">
                                                     <TrendingUp className="h-4.5 w-4.5" />
                                                 </div>
                                                 <div className="min-w-0 flex-1">
@@ -256,6 +300,7 @@ function ProgressContent() {
                                         title="Nothing slipping right now"
                                         description="No open tasks are overdue or due by today."
                                         icon={<TrendingUp className="h-8 w-8" />}
+                                        size="compact"
                                     />
                                 )}
                             </SectionCard>
@@ -270,7 +315,7 @@ function ProgressContent() {
                                             <Link
                                                 key={project.listId}
                                                 href={`/projects/${project.listId}`}
-                                                className="block rounded-xl border border-border/60 bg-background/70 px-3 py-3 transition-colors hover:border-ring/30 hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                                className="block rounded-xl border border-border/35 bg-background/50 px-3.5 py-3 transition-colors duration-150 hover:border-border/55 hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                                             >
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div className="min-w-0">
@@ -291,6 +336,7 @@ function ProgressContent() {
                                         title="No neglected projects"
                                         description="Every active project got focus, planned time, or completions this week."
                                         icon={<Target className="h-8 w-8" />}
+                                        size="compact"
                                     />
                                 )}
                             </SectionCard>
@@ -301,7 +347,7 @@ function ProgressContent() {
                                 title="Weekly focus"
                                 description="Actual focus minutes against the planned block grid."
                             >
-                                <div className="rounded-xl border border-border/60 bg-muted/40 p-3">
+                                <div className="rounded-[1.1rem] border border-border/55 bg-secondary/38 p-4 shadow-[var(--shadow-xs)]">
                                     <div className="h-72">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <AreaChart data={stats.weeklyData}>
@@ -323,17 +369,17 @@ function ProgressContent() {
                                 </div>
 
                                 <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                                    <div className="rounded-xl border border-border/60 bg-background/70 p-3">
+                                    <div className="rounded-[1rem] bg-background/60 p-3">
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Actual</p>
                                         <p className="mt-1 font-mono text-lg text-foreground">{formatMinutesCompact(review.actualFocusMinutes)}</p>
                                         <p className="mt-1 text-xs text-muted-foreground">Focus logged this week</p>
                                     </div>
-                                    <div className="rounded-xl border border-border/60 bg-background/70 p-3">
+                                    <div className="rounded-[1rem] bg-background/60 p-3">
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Planned</p>
                                         <p className="mt-1 font-mono text-lg text-foreground">{formatMinutesCompact(review.plannedMinutes)}</p>
                                         <p className="mt-1 text-xs text-muted-foreground">Scheduled block time</p>
                                     </div>
-                                    <div className="rounded-xl border border-border/60 bg-background/70 p-3">
+                                    <div className="rounded-[1rem] bg-background/60 p-3">
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Delta</p>
                                         <p className="mt-1 font-mono text-lg text-foreground">{formatProgressMinuteDelta(review.actualFocusDeltaMinutes)}</p>
                                         <p className="mt-1 text-xs text-muted-foreground">Compared with last week</p>
@@ -347,7 +393,7 @@ function ProgressContent() {
                             >
                                 {stats.subjectData.length > 0 ? (
                                     <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                                        <div className="rounded-xl border border-border/60 bg-muted/40 p-3">
+                                        <div className="rounded-[1.1rem] border border-border/55 bg-secondary/38 p-4 shadow-[var(--shadow-xs)]">
                                             <div className="h-56">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <PieChart>
@@ -370,7 +416,7 @@ function ProgressContent() {
                                         </div>
                                         <div className="space-y-2">
                                             {stats.subjectData.map((entry, index) => (
-                                                <div key={entry.name} className="flex items-center justify-between rounded-xl border border-border/60 bg-background/70 px-3 py-2.5 text-sm">
+                                                <div key={entry.name} className="flex items-center justify-between rounded-[1rem] border border-border/50 bg-background/60 px-3.5 py-3 text-sm">
                                                     <div className="flex min-w-0 items-center gap-2">
                                                         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
                                                         <span className="truncate text-foreground">{entry.name}</span>
@@ -385,6 +431,7 @@ function ProgressContent() {
                                         title="No subject data this week"
                                         description="Finish a focus session tied to a project."
                                         icon={<Target className="h-8 w-8" />}
+                                        size="compact"
                                     />
                                 )}
                             </SectionCard>
@@ -396,17 +443,17 @@ function ProgressContent() {
                         description="Compact indicators behind this week's review."
                     >
                         <div className="grid gap-3 md:grid-cols-3">
-                            <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                            <div className="rounded-[1.05rem] bg-background/60 p-4">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Consistency</p>
                                 <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-foreground">{stats.streak} days</p>
                                 <p className="mt-1 text-sm text-muted-foreground">Current focus streak.</p>
                             </div>
-                            <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                            <div className="rounded-[1.05rem] bg-background/60 p-4">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Session length</p>
                                 <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-foreground">{stats.avgSession}</p>
                                 <p className="mt-1 text-sm text-muted-foreground">Typical focus block length.</p>
                             </div>
-                            <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                            <div className="rounded-[1.05rem] bg-background/60 p-4">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Estimate accuracy</p>
                                 <p className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-foreground">
                                     {measuredTaskCount > 0 ? `${review.estimateAccuracyCounts.on_track}/${measuredTaskCount}` : "0"}
@@ -425,17 +472,17 @@ function ProgressContent() {
                         {review.measuredCompletedTasks.length > 0 ? (
                             <div className="space-y-4">
                                 <div className="grid gap-3 sm:grid-cols-3">
-                                    <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                                    <div className="rounded-[1.05rem] bg-background/60 p-4">
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">On track</p>
                                         <p className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-foreground">{review.estimateAccuracyCounts.on_track}</p>
                                         <p className="mt-1 text-sm text-muted-foreground">Completed tasks landing near the estimate.</p>
                                     </div>
-                                    <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                                    <div className="rounded-[1.05rem] bg-background/60 p-4">
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Underestimated</p>
                                         <p className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-foreground">{review.estimateAccuracyCounts.underestimated}</p>
                                         <p className="mt-1 text-sm text-muted-foreground">Tasks that took more focus than planned.</p>
                                     </div>
-                                    <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                                    <div className="rounded-[1.05rem] bg-background/60 p-4">
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Overestimated</p>
                                         <p className="mt-1 text-2xl font-semibold tracking-[-0.05em] text-foreground">{review.estimateAccuracyCounts.overestimated}</p>
                                         <p className="mt-1 text-sm text-muted-foreground">Tasks that finished faster than expected.</p>
@@ -444,7 +491,7 @@ function ProgressContent() {
 
                                 <div className="space-y-2">
                                     {review.measuredCompletedTasks.map((task) => (
-                                        <div key={task.taskId} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/70 px-4 py-3">
+                                        <div key={task.taskId} className="flex flex-wrap items-center justify-between gap-3 rounded-[1.05rem] border border-border/50 bg-background/60 px-4 py-3">
                                             <div className="min-w-0 flex-1">
                                                 <p className="truncate text-sm font-semibold text-foreground">{task.title}</p>
                                                 <p className="mt-1 text-xs text-muted-foreground">
@@ -465,6 +512,7 @@ function ProgressContent() {
                                 title="No measured estimate data this week"
                                 description="Complete an estimated task this week and the review will show how close the estimate was."
                                 icon={<Gauge className="h-8 w-8" />}
+                                size="compact"
                             />
                         )}
                     </SectionCard>
@@ -522,20 +570,12 @@ function ProgressContent() {
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <button
-                            type="button"
-                            className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                            onClick={handleCancelTaskLeave}
-                        >
+                        <Button variant="outline" onClick={handleCancelTaskLeave}>
                             Stay
-                        </button>
-                        <button
-                            type="button"
-                            className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground transition-colors hover:opacity-90"
-                            onClick={handleConfirmTaskLeave}
-                        >
+                        </Button>
+                        <Button variant="destructive" onClick={handleConfirmTaskLeave}>
                             Discard changes
-                        </button>
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

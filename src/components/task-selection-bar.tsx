@@ -134,13 +134,13 @@ export function TaskSelectionBar({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.985 }}
             transition={{ duration: 0.16, ease: "easeOut" }}
-            className={isTasksVariant ? "fixed inset-x-4 bottom-4 z-50 flex justify-center" : "fixed inset-x-4 bottom-4 z-50 flex justify-center"}
+            className="fixed inset-x-4 bottom-4 z-50 flex justify-center"
         >
             <div
                 className={
                     isTasksVariant
-                        ? "flex w-full max-w-[min(100%,72rem)] flex-col gap-2 rounded-xl border border-border/80 bg-card/96 px-3 py-3 shadow-[0_20px_50px_rgba(15,23,42,0.16)] backdrop-blur supports-[backdrop-filter]:bg-card/90"
-                        : "flex w-full max-w-[min(100%,56rem)] items-center gap-1 overflow-x-auto rounded-2xl border border-border/70 bg-card/96 px-2 py-2 shadow-[0_24px_48px_rgba(17,18,15,0.18)] backdrop-blur supports-[backdrop-filter]:bg-card/88"
+                        ? "floating-surface flex w-full max-w-[min(100%,72rem)] flex-col gap-2 px-3 py-3"
+                        : "floating-surface flex w-full max-w-[min(100%,56rem)] items-center gap-1 overflow-x-auto rounded-[1.15rem] px-2 py-2"
                 }
             >
                 {isTasksVariant ? (
@@ -158,7 +158,7 @@ export function TaskSelectionBar({
                                     <span className="sr-only">Exit selection mode</span>
                                 </Button>
 
-                                <div className="rounded-lg border border-border/70 bg-muted/35 px-3 py-1.5 text-sm font-semibold text-foreground">
+                                <div className="rounded-full border border-border/60 bg-background/72 px-3 py-1.5 text-sm font-semibold text-foreground">
                                     {editing ? "Applying bulk changes..." : `${selectedCount} selected`}
                                 </div>
 
@@ -181,11 +181,11 @@ export function TaskSelectionBar({
                         <div className="flex flex-wrap items-center gap-1.5">
                             {renderDateAction(
                                 <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="shrink-0"
-                                    disabled={actionDisabled}
-                                    onClick={() => setDateOpen(true)}
+                                variant="outline"
+                                size="sm"
+                                className="shrink-0 rounded-full"
+                                disabled={actionDisabled}
+                                onClick={() => setDateOpen(true)}
                                 >
                                     <CalendarDays className="h-4 w-4" />
                                     Date
@@ -195,7 +195,7 @@ export function TaskSelectionBar({
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="shrink-0" disabled={actionDisabled}>
+                                    <Button variant="outline" size="sm" className="shrink-0 rounded-full" disabled={actionDisabled}>
                                         <Flag className="h-4 w-4" />
                                         Priority
                                         <ChevronDown className="h-3.5 w-3.5" />
@@ -220,7 +220,7 @@ export function TaskSelectionBar({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="shrink-0"
+                                        className="shrink-0 rounded-full"
                                         disabled={actionDisabled || lists.length === 0}
                                     >
                                         <FolderInput className="h-4 w-4" />
@@ -246,7 +246,7 @@ export function TaskSelectionBar({
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="shrink-0"
+                                    className="shrink-0 rounded-full"
                                     onClick={onCompleteSelected}
                                     disabled={actionDisabled}
                                 >
@@ -257,7 +257,7 @@ export function TaskSelectionBar({
                                 <Button
                                     variant="destructive"
                                     size="sm"
-                                    className="shrink-0"
+                                    className="shrink-0 rounded-full"
                                     onClick={onDeleteSelected}
                                     disabled={actionDisabled}
                                 >

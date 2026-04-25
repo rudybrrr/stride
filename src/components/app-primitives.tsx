@@ -2,12 +2,13 @@
 
 import type { ReactNode } from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
 
 export function PageHeader({
     eyebrow,
     title,
+    description,
     actions,
 }: {
     eyebrow?: string;
@@ -16,20 +17,26 @@ export function PageHeader({
     actions?: ReactNode;
 }) {
     return (
-        <header className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-3xl space-y-1.5">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl space-y-2">
                 {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
-                <h1 className="text-balance text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground sm:text-[2rem]">
+                <h1 className="text-balance text-[1.72rem] font-semibold leading-tight tracking-[-0.04em] text-foreground sm:text-[1.96rem]">
                     {title}
                 </h1>
+                {description ? (
+                    <p className="max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[0.95rem]">
+                        {description}
+                    </p>
+                ) : null}
             </div>
-            {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+            {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">{actions}</div> : null}
         </header>
     );
 }
 
 export function SectionCard({
     title,
+    description,
     action,
     className,
     dense,
@@ -44,9 +51,12 @@ export function SectionCard({
 }) {
     return (
         <Card className={cn("overflow-hidden", className)}>
-            <CardHeader className={cn("border-b border-border/70", dense ? "px-3 py-2.5" : "px-4 py-3")}>
+            <CardHeader className={cn("border-b border-border/40", dense ? "px-3 py-2.5" : "px-4 py-3")}>
                 <div className="flex items-start justify-between gap-3">
-                    <CardTitle className={cn("font-semibold tracking-[-0.02em]", dense ? "text-[0.95rem]" : "text-[0.98rem]")}>{title}</CardTitle>
+                    <div className="space-y-1">
+                        <CardTitle className={cn("font-medium tracking-[-0.02em]", dense ? "text-[0.95rem]" : "text-[0.98rem]")}>{title}</CardTitle>
+                        {description ? <CardDescription>{description}</CardDescription> : null}
+                    </div>
                     {action ? <div className="shrink-0">{action}</div> : null}
                 </div>
             </CardHeader>
@@ -67,11 +77,11 @@ export function MetricTile({
     className?: string;
 }) {
     return (
-        <div className={cn("surface-card flex min-h-20 flex-col justify-between p-3", className)}>
-            <p className="eyebrow">{label}</p>
+        <div className={cn("surface-card flex min-h-[4.5rem] flex-col justify-between gap-3 p-3.5", className)}>
+            <p className="text-[11px] text-muted-foreground/55">{label}</p>
             <div className="space-y-0.5">
-                <p className="font-mono text-[1.35rem] font-semibold tracking-[-0.04em] text-foreground">{value}</p>
-                {meta ? <p className="text-xs text-muted-foreground">{meta}</p> : null}
+                <p className="font-mono text-[1.25rem] font-semibold tracking-[-0.04em] text-foreground sm:text-[1.35rem]">{value}</p>
+                {meta ? <p className="text-[13px] leading-5 text-muted-foreground">{meta}</p> : null}
             </div>
         </div>
     );
@@ -82,18 +92,33 @@ export function EmptyState({
     description,
     icon,
     action,
+    size = "default",
+    className,
 }: {
     title: string;
     description: string;
     icon?: ReactNode;
     action?: ReactNode;
+    size?: "default" | "compact";
+    className?: string;
 }) {
     return (
-        <div className="surface-muted flex min-h-44 flex-col items-center justify-center gap-3 p-5 text-center">
-            {icon ? <div className="rounded-md border border-border bg-background p-2.5 text-primary">{icon}</div> : null}
+        <div
+            data-size={size}
+            className={cn(
+                "surface-empty-state flex flex-col items-center justify-center gap-3.5 p-6 text-center",
+                size === "compact" && "min-h-[10.75rem] gap-3 p-5",
+                className,
+            )}
+        >
+            {icon ? (
+                <div className="rounded-xl p-2.5 text-muted-foreground/50">
+                    {icon}
+                </div>
+            ) : null}
             <div className="space-y-1.5">
-                <h3 className="text-[0.98rem] font-semibold tracking-[-0.03em] text-foreground">{title}</h3>
-                <p className="mx-auto max-w-sm text-sm leading-6 text-muted-foreground">{description}</p>
+                <h3 className={cn("text-[0.98rem] font-semibold tracking-[-0.03em] text-foreground", size === "compact" && "text-[0.95rem]")}>{title}</h3>
+                <p className={cn("mx-auto max-w-sm text-sm leading-6 text-muted-foreground", size === "compact" && "max-w-[28rem] text-[13px] leading-[1.45rem]")}>{description}</p>
             </div>
             {action ? <div className="pt-1">{action}</div> : null}
         </div>

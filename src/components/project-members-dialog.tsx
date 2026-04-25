@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,7 +16,7 @@ import {
     DialogTitle,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { getPublicAvatarUrl } from "~/lib/avatar";
 import { inviteProjectMember } from "~/lib/project-actions";
 import type { TodoList, TodoListMember } from "~/lib/types";
@@ -43,7 +43,7 @@ export function ProjectMembersDialog({
     onOpenChange: (open: boolean) => void;
     project: TodoList;
 }) {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const { refreshData } = useData();
     const [members, setMembers] = useState<ProjectMemberView[]>([]);
     const [username, setUsername] = useState("");

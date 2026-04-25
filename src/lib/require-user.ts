@@ -1,17 +1,12 @@
+import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
-import { createSupabaseServerClient } from "~/lib/supabase/server";
-
 export async function requireUser() {
-    const supabase = await createSupabaseServerClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const { userId } = await auth();
 
-    if (!user) {
+    if (!userId) {
         redirect("/login");
     }
 
-    return user;
+    return { id: userId };
 }
-

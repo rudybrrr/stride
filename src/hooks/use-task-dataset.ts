@@ -12,7 +12,7 @@ import {
     PLANNED_BLOCK_FIELDS,
 } from "~/lib/planning";
 import { buildProjectSummary, type ProjectSummary } from "~/lib/project-summaries";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { subscribeToFocusSessionCompleted } from "~/lib/focus-session-events";
 import {
     areTaskLabelCollectionsEqual,
@@ -264,7 +264,7 @@ function isMissingTableError(error: unknown, tableName: string) {
 }
 
 async function loadTodoRows(
-    supabase: ReturnType<typeof createSupabaseBrowserClient>,
+    supabase: ReturnType<typeof useSupabaseBrowserClient>,
     listIds: string[],
 ): Promise<TodoRow[]> {
     const { data, error } = await supabase
@@ -277,7 +277,7 @@ async function loadTodoRows(
 }
 
 async function loadPlannedBlocks(
-    supabase: ReturnType<typeof createSupabaseBrowserClient>,
+    supabase: ReturnType<typeof useSupabaseBrowserClient>,
     userId: string,
 ): Promise<PlannedFocusBlock[]> {
     const { data, error } = await supabase
@@ -297,7 +297,7 @@ async function loadPlannedBlocks(
 }
 
 async function loadTaskLabels(
-    supabase: ReturnType<typeof createSupabaseBrowserClient>,
+    supabase: ReturnType<typeof useSupabaseBrowserClient>,
     userId: string,
 ): Promise<TaskLabel[]> {
     const { data, error } = await supabase
@@ -318,7 +318,7 @@ async function loadTaskLabels(
 }
 
 async function loadTodoLabelLinks(
-    supabase: ReturnType<typeof createSupabaseBrowserClient>,
+    supabase: ReturnType<typeof useSupabaseBrowserClient>,
     userId: string,
 ): Promise<TodoLabelLinkRow[]> {
     const { data, error } = await supabase
@@ -338,7 +338,7 @@ async function loadTodoLabelLinks(
 }
 
 async function loadTodoAttachments(
-    supabase: ReturnType<typeof createSupabaseBrowserClient>,
+    supabase: ReturnType<typeof useSupabaseBrowserClient>,
     listIds: string[],
 ): Promise<TodoImageRow[]> {
     const { data, error } = await supabase
@@ -360,7 +360,7 @@ function getRealtimeInsertedRowId(payload: { new?: unknown }) {
 
 function useTaskDatasetState(): TaskDatasetValue {
     const { userId, lists, profile, loading: dataLoading } = useData();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const [tasks, setTasks] = useState<TaskDatasetRecord[]>([]);
     const [taskLabels, setTaskLabels] = useState<TaskLabel[]>([]);
     const [plannedBlocks, setPlannedBlocks] = useState<PlannedFocusBlock[]>([]);

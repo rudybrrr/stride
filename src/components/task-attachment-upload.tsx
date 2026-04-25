@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Paperclip } from "lucide-react";
 import { toast } from "sonner";
 
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { uploadTaskAttachments } from "~/lib/task-actions";
 import { MAX_ATTACHMENT_SIZE_BYTES, MAX_ATTACHMENT_SIZE_MB } from "~/lib/task-attachments";
 
@@ -23,7 +23,7 @@ export function TaskAttachmentUpload({
     currentTotalSizeBytes,
     onUploaded,
 }: TaskAttachmentUploadProps) {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
 

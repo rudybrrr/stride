@@ -52,12 +52,12 @@ import { dedupeTasks, useTaskSelectionActions } from "~/hooks/use-task-selection
 import { mergeBufferedTasks, useTaskTransitionBuffer } from "~/hooks/use-task-transition-buffer";
 import { formatProjectScheduledLabel, getProjectScheduledBlockState } from "~/lib/project-summaries";
 import { getProjectColorClasses, getProjectIcon } from "~/lib/project-appearance";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { updateTask } from "~/lib/task-actions";
 import { getDateInputValue, getTimeInputValue } from "~/lib/task-deadlines";
 import { buildProjectTaskMovePatches, sortTasksByWorkspaceOrder } from "~/lib/task-ordering";
 import type { TaskPriority } from "~/lib/task-views";
-import type { TodoList, TodoSectionRow } from "~/lib/types";
+import type { ProjectMemberProfile, TodoList, TodoSectionRow } from "~/lib/types";
 import { cn } from "~/lib/utils";
 
 type PriorityFilterValue = "all" | "none" | TaskPriority;
@@ -101,6 +101,20 @@ interface PendingTaskLeaveAction {
     run: () => void;
 }
 
+function buildAssigneeDirectory(
+    membersByListId: Record<string, ProjectMemberProfile[]>,
+) {
+    const directory = new Map<string, ProjectMemberProfile>();
+
+    Object.entries(membersByListId).forEach(([listId, members]) => {
+        members.forEach((member) => {
+            directory.set(`${listId}:${member.user_id}`, member);
+        });
+    });
+
+    return directory;
+}
+
 export default function ProjectWorkspaceClient({ projectId }: { projectId: string }) {
     return (
         <AppShell>
@@ -113,10 +127,11 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     const router = useRouter();
     const { profile, userId } = useData();
     const { enterPrimaryActivity, openQuickAdd, registerPrimaryActivityReset } = useShellActions();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const {
         lists,
         tasks,
+        membersByListId,
         projectSummaries,
         imagesByTodo,
         loading,
@@ -585,12 +600,12 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
 
     return (
         <>
-            <div className={selectionMode ? "page-container pb-28" : "page-container"}>
+            <div className={selectionMode ? "page-container gap-4 pb-28" : "page-container gap-4"}>
                 <div className="surface-card overflow-hidden">
                     <div className="flex flex-col gap-4 border-b border-border/70 px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex-1 space-y-3">
                             <div className="flex min-w-0 items-start gap-3">
-                                <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-md border", projectPalette.soft, projectPalette.border)}>
+                                <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-background/75 shadow-[var(--shadow-xs)]", projectPalette.soft, projectPalette.border)}>
                                     <ProjectIcon className={cn("h-4.5 w-4.5", projectPalette.text)} />
                                 </span>
                                 <div className="min-w-0 space-y-1">
@@ -607,24 +622,24 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/45 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/72 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
                                     <ListTodo className="h-3.5 w-3.5" />
                                     {projectSummary.incompleteCount} open
                                 </span>
                                 {projectSummary.overdueCount > 0 ? (
-                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-destructive/20 bg-destructive/8 px-2.5 py-1 text-[11px] font-semibold text-destructive">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-destructive/20 bg-destructive/8 px-3 py-1 text-[11px] font-semibold text-destructive">
                                         <AlertTriangle className="h-3.5 w-3.5" />
                                         {projectSummary.overdueCount} overdue
                                     </span>
                                 ) : null}
                                 {needsCoverageCount > 0 ? (
-                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/8 px-2.5 py-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/8 px-3 py-1 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
                                         <Rows3 className="h-3.5 w-3.5" />
                                         {needsCoverageCount} to plan
                                     </span>
                                 ) : null}
                                 {projectSummary.memberCount > 1 ? (
-                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/45 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/72 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
                                         <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/70" />
                                         {projectSummary.memberCount} members
                                     </span>
@@ -632,10 +647,10 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                 {projectScheduledLabel ? (
                                     <span
                                         className={cn(
-                                            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold",
+                                            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold",
                                             projectScheduledState === "current"
                                                 ? "border-emerald-500/20 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300"
-                                                : "border-border/70 bg-muted/45 text-muted-foreground",
+                                                : "border-border/60 bg-background/72 text-muted-foreground",
                                         )}
                                     >
                                         <Clock3 className="h-3.5 w-3.5" />
@@ -648,7 +663,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                         <div className="flex flex-wrap items-center gap-2">
                             <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
                                 <SheetTrigger asChild>
-                                    <Button variant="outline" size="icon-sm" className="relative sm:hidden">
+                                    <Button variant="outline" size="icon-sm" className="relative rounded-full sm:hidden">
                                         <Filter className="h-4 w-4" />
                                         {activeFilterCount > 0 ? (
                                             <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
@@ -658,7 +673,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                         <span className="sr-only">Open filters</span>
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent side="bottom" className="rounded-t-[2rem] border-x-0 border-t border-border/70">
+                                <SheetContent side="bottom" className="rounded-t-[1.75rem] border-x-0 border-t border-border/70 bg-[var(--surface-elevated)]">
                                     <SheetHeader className="sr-only">
                                         <SheetTitle>Filters</SheetTitle>
                                         <SheetDescription>Refine this project by status or priority.</SheetDescription>
@@ -674,7 +689,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
 
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="outline" size="icon-sm" className="relative hidden sm:flex">
+                                    <Button variant="outline" size="icon-sm" className="relative hidden rounded-full sm:flex">
                                         <Filter className="h-4 w-4" />
                                         {activeFilterCount > 0 ? (
                                             <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
@@ -684,7 +699,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                         <span className="sr-only">Open filters</span>
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent align="end" className="w-72 p-3">
+                                <PopoverContent align="end" className="floating-surface w-72 p-3.5">
                                     <ProjectFilterPanel
                                         taskFilter={taskFilter}
                                         priorityFilter={priorityFilter}
@@ -697,6 +712,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             <Button
                                 variant={selectionMode ? "tonal" : "outline"}
                                 size="icon-sm"
+                                className="rounded-full"
                                 onClick={handleSelectionModeChange}
                                 aria-pressed={selectionMode}
                                 title={selectionMode ? "Exit selection mode" : "Select tasks"}
@@ -708,11 +724,11 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             {!selectionMode ? (
                                 <>
                                     {shouldShowSectionGroups ? (
-                                        <div className="hidden items-center rounded-lg border border-border/70 bg-card/70 p-0.5 sm:inline-flex">
+                                        <div className="hidden items-center rounded-full border border-border/60 bg-background/72 p-0.5 sm:inline-flex">
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className={cn("h-8 rounded-md px-2.5", projectView === "list" && "bg-secondary text-foreground")}
+                                                className={cn("h-8 rounded-full px-3", projectView === "list" && "bg-primary/10 text-primary")}
                                                 onClick={() => setProjectView("list")}
                                             >
                                                 <ListTodo className="h-4 w-4" />
@@ -721,7 +737,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className={cn("h-8 rounded-md px-2.5", projectView === "board" && "bg-secondary text-foreground")}
+                                                className={cn("h-8 rounded-full px-3", projectView === "board" && "bg-primary/10 text-primary")}
                                                 onClick={() => setProjectView("board")}
                                             >
                                                 <Rows3 className="h-4 w-4" />
@@ -733,6 +749,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                         <Button
                                             variant="outline"
                                             size="sm"
+                                            className="rounded-full"
                                             onClick={() => {
                                                 enterPrimaryActivity("project-workspace:section-edit");
                                                 setCreateSectionOpen(true);
@@ -742,7 +759,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                             Section
                                         </Button>
                                     ) : null}
-                                    <Button size="sm" onClick={() => openQuickAdd({ listId: project.id })}>
+                                    <Button size="sm" className="rounded-full px-4" onClick={() => openQuickAdd({ listId: project.id })}>
                                         <Plus className="h-4 w-4" />
                                         Add
                                     </Button>
@@ -751,7 +768,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
 
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="icon-sm">
+                                    <Button variant="outline" size="icon-sm" className="rounded-full">
                                         <MoreHorizontal className="h-4 w-4" />
                                         <span className="sr-only">Project actions</span>
                                     </Button>
@@ -794,6 +811,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             editing={bulkEditing}
                             completing={bulkCompleting}
                             deleting={bulkDeleting}
+                            variant="tasks"
                             onCancel={requestSelectionModeExit}
                             onToggleSelectAll={handleToggleSelectAll}
                             onSetDueDate={handleSetSelectedDueDate}
@@ -806,12 +824,12 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                 </AnimatePresence>
 
                 {activeFilterCount > 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="surface-muted flex flex-wrap gap-2 px-3 py-2.5">
                         {taskFilter !== "open" ? (
                             <button
                                 type="button"
                                 onClick={() => setTaskFilter("open")}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/78 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
                             >
                                 {PROJECT_STATUS_OPTIONS.find((option) => option.value === taskFilter)?.label}
                                 <X className="h-3.5 w-3.5" />
@@ -821,7 +839,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             <button
                                 type="button"
                                 onClick={() => setPriorityFilter("all")}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-background/78 px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-border hover:text-foreground"
                             >
                                 {PRIORITY_OPTIONS.find((option) => option.value === priorityFilter)?.label}
                                 <X className="h-3.5 w-3.5" />
@@ -832,7 +850,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
 
                 {supportsSections && createSectionOpen && !selectionMode ? (
                     <form
-                        className="flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-card/85 px-3.5 py-3"
+                        className="surface-muted flex flex-wrap items-center gap-2 px-3.5 py-3"
                         onSubmit={(event) => void handleCreateSectionSubmit(event)}
                     >
                         <input
@@ -840,15 +858,16 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             value={newSectionName}
                             onChange={(event) => setNewSectionName(event.target.value)}
                             placeholder="New section"
-                            className="h-9 min-w-[12rem] flex-1 rounded-lg border border-border/70 bg-background px-3 text-sm outline-none focus-visible:border-ring"
+                            className="h-9 min-w-[12rem] flex-1 rounded-xl border border-border/60 bg-background/82 px-3 text-sm outline-none focus-visible:border-ring"
                         />
-                        <Button type="submit" size="sm" disabled={creatingSection || !newSectionName.trim()}>
+                        <Button type="submit" size="sm" className="rounded-full px-4" disabled={creatingSection || !newSectionName.trim()}>
                             {creatingSection ? "Adding..." : "Add"}
                         </Button>
                         <Button
                             type="button"
                             variant="ghost"
                             size="sm"
+                            className="rounded-full"
                             onClick={() => {
                                 setCreateSectionOpen(false);
                                 setNewSectionName("");
@@ -862,7 +881,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                 <div className="grid gap-5 lg:flex lg:items-start lg:gap-0">
                     <div className="min-w-0 flex-1">
                         {loading ? (
-                            <div className="surface-muted px-3 py-4 text-sm text-muted-foreground">Loading tasks...</div>
+                            <div className="surface-muted px-4 py-6 text-sm text-muted-foreground">Loading tasks...</div>
                         ) : shouldShowSectionGroups ? (
                             <DragDropContext onDragEnd={handleProjectDragEnd}>
                                 {projectView === "board" ? (
@@ -870,6 +889,8 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                         unsectionedTasks={resolvedUnsectionedTasks}
                                         sectionGroups={resolvedSectionGroups}
                                         lists={lists}
+                                        membersByListId={membersByListId}
+                                        timeZone={profile?.timezone ?? null}
                                         selectedTaskId={selectedTaskId}
                                         selectedTaskIds={selectedTaskIdSet}
                                         selectionMode={selectionMode}
@@ -901,6 +922,8 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                                 droppableId={NO_SECTION_DROPPABLE_ID}
                                                 tasks={resolvedUnsectionedTasks}
                                                 lists={lists}
+                                                membersByListId={membersByListId}
+                                                timeZone={profile?.timezone ?? null}
                                                 selectedTaskId={selectedTaskId}
                                                 selectedTaskIds={selectedTaskIdSet}
                                                 selectionMode={selectionMode}
@@ -938,6 +961,8 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                                                         section={group.section}
                                                                         tasks={group.tasks}
                                                                         lists={lists}
+                                                                        membersByListId={membersByListId}
+                                                                        timeZone={profile?.timezone ?? null}
                                                                         selectedTaskId={selectedTaskId}
                                                                         selectedTaskIds={selectedTaskIdSet}
                                                                         selectionMode={selectionMode}
@@ -982,7 +1007,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                 selectedTaskId={selectedTaskId}
                                 selectedTaskIds={selectedTaskIdSet}
                                 selectionMode={selectionMode}
-                                compact
+                                variant="tasks"
                                 onSelectionToggle={handleTaskSelection}
                                 onSelect={handleTaskSelect}
                                 onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
@@ -991,6 +1016,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             <EmptyState
                                 title="No tasks"
                                 description={activeFilterCount > 0 ? "Adjust filters or add one." : "Add a task to this project."}
+                                size="compact"
                                 action={(
                                     <Button size="sm" onClick={() => openQuickAdd({ listId: project.id })}>
                                         <Plus className="h-4 w-4" />
@@ -1230,20 +1256,19 @@ function ProjectSummaryCard({
     return (
         <div
             className={cn(
-                "rounded-xl border px-4 py-3",
-                tone === "danger" && "border-destructive/25 bg-destructive/6",
-                tone === "warning" && "border-amber-500/20 bg-amber-500/6",
-                tone === "success" && "border-emerald-500/20 bg-emerald-500/6",
-                tone === "muted" && "border-border/70 bg-card/70",
+                "surface-card px-4 py-3",
+                tone === "danger" && "border-destructive/20 bg-destructive/6",
+                tone === "warning" && "border-amber-500/18 bg-amber-500/6",
+                tone === "success" && "border-emerald-500/18 bg-emerald-500/6",
             )}
         >
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                <span className="flex h-6 w-6 items-center justify-center rounded-md border border-border/70 bg-background/80 text-foreground">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/60 bg-background/78 text-foreground">
                     {icon}
                 </span>
                 {eyebrow}
             </div>
-            <p className="mt-3 text-[1.05rem] font-semibold tracking-[-0.03em] text-foreground">{value}</p>
+            <p className="mt-3 text-[1rem] font-semibold tracking-[-0.03em] text-foreground">{value}</p>
             <p className="mt-1 text-sm text-muted-foreground">{note}</p>
         </div>
     );
@@ -1253,6 +1278,8 @@ function ProjectBoardView({
     unsectionedTasks,
     sectionGroups,
     lists,
+    membersByListId,
+    timeZone,
     selectedTaskId,
     selectedTaskIds,
     selectionMode,
@@ -1270,6 +1297,8 @@ function ProjectBoardView({
     unsectionedTasks: TaskDatasetRecord[];
     sectionGroups: Array<{ key: string; section: TodoSectionRow; tasks: TaskDatasetRecord[] }>;
     lists: TodoList[];
+    membersByListId: Record<string, ProjectMemberProfile[]>;
+    timeZone: string | null;
     selectedTaskId: string | null;
     selectedTaskIds: Set<string>;
     selectionMode: boolean;
@@ -1287,12 +1316,14 @@ function ProjectBoardView({
     return (
         <div className="overflow-x-auto pb-2">
             <div className="grid min-w-max grid-flow-col auto-cols-[20rem] gap-4">
-                <div className="w-[20rem] shrink-0">
+                <div className="surface-card w-[20rem] shrink-0 p-3">
                     <ProjectTaskDroppableList
                         title="No section"
                         droppableId={NO_SECTION_DROPPABLE_ID}
                         tasks={unsectionedTasks}
                         lists={lists}
+                        membersByListId={membersByListId}
+                        timeZone={timeZone}
                         selectedTaskId={selectedTaskId}
                         selectedTaskIds={selectedTaskIds}
                         selectionMode={selectionMode}
@@ -1309,8 +1340,8 @@ function ProjectBoardView({
                         onToggle={onToggle}
                     />
                     {!selectionMode ? (
-                        <div className="mt-2 flex justify-end">
-                            <Button variant="ghost" size="sm" onClick={() => onAddTask(null)}>
+                        <div className="mt-1 flex justify-end">
+                            <Button variant="ghost" size="sm" className="rounded-full" onClick={() => onAddTask(null)}>
                                 <Plus className="h-4 w-4" />
                                 Add
                             </Button>
@@ -1339,6 +1370,8 @@ function ProjectBoardView({
                                                 section={group.section}
                                                 tasks={group.tasks}
                                                 lists={lists}
+                                                membersByListId={membersByListId}
+                                                timeZone={timeZone}
                                                 selectedTaskId={selectedTaskId}
                                                 selectedTaskIds={selectedTaskIds}
                                                 selectionMode={selectionMode}
@@ -1374,6 +1407,8 @@ function ProjectTaskDroppableList({
     droppableId,
     tasks,
     lists,
+    membersByListId,
+    timeZone,
     selectedTaskId,
     selectedTaskIds,
     selectionMode,
@@ -1389,6 +1424,8 @@ function ProjectTaskDroppableList({
     droppableId: string;
     tasks: TaskDatasetRecord[];
     lists: TodoList[];
+    membersByListId: Record<string, ProjectMemberProfile[]>;
+    timeZone: string | null;
     selectedTaskId: string | null;
     selectedTaskIds: Set<string>;
     selectionMode: boolean;
@@ -1401,16 +1438,25 @@ function ProjectTaskDroppableList({
     onToggle: (task: TaskDatasetRecord, nextIsDone: boolean) => void;
 }) {
     const { isCompact } = useCompactMode();
+    const projectById = useMemo(
+        () => new Map(lists.map((list) => [list.id, list])),
+        [lists],
+    );
+    const assigneeDirectory = useMemo(
+        () => buildAssigneeDirectory(membersByListId),
+        [membersByListId],
+    );
+
     return (
         <section className="space-y-2">
             {title ? (
-                <div className={cn("flex min-w-0 items-start justify-between gap-3", isCompact ? "px-2" : "px-3")}>
+                <div className={cn("flex min-w-0 items-start justify-between gap-3", isCompact ? "px-1" : "px-0.5")}>
                     <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2">
                             <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                                 {title}
                             </p>
-                            <span className="rounded-md border border-border/70 bg-muted/45 px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
+                            <span className="rounded-full border border-border/60 bg-background/76 px-2.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                                 {tasks.length}
                             </span>
                         </div>
@@ -1421,7 +1467,7 @@ function ProjectTaskDroppableList({
                         ) : null}
                     </div>
                     {dragEnabled ? (
-                        <span className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/76 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                             <GripVertical className="h-3.5 w-3.5" />
                             Drag
                         </span>
@@ -1435,12 +1481,11 @@ function ProjectTaskDroppableList({
                         {tasks.length > 0 ? (
                             <div
                                 className={cn(
-                                    "overflow-hidden rounded-xl border border-border/80 bg-card",
-                                    snapshot.isDraggingOver && dragEnabled && "border-primary/35 bg-primary/6",
+                                    "overflow-hidden rounded-[1.1rem] border border-border/70 bg-[var(--surface-elevated)] shadow-[var(--shadow-xs)]",
+                                    snapshot.isDraggingOver && dragEnabled && "border-primary/30 bg-primary/6",
                                 )}
                             >
                                 <div className="p-2">
-                                <AnimatePresence initial={false}>
                                     {tasks.map((task, index) => (
                                         <Draggable
                                             key={task.id}
@@ -1458,7 +1503,9 @@ function ProjectTaskDroppableList({
                                                 >
                                                     <TaskListItem
                                                         task={task}
-                                                        lists={lists}
+                                                        project={projectById.get(task.list_id) ?? null}
+                                                        assignee={task.assignee_user_id ? (assigneeDirectory.get(`${task.list_id}:${task.assignee_user_id}`) ?? null) : null}
+                                                        timeZone={timeZone}
                                                         selected={task.id === selectedTaskId}
                                                         bulkSelected={selectedTaskIds.has(task.id)}
                                                         selectionMode={selectionMode}
@@ -1473,14 +1520,13 @@ function ProjectTaskDroppableList({
                                             )}
                                         </Draggable>
                                     ))}
-                                </AnimatePresence>
                                 {provided.placeholder}
                                 </div>
                             </div>
                         ) : (
                             <div
                                 className={cn(
-                                    "surface-muted rounded-xl border border-dashed border-border/70 px-3 py-4 text-sm text-muted-foreground",
+                                    "surface-muted rounded-[1.1rem] border border-dashed border-border/70 px-3 py-4 text-sm text-muted-foreground",
                                     snapshot.isDraggingOver && dragEnabled && "border-primary/40 bg-primary/6 text-foreground",
                                 )}
                             >
@@ -1499,6 +1545,8 @@ function ProjectSectionGroup({
     section,
     tasks,
     lists,
+    membersByListId,
+    timeZone,
     selectedTaskId,
     selectedTaskIds,
     selectionMode,
@@ -1519,6 +1567,8 @@ function ProjectSectionGroup({
     section: TodoSectionRow;
     tasks: TaskDatasetRecord[];
     lists: TodoList[];
+    membersByListId: Record<string, ProjectMemberProfile[]>;
+    timeZone: string | null;
     selectedTaskId: string | null;
     selectedTaskIds: Set<string>;
     selectionMode: boolean;
@@ -1538,11 +1588,11 @@ function ProjectSectionGroup({
 }) {
     const { isCompact } = useCompactMode();
     return (
-        <section className={cn("space-y-2", sectionDragging && "rounded-2xl border border-border/70 bg-card/50 p-2")}>
+        <section className={cn("surface-card space-y-3 rounded-[1.15rem] p-3", sectionDragging && "border-primary/25 bg-background/82")}>
             <div
                 className={cn(
                     "group/section flex items-start justify-between gap-3 py-0.5",
-                    isCompact ? "px-2" : "px-3",
+                    isCompact ? "px-0.5" : "px-0.5",
                 )}
             >
                 <div
@@ -1559,7 +1609,7 @@ function ProjectSectionGroup({
                             <p className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                                 {section.name}
                             </p>
-                            <span className="rounded-md border border-border/70 bg-muted/45 px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
+                            <span className="rounded-full border border-border/60 bg-background/76 px-2.5 py-0.5 text-[10px] font-mono text-muted-foreground">
                                 {tasks.length}
                             </span>
                         </div>
@@ -1606,6 +1656,8 @@ function ProjectSectionGroup({
                     droppableId={getSectionDroppableId(section.id)}
                     tasks={tasks}
                     lists={lists}
+                    membersByListId={membersByListId}
+                    timeZone={timeZone}
                     selectedTaskId={selectedTaskId}
                     selectedTaskIds={selectedTaskIds}
                     selectionMode={selectionMode}
@@ -1646,10 +1698,10 @@ function ProjectFilterPanel({
                             type="button"
                             onClick={() => onTaskFilterChange(option.value)}
                             className={cn(
-                                "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                                "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
                                 taskFilter === option.value
-                                    ? "bg-primary text-primary-foreground"
-                                    : "border border-border/70 bg-background/70 text-muted-foreground hover:border-border hover:text-foreground",
+                                    ? "border-primary/20 bg-primary/10 text-primary"
+                                    : "border-border/60 bg-background/76 text-muted-foreground hover:border-border hover:text-foreground",
                             )}
                         >
                             {option.label}
@@ -1693,6 +1745,6 @@ function ProjectFilterPanel({
 
 function cnPriorityFilter(active: boolean) {
     return active
-        ? "rounded-full border border-primary bg-primary px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-foreground"
-        : "rounded-full border border-border bg-card px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground";
+        ? "rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary"
+        : "rounded-full border border-border/60 bg-background/76 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:border-border hover:text-foreground";
 }

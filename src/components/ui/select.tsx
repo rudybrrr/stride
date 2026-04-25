@@ -82,7 +82,7 @@ function SelectContent({
                 data-slot="select-content"
                 position={position}
                 className={cn(
-                    "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-80 min-w-[10rem] overflow-hidden rounded-lg border border-border/80 p-1 shadow-[0_14px_32px_rgba(15,23,42,0.16)]",
+                    "floating-surface text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-[97%] data-[state=open]:zoom-in-[97%] data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 relative z-50 max-h-80 min-w-[10rem] overflow-hidden rounded-xl p-2 duration-[200ms] ease-[cubic-bezier(0.16,1,0.3,1)]",
                     position === "popper" &&
                         "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
                     className,
@@ -112,7 +112,7 @@ function SelectLabel({
     return (
         <SelectPrimitive.Label
             data-slot="select-label"
-            className={cn("px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground", className)}
+            className={cn("px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground/60", className)}
             {...props}
         />
     );
@@ -124,10 +124,10 @@ function SelectItem({
     ...props
 }: React.ComponentProps<typeof SelectPrimitive.Item>) {
     return (
-        <SelectPrimitive.Item
-            data-slot="select-item"
-            className={cn(
-                "focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center gap-2 rounded-md py-1.5 pr-8 pl-2.5 text-sm outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+            <SelectPrimitive.Item
+                data-slot="select-item"
+                className={cn(
+                "focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center gap-2 rounded-lg py-1.5 pr-8 pl-2.5 text-sm outline-none select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                 "data-[state=checked]:bg-accent/85 data-[state=checked]:text-accent-foreground",
                 className,
             )}
@@ -150,7 +150,7 @@ function SelectSeparator({
     return (
         <SelectPrimitive.Separator
             data-slot="select-separator"
-            className={cn("-mx-1 my-1 h-px bg-border/80", className)}
+            className={cn("-mx-1 my-1.5 h-px bg-border/80", className)}
             {...props}
         />
     );

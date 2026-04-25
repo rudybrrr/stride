@@ -1,8 +1,9 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
-import { bootstrapUserWorkspace } from "~/lib/bootstrap-user";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { bootstrapUserWorkspace, syncClerkProfileToSupabase } from "~/lib/bootstrap-user";
 import { subscribeToFocusSessionCompleted } from "~/lib/focus-session-events";
 import { formatMinutesCompact, getPlannerPreferences } from "~/lib/planning";
 import { getProgressWeekWindow } from "~/lib/progress-review";
@@ -52,6 +53,12 @@ interface DataContextType {
     loading: boolean;
     refreshData: () => Promise<void>;
     userId: string | null;
+}
+
+interface ClerkProfileIdentity {
+    username: string | null;
+    fullName: string | null;
+    avatarUrl: string | null;
 }
 
 interface ListMembershipRow {
@@ -290,8 +297,39 @@ function getRealtimeInsertedRowId(payload: { new?: unknown }) {
     return typeof nextId === "string" ? nextId : null;
 }
 
+function cleanClerkText(value?: string | null) {
+    const cleaned = value?.trim();
+    if (!cleaned) return null;
+    return cleaned;
+}
+
+function hasMissingSupabaseProfileIdentity(profile: DataProfile | null, identity: ClerkProfileIdentity) {
+    if (!profile) return false;
+
+    return [
+        Boolean(identity.username && !profile.username),
+        Boolean(identity.fullName && !profile.full_name),
+        Boolean(identity.avatarUrl && !profile.avatar_url),
+    ].some(Boolean);
+}
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
+    const { user, isLoaded: isClerkLoaded } = useUser();
+    const clerkUserId = user?.id ?? null;
+    const clerkUserEmail = user?.primaryEmailAddress?.emailAddress ?? null;
+    const clerkProfileIdentity = useMemo<ClerkProfileIdentity>(() => {
+        const fallbackFullName = [user?.firstName, user?.lastName]
+            .map((name) => cleanClerkText(name))
+            .filter(Boolean)
+            .join(" ");
+
+        return {
+            username: cleanClerkText(user?.username),
+            fullName: cleanClerkText(user?.fullName) ?? cleanClerkText(fallbackFullName),
+            avatarUrl: cleanClerkText(user?.imageUrl),
+        };
+    }, [user?.firstName, user?.fullName, user?.imageUrl, user?.lastName, user?.username]);
     const [userId, setUserId] = useState<string | null>(null);
     const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
     const [lists, setLists] = useState<TodoList[]>([]);
@@ -299,6 +337,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const [stats, setStats] = useState<AppStats | null>(null);
     const [loading, setLoading] = useState(true);
     const inboxProvisionAttemptedForRef = useRef<string | null>(null);
+    const clerkProfileSyncAttemptedForRef = useRef<string | null>(null);
     const focusSessionsRef = useRef<FocusSession[]>([]);
     const knownFocusSessionIdsRef = useRef<Set<string>>(new Set());
     const locallyPatchedFocusSessionIdsRef = useRef<Set<string>>(new Set());
@@ -476,17 +515,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         }
     }, [fetchShellData, fetchStatsData]);
 
-    const ensureWorkspaceBootstrap = useCallback(async (uid: string) => {
+    const ensureWorkspaceBootstrap = useCallback(async (uid: string, email: string | null) => {
         await bootstrapUserWorkspace(supabase, {
             userId: uid,
+            email,
+            profileIdentity: clerkProfileIdentity,
+            currentProfile: profile,
             lists,
             hasProfile: Boolean(profile),
         });
         const nextProfile = await fetchShellData(uid);
         await fetchStatsData(uid, nextProfile?.timezone, nextProfile?.week_starts_on);
-    }, [fetchShellData, fetchStatsData, lists, profile, supabase]);
+    }, [clerkProfileIdentity, fetchShellData, fetchStatsData, lists, profile, supabase]);
 
     useEffect(() => {
+        clerkProfileSyncAttemptedForRef.current = null;
         focusSessionsRef.current = [];
         knownFocusSessionIdsRef.current = new Set();
         locallyPatchedFocusSessionIdsRef.current = new Set();
@@ -494,16 +537,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }, [userId]);
 
     useEffect(() => {
-        const checkAuth = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+        if (!isClerkLoaded) return;
 
-            if (user) {
-                inboxProvisionAttemptedForRef.current = null;
-                setUserId(user.id);
-                void loadUserData(user.id);
-                return;
-            }
-
+        if (clerkUserId) {
+            inboxProvisionAttemptedForRef.current = null;
+            setUserId((prev) => {
+                if (prev === clerkUserId) return prev;
+                void loadUserData(clerkUserId);
+                return clerkUserId;
+            });
+        } else {
             inboxProvisionAttemptedForRef.current = null;
             setUserId(null);
             setFocusSessions([]);
@@ -511,32 +554,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             setProfile(null);
             setStats(null);
             setLoading(false);
-        };
-
-        void checkAuth();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session?.user) {
-                inboxProvisionAttemptedForRef.current = null;
-                setUserId((prevUserId) => {
-                    if (prevUserId === session.user.id) return prevUserId;
-                    void loadUserData(session.user.id);
-                    return session.user.id;
-                });
-                return;
-            }
-
-            inboxProvisionAttemptedForRef.current = null;
-            setUserId(null);
-            setFocusSessions([]);
-            setLists([]);
-            setProfile(null);
-            setStats(null);
-            setLoading(false);
-        });
-
-        return () => subscription.unsubscribe();
-    }, [loadUserData, supabase]);
+        }
+    }, [clerkUserId, isClerkLoaded, loadUserData]);
 
     const refreshData = useCallback(async () => {
         if (userId) {
@@ -578,11 +597,37 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
         inboxProvisionAttemptedForRef.current = userId;
 
-        void ensureWorkspaceBootstrap(userId).catch((error) => {
+        void ensureWorkspaceBootstrap(userId, clerkUserEmail).catch((error) => {
             inboxProvisionAttemptedForRef.current = null;
             console.error("Workspace bootstrap failed:", error);
         });
-    }, [ensureWorkspaceBootstrap, lists, loading, profile, userId]);
+    }, [clerkUserEmail, ensureWorkspaceBootstrap, lists, loading, profile, userId]);
+
+    useEffect(() => {
+        if (!userId || loading || !hasMissingSupabaseProfileIdentity(profile, clerkProfileIdentity)) {
+            if (!loading) {
+                clerkProfileSyncAttemptedForRef.current = null;
+            }
+            return;
+        }
+
+        const syncKey = JSON.stringify({
+            userId,
+            username: clerkProfileIdentity.username,
+            fullName: clerkProfileIdentity.fullName,
+            avatarUrl: clerkProfileIdentity.avatarUrl,
+        });
+
+        if (clerkProfileSyncAttemptedForRef.current === syncKey) return;
+        clerkProfileSyncAttemptedForRef.current = syncKey;
+
+        void syncClerkProfileToSupabase(supabase, userId, clerkProfileIdentity, profile)
+            .then(() => refreshData())
+            .catch((error) => {
+                clerkProfileSyncAttemptedForRef.current = null;
+                console.error("Clerk profile sync failed:", error);
+            });
+    }, [clerkProfileIdentity, loading, profile, refreshData, supabase, userId]);
 
     useEffect(() => {
         if (!userId) return;
@@ -689,4 +734,3 @@ export function useData() {
     }
     return context;
 }
-

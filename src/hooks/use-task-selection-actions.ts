@@ -7,7 +7,7 @@ import { useData } from "~/components/data-provider";
 import { useTaskDataset, type TaskDatasetRecord } from "~/hooks/use-task-dataset";
 import { buildTaskDeadlineMutation, getDateInputValue } from "~/lib/task-deadlines";
 import { buildTaskReminderMutation } from "~/lib/task-reminders";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { completeTaskWithRecurrence, deleteTask, updateTask } from "~/lib/task-actions";
 import type { TaskPriority } from "~/lib/task-views";
 
@@ -68,7 +68,7 @@ export function useTaskSelectionActions({
 }: UseTaskSelectionActionsOptions) {
     const { profile, userId } = useData();
     const { applyTaskPatch, removeTask, upsertTask } = useTaskDataset();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
     const [selectionAnchorTaskId, setSelectionAnchorTaskId] = useState<string | null>(null);

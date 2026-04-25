@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Brain, Coffee, Timer } from "lucide-react";
 import { toast } from "sonner";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import confetti from "canvas-confetti";
 
 import { emitFocusSessionCompleted } from "~/lib/focus-session-events";
@@ -87,7 +87,7 @@ import { useData } from "./data-provider";
 
 export function FocusProvider({ children }: { children: React.ReactNode }) {
     const { userId } = useData();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const [mode, setMode] = useState<TimerMode>("focus");
     const [timeLeft, setTimeLeft] = useState(MODE_CONFIG.focus.duration);
     const [isActive, setIsActive] = useState(false);

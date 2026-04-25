@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,7 +16,7 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { createProject, deleteOrLeaveProject, updateProject } from "~/lib/project-actions";
 import {
     getProjectColorClasses,
@@ -46,7 +46,7 @@ export function ProjectDialog({
     onSaved?: (projectId: string) => void;
     onRemoved?: () => void;
 }) {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const { userId, refreshData } = useData();
     const [name, setName] = useState("");
     const [colorToken, setColorToken] = useState<(typeof PROJECT_COLOR_TOKENS)[number]>("cobalt");
@@ -114,28 +114,33 @@ export function ProjectDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] max-w-xl flex-col gap-0 overflow-hidden rounded-[1.4rem] border-border/60 p-0 sm:max-h-[calc(100dvh-3rem)] sm:rounded-[1.75rem]">
-                <div className="border-b border-border/50 p-4 sm:p-6">
+            <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] max-w-xl flex-col gap-0 overflow-hidden rounded-[1.4rem] border-border/60 p-0 shadow-none sm:max-h-[calc(100dvh-3rem)] sm:rounded-[1.75rem]">
+                <div className="border-b border-border/50 bg-background/25 p-4 sm:p-6">
                     <DialogHeader className="text-left">
+                        <p className="eyebrow">Workspace</p>
                         <DialogTitle className="text-xl font-semibold tracking-[-0.04em] sm:text-2xl">
                             {initialProject ? "Edit project" : "Create project"}
                         </DialogTitle>
                         <DialogDescription>
-                            Set the project name, color, and icon.
+                            Set the project name, icon, and color without changing project structure.
                         </DialogDescription>
                     </DialogHeader>
                 </div>
 
                 <div className="min-h-0 space-y-4 overflow-y-auto p-4 sm:space-y-6 sm:p-6">
-                    <div className="flex items-center gap-3 rounded-[1rem] border border-border/60 bg-background/70 p-3 sm:gap-4 sm:rounded-[1.25rem] sm:p-4">
-                        <div className={`rounded-xl p-2.5 sm:rounded-2xl sm:p-3 ${previewPalette.soft}`}>
+                    <div className="surface-card flex items-center gap-3 px-3 py-3 sm:gap-4 sm:px-4 sm:py-4">
+                        <div
+                            className={`rounded-xl border border-border/60 p-2.5 sm:rounded-2xl sm:p-3 ${previewPalette.soft}`}
+                            style={{ boxShadow: "inset 0 1px 0 var(--surface-topline), var(--shadow-xs)" }}
+                        >
                             <PreviewIcon className={`h-5 w-5 sm:h-6 sm:w-6 ${previewPalette.text}`} />
                         </div>
                         <div>
+                            <p className="eyebrow">Preview</p>
                             <p className="text-base font-semibold tracking-[-0.03em] text-foreground sm:text-lg">
                                 {name.trim() || "Untitled Project"}
                             </p>
-                            <p className="text-sm text-muted-foreground">Preview</p>
+                            <p className="text-sm text-muted-foreground">How this project appears in the sidebar and views.</p>
                         </div>
                     </div>
 
@@ -161,7 +166,8 @@ export function ProjectDialog({
                                         key={token}
                                         type="button"
                                         onClick={() => setColorToken(token)}
-                                        className={`rounded-xl border px-2.5 py-3 text-[11px] font-semibold capitalize transition-colors sm:rounded-2xl sm:px-3 sm:py-4 sm:text-xs ${colorToken === token ? `${palette.soft} ${palette.border} ${palette.text}` : "border-border/60 bg-background/70 text-muted-foreground hover:bg-secondary/60"}`}
+                                        className={`rounded-xl border px-2.5 py-3 text-[11px] font-semibold capitalize transition-[transform,background-color,border-color,color,box-shadow] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] sm:rounded-2xl sm:px-3 sm:py-4 sm:text-xs ${colorToken === token ? `${palette.soft} ${palette.border} ${palette.text} shadow-[var(--shadow-soft)]` : "motion-safe-lift border-border/60 bg-background/60 text-muted-foreground hover:-translate-y-px hover:bg-secondary/60 hover:text-foreground"}`}
+                                        style={colorToken === token ? { boxShadow: "inset 0 1px 0 var(--surface-topline), var(--shadow-soft)" } : undefined}
                                     >
                                         <span className={`mx-auto mb-1.5 block h-2.5 w-2.5 rounded-full sm:mb-2 sm:h-3 sm:w-3 ${palette.accent}`} />
                                         {token}
@@ -185,7 +191,8 @@ export function ProjectDialog({
                                         onClick={() => setIconToken(token)}
                                         title={label}
                                         aria-label={label}
-                                        className={`aspect-square rounded-xl border p-3 transition-colors sm:rounded-2xl sm:p-4 ${active ? `${previewPalette.soft} ${previewPalette.border} ${previewPalette.text}` : "border-border/60 bg-background/70 text-muted-foreground hover:bg-secondary/60"}`}
+                                        className={`aspect-square rounded-xl border p-3 transition-[transform,background-color,border-color,color,box-shadow] duration-[180ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] sm:rounded-2xl sm:p-4 ${active ? `${previewPalette.soft} ${previewPalette.border} ${previewPalette.text} shadow-[var(--shadow-soft)]` : "motion-safe-lift border-border/60 bg-background/60 text-muted-foreground hover:-translate-y-px hover:bg-secondary/60 hover:text-foreground"}`}
+                                        style={active ? { boxShadow: "inset 0 1px 0 var(--surface-topline), var(--shadow-soft)" } : undefined}
                                     >
                                         <Icon className="mx-auto h-4 w-4 sm:h-5 sm:w-5" />
                                         <span className="sr-only">{label}</span>
@@ -202,7 +209,7 @@ export function ProjectDialog({
                                 <p>Inbox is permanent and cannot be deleted or left.</p>
                             </div>
                         ) : (
-                            <div className="rounded-[1rem] border border-destructive/25 bg-destructive/5 p-3.5 sm:rounded-[1.25rem] sm:p-4">
+                            <div className="rounded-[1rem] border border-destructive/20 bg-destructive/4 p-3.5 sm:rounded-[1.25rem] sm:p-4">
                                 <div className="space-y-2">
                                     <p className="eyebrow text-destructive">Danger zone</p>
                                     <h3 className="text-base font-semibold tracking-[-0.02em] text-foreground">
@@ -228,7 +235,7 @@ export function ProjectDialog({
                     ) : null}
                 </div>
 
-                <DialogFooter className="border-t border-border/50 p-4 sm:p-6">
+                <DialogFooter className="border-t border-border/50 bg-background/20 p-4 sm:p-6">
                     <Button variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>

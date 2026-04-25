@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.2.5",
     "@hello-pangea/dnd": "^18.0.1",
     "@sentry/nextjs": "^10.47.0",
     "@supabase/ssr": "^0.8.0",

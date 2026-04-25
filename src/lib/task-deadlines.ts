@@ -103,8 +103,10 @@ export function getBrowserTimeZone() {
 }
 
 export function resolveTimeZone(preferred?: string | null): string {
-    if (isValidTimeZone(preferred)) {
-        return preferred!;
+    // Treat "UTC" as unset — bootstrap runs server-side and saves "UTC" for
+    // everyone, which is never the user's real local timezone.
+    if (preferred && preferred !== "UTC" && isValidTimeZone(preferred)) {
+        return preferred;
     }
 
     return getBrowserTimeZone();

@@ -278,11 +278,11 @@ export function PlannerGrid({
   }, [days, interaction, normalizedDefaultCreateDurationMinutes, onCreateRange, onEditBlock, onSelectDate, onUpdateBlock, plannerDayMinutes]);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border/70 bg-card/96">
+    <div className="surface-card overflow-hidden">
       <div className="overflow-x-auto">
         <div className={cn(days.length > 1 && "min-w-[980px]")}>
-          <div className="grid border-b border-border/60 bg-card/96" style={{ gridTemplateColumns }}>
-            <div className="sticky left-0 z-20 border-r border-border/60 bg-card/96 px-3 py-2 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground">
+          <div className="grid border-b border-border/18 bg-background/82" style={{ gridTemplateColumns }}>
+            <div className="sticky left-0 z-20 border-r border-border/18 bg-background/82 px-3 py-2 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground">
               Day
             </div>
             {days.map((day) => {
@@ -297,8 +297,8 @@ export function PlannerGrid({
                   type="button"
                   onClick={() => onSelectDate(day)}
                   className={cn(
-                    "flex min-h-[64px] flex-col items-start justify-center gap-0.5 border-r border-border/60 px-3 py-2 text-left transition-colors last:border-r-0",
-                    isSelected ? "bg-accent/28" : "bg-background/30 hover:bg-muted/50",
+                    "flex min-h-[64px] flex-col items-start justify-center gap-0.5 border-r border-border/18 px-3 py-2 text-left transition-colors last:border-r-0",
+                    isSelected ? "bg-primary/8" : "bg-background/24 hover:bg-muted/28",
                   )}
                 >
                   <span className="text-[10px] font-semibold tracking-[0.14em] text-muted-foreground">
@@ -312,8 +312,8 @@ export function PlannerGrid({
                       className={cn(
                         "rounded-full border px-2 py-0.5 text-[11px] font-mono",
                         isSelected
-                          ? "border-primary/30 bg-primary/10 text-primary"
-                          : "border-border/70 bg-background/75 text-muted-foreground",
+                          ? "border-primary/20 bg-primary/10 text-primary"
+                          : "border-border/18 bg-background/76 text-muted-foreground",
                       )}
                     >
                       {itemCount}
@@ -324,8 +324,8 @@ export function PlannerGrid({
             })}
           </div>
 
-          <div className="grid border-b border-border/60 bg-card/96" style={{ gridTemplateColumns }}>
-            <div className="sticky left-0 z-20 border-r border-border/60 bg-card/96 px-3 py-2.5 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground">
+          <div className="grid border-b border-border/18 bg-background/78" style={{ gridTemplateColumns }}>
+            <div className="sticky left-0 z-20 border-r border-border/18 bg-background/78 px-3 py-2.5 text-[10px] font-semibold tracking-[0.14em] text-muted-foreground">
               Due tasks
             </div>
             {days.map((day) => {
@@ -338,8 +338,8 @@ export function PlannerGrid({
                 <div
                   key={dayKey}
                   className={cn(
-                    "min-h-[5.25rem] space-y-1.5 border-r border-border/60 px-2.5 py-2.5 last:border-r-0",
-                    isSameDay(day, selectedDate) ? "bg-accent/16" : "bg-background/20",
+                    "min-h-[5.25rem] space-y-1.5 border-r border-border/18 px-2.5 py-2.5 last:border-r-0",
+                    isSameDay(day, selectedDate) ? "bg-primary/6" : "bg-background/12",
                   )}
                 >
                   {visibleTasks.length > 0 ? visibleTasks.map((task) => {
@@ -352,20 +352,20 @@ export function PlannerGrid({
                         type="button"
                         onClick={() => onQuickPlanTask(task.id, day)}
                         className={cn(
-                          "flex w-full items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-[13px] transition-colors hover:bg-background/90",
+                          "flex w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-left text-[13px] transition-colors hover:bg-background/92",
                           colors.soft,
                           colors.border,
                         )}
                       >
                         <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", colors.accent)} />
                         <span className="min-w-0 flex-1 truncate font-medium text-foreground">{task.title}</span>
-                        <span className="shrink-0 rounded-full border border-border/70 bg-background/70 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        <span className="shrink-0 rounded-full border border-border/18 bg-background/76 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                           {project?.name ?? "Project"}
                         </span>
                       </button>
                     );
                   }) : (
-                    <div className="flex min-h-[5.25rem] items-center justify-center rounded-md border border-dashed border-border/70 bg-background/35 text-xs tracking-[0.12em] text-muted-foreground">
+                    <div className="flex min-h-[5.25rem] items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/28 text-xs tracking-[0.12em] text-muted-foreground">
                       Clear
                     </div>
                   )}
@@ -374,7 +374,7 @@ export function PlannerGrid({
                     <button
                       type="button"
                       onClick={() => onSelectDate(day)}
-                      className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
+                      className="inline-flex items-center rounded-full border border-border/18 bg-background/76 px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
                     >
                       +{remainingCount} more
                     </button>
@@ -385,11 +385,11 @@ export function PlannerGrid({
           </div>
 
           <div ref={timedGridRef} className="relative grid" style={{ gridTemplateColumns }}>
-            <div className="sticky left-0 z-20 border-r border-border/60 bg-card/96">
+            <div className="sticky left-0 z-20 border-r border-border/18 bg-background/82">
               {plannerHours.map((hour) => (
                 <div
                   key={hour}
-                  className="flex items-start justify-end border-b border-border/60 px-3 pt-1.5 text-[10px] font-medium text-muted-foreground last:border-b-0"
+                  className="flex items-start justify-end border-b border-border/18 px-3 pt-1.5 text-[11px] font-medium text-muted-foreground/40 last:border-b-0"
                   style={plannerRowStyle}
                 >
                   {formatPlannerHourLabel(hour)}
@@ -405,8 +405,8 @@ export function PlannerGrid({
                 <div
                   key={dayKey}
                   className={cn(
-                    "relative border-r border-border/60 last:border-r-0 touch-none",
-                    isSameDay(day, selectedDate) ? "bg-accent/14" : "bg-background/12",
+                    "relative border-r border-border/18 last:border-r-0 touch-none",
+                    isSameDay(day, selectedDate) ? "bg-primary/[0.03]" : "bg-background/8",
                   )}
                   onPointerDown={(event) => {
                     if (event.button !== 0) return;
@@ -443,7 +443,7 @@ export function PlannerGrid({
                   }}
                 >
                   {plannerHours.map((hour) => (
-                    <div key={`${dayKey}-${hour}`} className="border-b border-border/60 last:border-b-0" style={plannerRowStyle} />
+                    <div key={`${dayKey}-${hour}`} className="border-b border-border/18 last:border-b-0" style={plannerRowStyle} />
                   ))}
 
                   {dayLayouts.map((layout) => {
@@ -499,7 +499,7 @@ export function PlannerGrid({
                           });
                         }}
                         className={cn(
-                          "absolute overflow-hidden rounded-lg border bg-card/95 px-2.5 py-2 text-left transition-opacity",
+                          "absolute overflow-hidden rounded-[0.95rem] border bg-[var(--surface-elevated)] px-2.5 py-2 text-left shadow-[var(--shadow-xs)] transition-opacity",
                           colors.soft,
                           colors.border,
                           active && "opacity-30",
@@ -575,7 +575,7 @@ export function PlannerGrid({
                   {previewDayKey === dayKey && interaction ? (
                     <div
                       className={cn(
-                        "pointer-events-none absolute inset-x-1 rounded-lg border border-dashed bg-primary/10",
+                        "pointer-events-none absolute inset-x-1 rounded-[0.95rem] border border-dashed bg-primary/10",
                         interaction.type === "create"
                           ? "border-primary/50"
                           : "border-foreground/25",

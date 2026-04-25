@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import {
     createTaskStep,
     deleteTaskStep,
@@ -55,7 +55,7 @@ function cacheTaskSteps(taskId: string, steps: TodoStepRow[]) {
 }
 
 export function useTaskSteps(taskId: string | null) {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const [steps, setSteps] = useState<TodoStepRow[]>([]);
     const [loading, setLoading] = useState(false);
     const [creating, setCreating] = useState(false);

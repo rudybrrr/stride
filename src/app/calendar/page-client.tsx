@@ -8,7 +8,7 @@ import type { DayButtonProps } from "react-day-picker";
 import { toast } from "sonner";
 
 import { AppShell } from "~/components/app-shell";
-import { EmptyState, PageHeader } from "~/components/app-primitives";
+import { EmptyState } from "~/components/app-primitives";
 import { Calendar, CalendarDayButton } from "~/components/ui/calendar";
 import { useData } from "~/components/data-provider";
 import { useFocus } from "~/components/focus-provider";
@@ -29,7 +29,7 @@ import {
     toDateKey,
     type PlannerView,
 } from "~/lib/planning";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { buildTaskFocusSummaryMap, getSuggestedTaskBlockMinutes } from "~/lib/task-estimates";
 import {
     applyPlannerTaskFilters,
@@ -168,7 +168,7 @@ function CalendarMonthDayButton({
             {...props}
             day={day}
             className={cn(
-                "group/month-day h-full min-h-[var(--cell-size)] w-full items-start justify-start rounded-md border border-border/60 bg-background/70 px-2.5 py-2 text-left shadow-none transition-colors hover:border-border hover:bg-muted/35 data-[today=true]:border-primary/40 data-[today=true]:bg-primary/8 data-[selected-single=true]:border-primary data-[selected-single=true]:bg-primary/12 data-[selected-single=true]:text-foreground [&>span:first-child]:text-sm [&>span:first-child]:font-semibold",
+                "group/month-day h-full min-h-[var(--cell-size)] w-full items-start justify-start rounded-xl border border-border/60 bg-background/76 px-2.5 py-2 text-left shadow-[var(--shadow-xs)] transition-colors hover:border-border hover:bg-muted/28 data-[today=true]:border-primary/35 data-[today=true]:bg-primary/8 data-[selected-single=true]:border-primary/40 data-[selected-single=true]:bg-primary/10 data-[selected-single=true]:text-foreground [&>span:first-child]:text-sm [&>span:first-child]:font-semibold",
                 className,
             )}
         >
@@ -208,7 +208,7 @@ function CalendarContent() {
     const { focusSessions, profile, userId } = useData();
     const { lists, tasks, plannedBlocks, todayFocusMinutes, loading, removePlannedBlock, upsertPlannedBlock } = useTaskDataset();
     const { handleModeChange, setCurrentBlockId, setCurrentListId, setCurrentTaskId, setIsActive } = useFocus();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const plannerPreferences = useMemo(() => getPlannerPreferences(profile), [profile]);
 
     const searchListId = searchParams.get("listId");
@@ -1219,7 +1219,7 @@ function CalendarContent() {
 
     function renderLoadingState() {
         return (
-            <div className="rounded-xl border border-border/70 bg-card/96 p-4">
+            <div className="surface-card p-4">
                 <div className="space-y-3">
                     <div className="h-9 w-60 animate-pulse rounded-lg bg-muted/70" />
                     <div className="h-[31rem] animate-pulse rounded-[1rem] bg-muted/55" />
@@ -1263,7 +1263,7 @@ function CalendarContent() {
     function renderMonthView() {
         return (
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1.45fr)_19rem] xl:items-start">
-                <div className="overflow-hidden rounded-lg border border-border/70 bg-card/96">
+                <div className="surface-card overflow-hidden">
                     <Calendar
                         mode="single"
                         selected={selectedDate}
@@ -1326,8 +1326,8 @@ function CalendarContent() {
     function renderMobileSidebarSheet() {
         return (
             <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-                <SheetContent side="right" className="w-full max-w-[24rem] gap-0 border-l border-border/70 p-0">
-                    <SheetHeader className="border-b border-border/60 px-5 py-4">
+                <SheetContent side="right" className="w-full max-w-[24rem] gap-0 border-l border-border/70 bg-[var(--surface-elevated)] p-0">
+                    <SheetHeader className="border-b border-border/60 bg-background/82 px-5 py-4">
                         <SheetTitle>Planner details</SheetTitle>
                         <SheetDescription>
                             Selected day, planning queue, and quick schedule actions.
@@ -1343,12 +1343,8 @@ function CalendarContent() {
 
     if (!loading && lists.length === 0) {
         return (
-            <div className="page-container">
-                <PageHeader
-                    eyebrow="Calendar"
-                    title="Upcoming"
-                    description="Create a project before planning."
-                />
+            <div className="page-container gap-4">
+                <h1 className="section-heading">Plan</h1>
                 <EmptyState
                     title="Create a project before planning"
                     description="Create a project first."
@@ -1361,11 +1357,7 @@ function CalendarContent() {
     return (
         <>
             <div className="page-container gap-4">
-                <PageHeader
-                    eyebrow="Calendar"
-                    title="Upcoming"
-                    description={`${plannerRangeLabel} / ${filteredTasks.length} open tasks / ${filteredBlocks.length} planned blocks`}
-                />
+                <h1 className="section-heading">Plan</h1>
 
                 {renderToolbar()}
                 <PlannerFilterBar

@@ -3,15 +3,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { useData } from "~/components/data-provider";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 
 export const ACCENT_OPTIONS = [
-    { value: "blue", label: "Blue", swatch: "#5f6f82" },
-    { value: "teal", label: "Teal", swatch: "#366760" },
-    { value: "green", label: "Green", swatch: "#4d6547" },
-    { value: "amber", label: "Amber", swatch: "#946a36" },
-    { value: "rose", label: "Rose", swatch: "#8d5f6b" },
-    { value: "slate", label: "Slate", swatch: "#53605b" },
+    { value: "slate", label: "Slate", swatch: "#5d6878" },
+    { value: "blue", label: "Blue", swatch: "#467987" },
+    { value: "teal", label: "Teal", swatch: "#4f7f79" },
+    { value: "green", label: "Green", swatch: "#5f7669" },
+    { value: "amber", label: "Amber", swatch: "#9b7552" },
+    { value: "rose", label: "Rose", swatch: "#a06d75" },
 ] as const;
 
 export type AccentToken = (typeof ACCENT_OPTIONS)[number]["value"];
@@ -45,7 +45,7 @@ function isMissingAccentPreferenceColumnError(error: unknown) {
 }
 
 export function AccentProvider({ children }: { children: ReactNode }) {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const { profile, userId } = useData();
     const [accent, setAccentState] = useState<AccentToken>(DEFAULT_ACCENT);
     const [mounted, setMounted] = useState(false);

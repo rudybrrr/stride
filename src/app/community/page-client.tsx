@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { AppShell } from "~/components/app-shell";
-import { EmptyState, MetricTile, PageHeader, SectionCard } from "~/components/app-primitives";
+import { EmptyState, PageHeader, SectionCard } from "~/components/app-primitives";
 import { useData } from "~/components/data-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
@@ -14,7 +14,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { buildCommunityLeaderboard, createEmptyWeeklyCommitment, type CommunityLeaderboardEntry } from "~/lib/community-data";
 import { getPlannerPreferences } from "~/lib/planning";
 import { getProgressWeekWindow } from "~/lib/progress-review";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import type { FocusSession, WeeklyCommitmentRow } from "~/lib/types";
 
 interface SharedPeerMembershipRow {
@@ -40,6 +40,24 @@ function isMissingWeeklyCommitmentsError(error: unknown) {
         || message.includes("weekly_commitments");
 }
 
+function CommunityOverviewMetric({
+    label,
+    value,
+    meta,
+}: {
+    label: string;
+    value: string;
+    meta: string;
+}) {
+    return (
+        <div className="rounded-[1rem] border border-border/55 bg-background/60 px-3.5 py-3.5">
+            <p className="eyebrow">{label}</p>
+            <p className="mt-2 font-mono text-[1.15rem] font-semibold tracking-[-0.04em] text-foreground">{value}</p>
+            <p className="mt-1 text-sm leading-5 text-muted-foreground">{meta}</p>
+        </div>
+    );
+}
+
 export default function CommunityClient() {
     return (
         <AppShell>
@@ -49,7 +67,7 @@ export default function CommunityClient() {
 }
 
 function CommunityContent() {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const { userId, lists, profile } = useData();
     const plannerPreferences = useMemo(() => getPlannerPreferences(profile), [profile]);
     const currentWindow = useMemo(
@@ -214,10 +232,19 @@ function CommunityContent() {
         [leaderboard],
     );
     const commitmentState = commitmentSummary.trim() ? "Written" : "Open";
+    const overviewTitle = peerCount === 0
+        ? "Community becomes useful once work is shared with at least one other person."
+        : leaderboard.length > 0
+            ? `${leaderboard.length} focused peer${leaderboard.length === 1 ? "" : "s"} showed up this week.`
+            : `${peerCount} peer${peerCount === 1 ? "" : "s"} share work with you this week.`;
+    const overviewDescription = commitmentSummary.trim()
+        ? `Your weekly commitment is written, ${targetFocusMinutes ? `${targetFocusMinutes} focus minutes` : "focus time"} is on the table, and the leaderboard shows who is already moving inside those shared workspaces.`
+        : "Capture a weekly commitment first, then use the leaderboard as a quiet accountability check instead of a loud competition board.";
 
     return (
         <div className="page-container space-y-5">
             <PageHeader
+                eyebrow="Shared accountability"
                 title="Community"
                 description={`Shared accountability for ${currentWindow.label}.`}
             />
@@ -228,25 +255,66 @@ function CommunityContent() {
                 </div>
             ) : (
                 <div className="space-y-5">
-                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        <MetricTile label="Peers" value={`${peerCount}`} meta="People sharing a project with you" />
-                        <MetricTile label="Ranked" value={`${leaderboard.length}`} meta="Peers with focus logged this week" />
-                        <MetricTile label="Shared projects" value={`${totalSharedProjects}`} meta="Overlap across shared workspaces" />
-                        <MetricTile label="Commitment" value={commitmentState} meta={targetFocusMinutes || targetTaskCount ? "Weekly target captured" : "No weekly target yet"} />
-                    </div>
+                    <section className="surface-card overflow-hidden">
+                        <div className="grid gap-6 px-5 py-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <p className="eyebrow">Weekly accountability</p>
+                                    <h2 className="text-xl font-semibold tracking-[-0.04em] text-foreground">
+                                        {overviewTitle}
+                                    </h2>
+                                    <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                                        {overviewDescription}
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                                        {peerCount} shared peer{peerCount === 1 ? "" : "s"}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                                        {totalSharedProjects} overlapping project{totalSharedProjects === 1 ? "" : "s"}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                                        Commitment {commitmentState.toLowerCase()}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                                <CommunityOverviewMetric label="Peers" value={`${peerCount}`} meta="People sharing a project with you" />
+                                <CommunityOverviewMetric label="Ranked" value={`${leaderboard.length}`} meta="Peers with focus logged this week" />
+                                <CommunityOverviewMetric label="Shared projects" value={`${totalSharedProjects}`} meta="Overlap across shared workspaces" />
+                                <CommunityOverviewMetric
+                                    label="Commitment"
+                                    value={commitmentState}
+                                    meta={targetFocusMinutes || targetTaskCount ? "Weekly target captured" : "No weekly target yet"}
+                                />
+                            </div>
+                        </div>
+                    </section>
 
                     <div className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-                        <SectionCard title="Weekly commitment" description="Write the outcome you want to protect this week.">
+                        <SectionCard
+                            title="Weekly commitment"
+                            description="Write the outcome you want to protect this week."
+                            action={(
+                                <span className="rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                                    Week of {currentWindow.label}
+                                </span>
+                            )}
+                        >
                             <div className="space-y-4">
-                                <div className="rounded-xl border border-border/60 bg-background/70 p-4">
+                                <div className="rounded-[1.1rem] border border-border/55 bg-secondary/32 p-4 shadow-[var(--shadow-xs)]">
                                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                                        Week of {currentWindow.label}
+                                        {commitmentState === "Written" ? "Commitment in place" : "Set the tone for the week"}
+                                    </p>
+                                    <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                                        State the work you are protecting, then add rough focus or completion targets only if they help.
                                     </p>
                                     <Textarea
                                         value={commitmentSummary}
                                         onChange={(event) => setCommitmentSummary(event.target.value)}
                                         placeholder="State the work you are committing to finish."
-                                        className="mt-3 min-h-[112px] resize-none rounded-xl border-border/70 bg-muted/15 px-3.5 py-3 text-sm leading-6 shadow-none focus-visible:ring-0"
+                                        className="mt-4 min-h-[112px] resize-none rounded-[1rem] border-border/70 bg-background/65 px-3.5 py-3 text-sm leading-6 shadow-none focus-visible:ring-0"
                                     />
                                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                                         <label className="space-y-1.5">
@@ -272,7 +340,10 @@ function CommunityContent() {
                                             />
                                         </label>
                                     </div>
-                                    <div className="mt-4 flex justify-end">
+                                    <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <p className="text-xs leading-5 text-muted-foreground">
+                                            Keep the commitment concise. This page should read like an accountability note, not a scoreboard.
+                                        </p>
                                         <Button size="sm" onClick={() => void handleSaveCommitment()} disabled={savingCommitment}>
                                             {savingCommitment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Target className="h-4 w-4" />}
                                             Save commitment
@@ -285,13 +356,13 @@ function CommunityContent() {
                         <SectionCard title="Peer leaderboard" description="Focused peers across your shared projects this week.">
                             {peerCount > 0 ? (
                                 leaderboard.length > 0 ? (
-                                    <div className="overflow-hidden rounded-xl border border-border/60 bg-background/60">
-                                        {leaderboard.map((entry, index) => (
+                                    <div className="space-y-2">
+                                        {leaderboard.map((entry) => (
                                             <div
                                                 key={entry.user_id}
-                                                className={`flex items-center gap-3 px-3.5 py-3 ${index !== leaderboard.length - 1 ? "border-b border-border/50" : ""}`}
+                                                className="flex items-center gap-3 rounded-[1.05rem] border border-border/55 bg-background/60 px-3.5 py-3 shadow-[var(--shadow-xs)]"
                                             >
-                                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary/70 text-sm font-semibold text-foreground">
+                                                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border/55 bg-secondary/60 text-sm font-semibold text-foreground">
                                                     {entry.rank === 1 ? <Trophy className="h-5 w-5 text-amber-500" /> : entry.rank}
                                                 </div>
                                                 <Avatar className="h-9 w-9 border border-border/60">
@@ -318,6 +389,7 @@ function CommunityContent() {
                                         title="No shared focus yet"
                                         description="Shared peers will show up here once this week's sessions start coming in."
                                         icon={<Users className="h-8 w-8" />}
+                                        size="compact"
                                     />
                                 )
                             ) : (
@@ -325,6 +397,7 @@ function CommunityContent() {
                                     title="No shared peers yet"
                                     description="Invite someone into a project to turn Community into an accountability surface."
                                     icon={<Users className="h-8 w-8" />}
+                                    size="compact"
                                 />
                             )}
                         </SectionCard>

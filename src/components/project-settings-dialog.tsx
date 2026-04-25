@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,7 +14,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "~/components/ui/dialog";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { deleteOrLeaveProject } from "~/lib/project-actions";
 import { getProjectColorClasses, getProjectIcon } from "~/lib/project-appearance";
 import type { TodoList } from "~/lib/types";
@@ -30,7 +30,7 @@ export function ProjectSettingsDialog({
     project: TodoList;
     onProjectRemoved?: () => void;
 }) {
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const { userId, refreshData } = useData();
     const [saving, setSaving] = useState(false);
 

@@ -1,7 +1,8 @@
 "use client";
 
+import { useUser } from "@clerk/nextjs";
 import { useEffect, useMemo, useState } from "react";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
@@ -37,6 +38,10 @@ interface StudyGoalUpdatePayload {
     planner_day_end_hour: number;
 }
 
+interface UsernameLookupRow {
+    id: string;
+}
+
 const MAX_AVATAR_BYTES = 3 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const USERNAME_PATTERN = /^[a-z0-9_]+$/;
@@ -50,6 +55,63 @@ const PLANNER_DAY_END_OPTIONS = Array.from({ length: 24 }, (_, index) => String(
 
 function normalizeUsername(value: string) {
     return value.trim().toLowerCase().replace(/\s+/g, "_");
+}
+
+function splitDisplayName(value: string) {
+    const parts = value.trim().split(/\s+/).filter(Boolean);
+
+    if (parts.length === 0) {
+        return { firstName: null, lastName: null };
+    }
+
+    const [firstName, ...rest] = parts;
+    return {
+        firstName: firstName ?? null,
+        lastName: rest.length > 0 ? rest.join(" ") : null,
+    };
+}
+
+function getClerkErrorMessage(error: unknown) {
+    if (!error || typeof error !== "object") {
+        return "Unknown Error";
+    }
+
+    const errorList = "errors" in error ? error.errors : null;
+    if (Array.isArray(errorList)) {
+        const firstError: unknown = errorList[0];
+        if (firstError && typeof firstError === "object") {
+            const longMessage = "longMessage" in firstError ? firstError.longMessage : null;
+            if (typeof longMessage === "string") return longMessage;
+
+            const message = "message" in firstError ? firstError.message : null;
+            if (typeof message === "string") return message;
+        }
+    }
+
+    return error instanceof Error ? error.message : "Unknown Error";
+}
+
+function isAdditionalVerificationError(error: unknown) {
+    const message = getClerkErrorMessage(error).toLowerCase();
+    if (message.includes("additional verification") || message.includes("reverification")) {
+        return true;
+    }
+
+    if (!error || typeof error !== "object" || !("errors" in error) || !Array.isArray(error.errors)) {
+        return false;
+    }
+
+    return error.errors.some((clerkError: unknown) => {
+        if (!clerkError || typeof clerkError !== "object") return false;
+
+        const code = "code" in clerkError ? clerkError.code : null;
+        if (typeof code === "string" && (code.includes("verification") || code.includes("reauth"))) {
+            return true;
+        }
+
+        const message = "message" in clerkError ? clerkError.message : null;
+        return typeof message === "string" && message.toLowerCase().includes("additional verification");
+    });
 }
 
 function inferAvatarExtension(file: File) {
@@ -93,7 +155,8 @@ function getPasswordValidationError(currentPassword: string, newPassword: string
 
 export function ProfileForm({ userId }: { userId: string }) {
     const { profile, loading, refreshData } = useData();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const { user: clerkUser } = useUser();
+    const supabase = useSupabaseBrowserClient();
 
     const [profileSaving, setProfileSaving] = useState(false);
     const [studyGoalSaving, setStudyGoalSaving] = useState(false);
@@ -188,18 +251,55 @@ export function ProfileForm({ userId }: { userId: string }) {
             toast.error("Username can only contain letters, numbers, and underscores.");
             return;
         }
+        if (!clerkUser) {
+            toast.error("Unable to verify account. Please refresh and try again.");
+            return;
+        }
 
         try {
             setProfileSaving(true);
+            const normalizedFullName = fullName.trim();
+
+            const { data: usernameMatch, error: usernameLookupError } = await supabase
+                .from("profiles")
+                .select("id")
+                .eq("username", normalizedUsername)
+                .neq("id", userId)
+                .maybeSingle();
+
+            if (usernameLookupError) {
+                throw usernameLookupError;
+            }
+
+            if ((usernameMatch as UsernameLookupRow | null)?.id) {
+                toast.error("Username is already taken!");
+                return;
+            }
+
+            const { firstName, lastName } = splitDisplayName(normalizedFullName);
 
             const profileUpdate: ProfileUpdatePayload = {
                 id: userId,
                 username: normalizedUsername,
-                full_name: fullName.trim() ? fullName.trim() : null,
+                full_name: normalizedFullName ? normalizedFullName : null,
             };
 
-            const { error } = await supabase.from("profiles").upsert(profileUpdate, { onConflict: "id" });
+            let clerkUpdateNeedsVerification = false;
+            try {
+                await clerkUser.update({
+                    username: normalizedUsername,
+                    firstName,
+                    lastName,
+                });
+            } catch (error: unknown) {
+                if (!isAdditionalVerificationError(error)) {
+                    throw error;
+                }
 
+                clerkUpdateNeedsVerification = true;
+            }
+
+            const { error } = await supabase.from("profiles").upsert(profileUpdate, { onConflict: "id" });
             if (error) {
                 console.error("Supabase UPSERT Error:", {
                     code: error.code,
@@ -214,15 +314,15 @@ export function ProfileForm({ userId }: { userId: string }) {
                     throw error;
                 }
             } else {
-                toast.success("Profile updated successfully!");
+                toast.success(
+                    clerkUpdateNeedsVerification
+                        ? "Profile saved in Stride. Clerk needs additional verification before updating account details."
+                        : "Profile updated successfully!",
+                );
                 void refreshData();
             }
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : "Unknown Error";
-            console.error("Profile update logic failed:", {
-                message,
-                userId,
-            });
+            const message = getClerkErrorMessage(error);
             toast.error(`Update Error: ${message}`);
         } finally {
             setProfileSaving(false);
@@ -387,32 +487,18 @@ export function ProfileForm({ userId }: { userId: string }) {
             return;
         }
 
+        if (!clerkUser) {
+            toast.error("Unable to verify account. Please refresh and try again.");
+            return;
+        }
+
         try {
             setPasswordSaving(true);
 
-            const { data: userData, error: userError } = await supabase.auth.getUser();
-            if (userError || !userData.user?.email) {
-                throw new Error("Unable to verify account email for re-authentication.");
-            }
-
-            const { data: reauthData, error: reauthError } = await supabase.auth.signInWithPassword({
-                email: userData.user.email,
-                password: currentPassword,
+            await clerkUser.updatePassword({
+                currentPassword,
+                newPassword,
             });
-
-            if (reauthError) {
-                toast.error("Current password is incorrect.");
-                return;
-            }
-
-            if (reauthData.user?.id !== userId) {
-                throw new Error("Re-authentication returned an unexpected account.");
-            }
-
-            const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-            if (updateError) {
-                throw updateError;
-            }
 
             setCurrentPassword("");
             setNewPassword("");

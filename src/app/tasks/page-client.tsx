@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import { AppShell, useShellActions } from "~/components/app-shell";
-import { EmptyState, PageHeader } from "~/components/app-primitives";
+import { EmptyState } from "~/components/app-primitives";
 import { cn } from "~/lib/utils";
 import { useData } from "~/components/data-provider";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
@@ -42,7 +42,7 @@ import type { TaskDatasetRecord } from "~/hooks/use-task-dataset";
 import { useTaskDataset } from "~/hooks/use-task-dataset";
 import { dedupeTasks, useTaskSelectionActions } from "~/hooks/use-task-selection-actions";
 import { mergeBufferedTasks, useTaskTransitionBuffer } from "~/hooks/use-task-transition-buffer";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { normalizeTaskSavedViewLabelIds } from "~/lib/task-labels";
 import {
     PLANNER_DEADLINE_SCOPE_OPTIONS,
@@ -145,7 +145,7 @@ function TasksContent({
     const { isCompact } = useCompactMode();
     const { userId, tasks, taskLabels, lists, imagesByTodo, loading } = useTaskDataset();
     const { bufferedTasks, queueBufferedTask } = useTaskTransitionBuffer();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
 
     const routeView = getRouteView(searchParams.get("view"));
     const routeTaskId = searchParams.get("taskId");
@@ -690,15 +690,15 @@ function TasksContent({
     }, [bulkDeletingOpen, requestSelectionModeExit, selectionMode]);
 
     const taskContent = loading ? (
-        <div className="surface-muted px-3 py-4 text-sm text-muted-foreground">Loading tasks...</div>
+        <div className="px-1 py-6 text-sm text-muted-foreground">Loading tasks...</div>
     ) : view === "today" ? (
         hasTodayDisplayTasks ? (
-            <div className="space-y-4">
+            <div className="space-y-1">
                 {overdueDisplayTasks.length > 0 ? (
-                    <div className="space-y-1.5">
-                        <div className={cn("flex items-center justify-between", isCompact ? "px-2" : "px-3")}>
-                            <p className="eyebrow">Overdue</p>
-                            <span className="text-xs text-muted-foreground">{overdueTasks.length}</span>
+                    <div>
+                        <div className="flex items-baseline gap-3 px-1 pb-1 pt-5">
+                            <h2 className="text-[1.05rem] font-semibold tracking-[-0.025em] text-foreground/80">Overdue</h2>
+                            <span className="text-[13px] text-muted-foreground/50">{overdueTasks.length}</span>
                         </div>
                         <TaskList
                             tasks={overdueDisplayTasks}
@@ -717,11 +717,7 @@ function TasksContent({
                     </div>
                 ) : null}
 
-                <div className="space-y-1.5">
-                    <div className={cn("flex items-center justify-between", isCompact ? "px-2" : "px-3")}>
-                        <p className="eyebrow">Due today</p>
-                        <span className="text-xs text-muted-foreground">{dueTodayTasks.length}</span>
-                    </div>
+                <div>
                     <TaskList
                         tasks={dueTodayDisplayTasks}
                         lists={lists}
@@ -742,6 +738,7 @@ function TasksContent({
             <EmptyState
                 title="No tasks"
                 description="Adjust filters or add one."
+                size="compact"
                 action={
                     <Button size="sm" onClick={() => openQuickAdd(defaultListId ? { listId: defaultListId } : undefined)}>
                         <Plus className="h-4 w-4" />
@@ -754,6 +751,7 @@ function TasksContent({
         <EmptyState
             title="No tasks"
             description="Adjust filters or add one."
+            size="compact"
             action={
                 <Button size="sm" onClick={() => openQuickAdd(defaultListId ? { listId: defaultListId } : undefined)}>
                     <Plus className="h-4 w-4" />
@@ -779,15 +777,17 @@ function TasksContent({
 
     return (
         <>
-            <div className={selectionMode ? "page-container pb-28" : "page-container"}>
-                <PageHeader
-                    title={currentViewLabel}
-                    description={currentViewDescription}
-                    actions={
-                        <>
+            <div className={selectionMode ? "page-container gap-4 pb-28" : "page-container gap-4"}>
+                <div className="mx-auto w-full max-w-[44rem]">
+                    <header className="flex items-start justify-between gap-4 pb-1">
+                        <div>
+                            <h1 className="section-heading">{currentViewLabel}</h1>
+                            <p className="mt-1 text-[13px] text-muted-foreground/60">{currentViewDescription}</p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 pt-1">
                             <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
                                 <SheetTrigger asChild>
-                                    <Button variant="outline" size="icon-sm" className="relative sm:hidden">
+                                    <Button variant="outline" size="icon-sm" className="relative rounded-full sm:hidden">
                                         <Filter className="h-4 w-4" />
                                         {activeFilterCount > 0 ? (
                                             <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-sm bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
@@ -797,7 +797,7 @@ function TasksContent({
                                         <span className="sr-only">Open filters</span>
                                     </Button>
                                 </SheetTrigger>
-                                <SheetContent side="bottom" className="rounded-t-xl border-x-0 border-t border-border">
+                                <SheetContent side="bottom" className="rounded-t-[1.75rem] border-x-0 border-t border-border/70 bg-[var(--surface-elevated)]">
                                     <SheetHeader className="sr-only">
                                         <SheetTitle>Filters</SheetTitle>
                                         <SheetDescription>Refine this task view and save reusable task views.</SheetDescription>
@@ -834,7 +834,7 @@ function TasksContent({
 
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="outline" size="icon-sm" className="relative hidden sm:flex">
+                                    <Button variant="outline" size="icon-sm" className="relative hidden rounded-full sm:flex">
                                         <Filter className="h-4 w-4" />
                                         {activeFilterCount > 0 ? (
                                             <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-sm bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
@@ -844,7 +844,7 @@ function TasksContent({
                                         <span className="sr-only">Open filters</span>
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent align="end" className="w-[22rem] p-3">
+                                <PopoverContent align="end" className="floating-surface w-[22rem] p-3.5">
                                     <TasksFilterPanel
                                         lists={lists}
                                         taskLabels={taskLabels}
@@ -878,6 +878,7 @@ function TasksContent({
                             <Button
                                 variant={selectionMode ? "tonal" : "outline"}
                                 size="icon-sm"
+                                className="rounded-full"
                                 onClick={handleSelectionModeChange}
                                 aria-pressed={selectionMode}
                                 title={selectionMode ? "Exit selection mode" : "Select tasks"}
@@ -887,14 +888,15 @@ function TasksContent({
                             </Button>
 
                             {!selectionMode ? (
-                                <Button size="sm" onClick={() => openQuickAdd(defaultListId ? { listId: defaultListId } : undefined)}>
+                                <Button size="sm" className="rounded-full px-4" onClick={() => openQuickAdd(defaultListId ? { listId: defaultListId } : undefined)}>
                                     <Plus className="h-4 w-4" />
                                     Add
                                 </Button>
                             ) : null}
-                        </>
-                    }
-                />
+                        </div>
+                    </header>
+
+                </div>
 
                 <AnimatePresence>
                     {selectionMode ? (
@@ -930,7 +932,7 @@ function TasksContent({
                 />
 
                 <div className="grid gap-5 lg:flex lg:items-start lg:gap-0">
-                    <div className="min-w-0 flex-1">{taskContent}</div>
+                    <div className="mx-auto w-full max-w-[44rem] min-w-0 flex-1">{taskContent}</div>
                     {userId ? (
                         <TaskDetailPanel
                             task={selectedTask}
@@ -1067,7 +1069,7 @@ function TasksFilterPanel({
     return (
         <div className="space-y-4 p-1">
             <div className="space-y-2">
-                <p className="eyebrow">Project</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Project</p>
                 <Select value={projectFilter} onValueChange={onProjectFilterChange}>
                     <SelectTrigger className="h-9 rounded-lg bg-background">
                         <SelectValue placeholder="All projects" />
@@ -1084,7 +1086,7 @@ function TasksFilterPanel({
             </div>
 
             <div className="space-y-2">
-                <p className="eyebrow">Priority</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Priority</p>
                 <div className="flex flex-wrap gap-2">
                     {TASK_PRIORITY_FILTER_OPTIONS.map((option) => (
                         <button
@@ -1100,7 +1102,7 @@ function TasksFilterPanel({
             </div>
 
             <div className="space-y-2">
-                <p className="eyebrow">Planning</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Planning</p>
                 <Select value={planningStatusFilter} onValueChange={(value) => {
                     if (!isTaskSavedViewPlanningStatusFilter(value)) return;
                     onPlanningStatusFilterChange(value);
@@ -1119,7 +1121,7 @@ function TasksFilterPanel({
             </div>
 
             <div className="space-y-2">
-                <p className="eyebrow">Deadline</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Deadline</p>
                 <Select value={deadlineScope} onValueChange={(value) => {
                     if (!isTaskSavedViewDeadlineScope(value)) return;
                     onDeadlineScopeChange(value);
@@ -1139,7 +1141,7 @@ function TasksFilterPanel({
 
             {taskLabels.length > 0 ? (
                 <div className="space-y-2">
-                    <p className="eyebrow">Labels</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Labels</p>
                     <div className="flex flex-wrap gap-2">
                         {taskLabels.map((label) => {
                             const active = selectedLabelIds.includes(label.id);
@@ -1161,7 +1163,7 @@ function TasksFilterPanel({
             ) : null}
 
             <div className="space-y-2 border-t border-border/60 pt-3">
-                <p className="eyebrow">Saved view</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Saved view</p>
                 <Input
                     value={saveViewName}
                     onChange={(event) => onChangeSaveViewName(event.target.value)}

@@ -75,10 +75,10 @@ export function PlannerToolbar({
   onUpdateActiveFilter?: () => void;
 }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-card/96 p-3 shadow-none">
+    <div className="surface-card px-3.5 py-3">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center overflow-hidden rounded-lg border border-border/70 bg-background/75">
+          <div className="inline-flex items-center overflow-hidden rounded-full border border-border/60 bg-background/76">
             <Button
               variant="ghost"
               size="icon-sm"
@@ -100,21 +100,21 @@ export function PlannerToolbar({
             </Button>
           </div>
 
-          <Button variant="outline" size="sm" onClick={onGoToToday}>
+          <Button variant="outline" size="sm" className="rounded-full" onClick={onGoToToday}>
             Today
           </Button>
 
-          <div className="inline-flex items-center rounded-lg border border-border/70 bg-background/70 p-0.5">
+          <div className="inline-flex items-center rounded-lg bg-muted/40 p-0.5">
             {(["day", "week", "month"] as const).map((nextView) => (
               <button
                 key={nextView}
                 type="button"
                 onClick={() => onSetView(nextView)}
                 className={cn(
-                  "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  "rounded-[0.4rem] px-3 py-1.5 text-[13px] font-medium transition-colors",
                   view === nextView
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground/70 hover:text-foreground",
                 )}
               >
                 {nextView === "day" ? "Day" : nextView === "week" ? "Week" : "Month"}
@@ -122,26 +122,26 @@ export function PlannerToolbar({
             ))}
           </div>
 
-          <div className="inline-flex items-center rounded-full border border-border/70 bg-background/70 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+          <div className="inline-flex items-center rounded-full border border-border/60 bg-background/76 px-3 py-1 text-[11px] font-medium text-muted-foreground">
             {selectedScopeLabel}
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {showSidebarTrigger && onOpenSidebar ? (
-            <Button variant="outline" size="sm" onClick={onOpenSidebar}>
+            <Button variant="outline" size="sm" className="rounded-full" onClick={onOpenSidebar}>
               {sidebarButtonLabel}
             </Button>
           ) : null}
 
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="icon-sm" className="rounded-lg">
+              <Button variant="outline" size="icon-sm" className="rounded-full">
                 <SlidersHorizontal className="h-4 w-4" />
                 <span className="sr-only">Open planner controls</span>
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 rounded-xl p-3">
+            <PopoverContent align="end" className="floating-surface w-80 p-3.5">
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
@@ -155,24 +155,24 @@ export function PlannerToolbar({
                     value={saveFilterName}
                     onChange={(event) => onChangeSaveFilterName(event.target.value)}
                     placeholder="Exam prep queue"
-                    className="h-9 rounded-lg bg-background/70"
+                    className="h-9 rounded-xl border-border/60 bg-background/82"
                   />
 
                   <div className="flex flex-wrap gap-2">
-                    <Button size="xs" variant="outline" onClick={onSaveCurrentFilter} disabled={savingFilter}>
+                    <Button size="xs" variant="outline" className="rounded-full" onClick={onSaveCurrentFilter} disabled={savingFilter}>
                       Save current
                     </Button>
                     {canUpdateActiveFilter && onUpdateActiveFilter ? (
-                      <Button size="xs" variant="tonal" onClick={onUpdateActiveFilter} disabled={savingFilter}>
+                      <Button size="xs" variant="tonal" className="rounded-full" onClick={onUpdateActiveFilter} disabled={savingFilter}>
                         Update
                       </Button>
                     ) : null}
                     {canDeleteActiveFilter && onDeleteActiveFilter ? (
-                      <Button size="xs" variant="ghost" onClick={onDeleteActiveFilter} disabled={savingFilter}>
+                      <Button size="xs" variant="ghost" className="rounded-full" onClick={onDeleteActiveFilter} disabled={savingFilter}>
                         Delete
                       </Button>
                     ) : null}
-                    <Button size="xs" variant="ghost" onClick={onClearFilters}>
+                    <Button size="xs" variant="ghost" className="rounded-full" onClick={onClearFilters}>
                       Clear to all
                     </Button>
                   </div>
@@ -181,7 +181,7 @@ export function PlannerToolbar({
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-foreground">Project filter</p>
                   <Select value={selectedListId} onValueChange={onSelectList}>
-                    <SelectTrigger className="h-9 rounded-lg bg-background/70 text-sm">
+                    <SelectTrigger className="h-9 rounded-xl border-border/60 bg-background/82 text-sm">
                       <SelectValue placeholder="All projects" />
                     </SelectTrigger>
                     <SelectContent>
@@ -201,7 +201,7 @@ export function PlannerToolbar({
                     value={planningStatusFilter}
                     onValueChange={(value) => onSetPlanningStatusFilter(value as PlannerPlanningStatusFilter)}
                   >
-                    <SelectTrigger className="h-9 rounded-lg bg-background/70 text-sm">
+                    <SelectTrigger className="h-9 rounded-xl border-border/60 bg-background/82 text-sm">
                       <SelectValue placeholder={getPlannerPlanningStatusFilterLabel(planningStatusFilter)} />
                     </SelectTrigger>
                     <SelectContent>
@@ -220,7 +220,7 @@ export function PlannerToolbar({
                     value={deadlineScope}
                     onValueChange={(value) => onSetDeadlineScope(value as PlannerDeadlineScope)}
                   >
-                    <SelectTrigger className="h-9 rounded-lg bg-background/70 text-sm">
+                    <SelectTrigger className="h-9 rounded-xl border-border/60 bg-background/82 text-sm">
                       <SelectValue placeholder={getPlannerDeadlineScopeLabel(deadlineScope)} />
                     </SelectTrigger>
                     <SelectContent>

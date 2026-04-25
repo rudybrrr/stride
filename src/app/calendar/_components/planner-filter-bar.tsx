@@ -39,58 +39,59 @@ export function PlannerFilterBar({
     }
 
     return (
-        <div className="rounded-lg border border-border/70 bg-card/90 px-3 py-2.5">
+        <div className="surface-card px-3.5 py-3">
             {savedFilters.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                        Saved views
-                    </span>
-                    {savedFilters.map((filter) => {
-                        const active = activeSavedFilterId === filter.id && activeSavedFilterScopeApplied;
+                <div className="space-y-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Saved views</span>
+                    <div className="surface-muted flex flex-wrap items-center gap-2 px-2.5 py-2">
+                        {savedFilters.map((filter) => {
+                            const active = activeSavedFilterId === filter.id && activeSavedFilterScopeApplied;
 
-                        return (
-                            <Button
-                                key={filter.id}
-                                type="button"
-                                size="xs"
-                                variant={active ? "tonal" : "outline"}
-                                onClick={() => onApplySavedFilter(filter.id)}
-                            >
-                                {filter.name}
-                            </Button>
-                        );
-                    })}
+                            return (
+                                <Button
+                                    key={filter.id}
+                                    type="button"
+                                    size="xs"
+                                    variant={active ? "tonal" : "ghost"}
+                                    onClick={() => onApplySavedFilter(filter.id)}
+                                    className={active ? "rounded-full px-3.5" : "rounded-full border border-transparent px-3.5 text-muted-foreground hover:border-border/60 hover:text-foreground"}
+                                >
+                                    {filter.name}
+                                </Button>
+                            );
+                        })}
+                    </div>
                 </div>
             ) : null}
 
             {(hasTaskFilters || activeSavedFilter) ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                        Active
-                    </span>
-                    {activeSavedFilter ? (
-                        <Badge variant="secondary" className="rounded-full">
-                            {activeSavedFilter.name}
-                        </Badge>
-                    ) : null}
-                    {currentFilterState.listId !== "all" ? (
-                        <Badge variant="outline" className="rounded-full">
-                            {listMap.get(currentFilterState.listId)?.name ?? "Project"}
-                        </Badge>
-                    ) : null}
-                    {currentFilterState.planningStatusFilter !== "all" ? (
-                        <Badge variant="outline" className="rounded-full">
-                            {getPlannerPlanningStatusFilterLabel(currentFilterState.planningStatusFilter)}
-                        </Badge>
-                    ) : null}
-                    {currentFilterState.deadlineScope !== "all" ? (
-                        <Badge variant="outline" className="rounded-full">
-                            {getPlannerDeadlineScopeLabel(currentFilterState.deadlineScope)}
-                        </Badge>
-                    ) : null}
-                    <Button type="button" size="xs" variant="ghost" onClick={onClearFilters}>
-                        Clear filters
-                    </Button>
+                <div className="mt-3 space-y-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Active</span>
+                    <div className="surface-muted flex flex-wrap items-center gap-2 px-2.5 py-2">
+                        {activeSavedFilter ? (
+                            <Badge variant="secondary" className="rounded-full">
+                                {activeSavedFilter.name}
+                            </Badge>
+                        ) : null}
+                        {currentFilterState.listId !== "all" ? (
+                            <Badge variant="outline" className="rounded-full">
+                                {listMap.get(currentFilterState.listId)?.name ?? "Project"}
+                            </Badge>
+                        ) : null}
+                        {currentFilterState.planningStatusFilter !== "all" ? (
+                            <Badge variant="outline" className="rounded-full">
+                                {getPlannerPlanningStatusFilterLabel(currentFilterState.planningStatusFilter)}
+                            </Badge>
+                        ) : null}
+                        {currentFilterState.deadlineScope !== "all" ? (
+                            <Badge variant="outline" className="rounded-full">
+                                {getPlannerDeadlineScopeLabel(currentFilterState.deadlineScope)}
+                            </Badge>
+                        ) : null}
+                        <Button type="button" size="xs" variant="ghost" className="rounded-full px-3.5 text-muted-foreground hover:text-foreground" onClick={onClearFilters}>
+                            Clear filters
+                        </Button>
+                    </div>
                 </div>
             ) : null}
         </div>

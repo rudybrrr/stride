@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import {
     createTaskSection,
     deleteTaskSection,
@@ -48,7 +48,7 @@ function removeTaskSection(currentSections: TodoSectionRow[], sectionId: string)
 
 export function useTaskSections(listId: string | null, options?: { enabled?: boolean }) {
     const enabled = options?.enabled ?? true;
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const [sections, setSections] = useState<TodoSectionRow[]>([]);
     const [loading, setLoading] = useState(false);
     const [lastLoadedListId, setLastLoadedListId] = useState<string | null>(null);

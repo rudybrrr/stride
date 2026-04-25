@@ -1,10 +1,10 @@
 "use client";
 
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { createTaskComment, deleteTaskComment, isMissingTodoCommentsError, listTaskComments } from "~/lib/task-comments";
 import type { TodoCommentRow } from "~/lib/types";
 
@@ -23,7 +23,7 @@ export interface TaskCommentView extends TodoCommentRow {
 
 export function useTaskComments(taskId: string | null, options?: { enabled?: boolean }) {
     const enabled = options?.enabled ?? true;
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const [comments, setComments] = useState<TaskCommentView[]>([]);
     const [loading, setLoading] = useState(false);
     const suppressedDeleteIdsRef = useRef<Set<string>>(new Set());

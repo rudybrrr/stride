@@ -1,14 +1,27 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createProject } from "~/lib/project-actions";
-import { getBrowserTimeZone } from "~/lib/task-deadlines";
 import type { TodoList } from "~/lib/types";
 
 interface BootstrapOptions {
     userId: string;
     email?: string | null;
+    profileIdentity?: ClerkProfileIdentity;
+    currentProfile?: ProfileSnapshot | null;
     lists?: TodoList[];
     hasProfile?: boolean;
+}
+
+interface ClerkProfileIdentity {
+    username?: string | null;
+    fullName?: string | null;
+    avatarUrl?: string | null;
+}
+
+interface ProfileSnapshot {
+    username?: string | null;
+    full_name?: string | null;
+    avatar_url?: string | null;
 }
 
 interface BootstrapMembershipRow {
@@ -43,18 +56,71 @@ function isMissingProfilesEmailColumnError(error: unknown) {
     return code === "PGRST204" && message.includes("email");
 }
 
-async function ensureProfileRow(supabase: SupabaseClient, userId: string, email?: string | null) {
-    let resolvedEmail = email?.trim() ?? null;
-    const resolvedTimeZone = getBrowserTimeZone();
+function cleanProfileText(value?: string | null) {
+    const cleaned = value?.trim();
+    if (!cleaned) return null;
+    return cleaned;
+}
 
-    if (!resolvedEmail) {
-        const { data } = await supabase.auth.getUser();
-        resolvedEmail = data.user?.id === userId ? (data.user.email ?? null) : null;
+function normalizeClerkUsername(value?: string | null) {
+    const cleaned = cleanProfileText(value);
+    if (!cleaned) return null;
+    return cleaned.toLowerCase().replace(/\s+/g, "_");
+}
+
+function buildClerkProfilePatch(
+    userId: string,
+    identity?: ClerkProfileIdentity,
+    currentProfile?: ProfileSnapshot | null,
+) {
+    const patch: Record<string, string> = { id: userId };
+    const username = normalizeClerkUsername(identity?.username);
+    const fullName = cleanProfileText(identity?.fullName);
+    const avatarUrl = cleanProfileText(identity?.avatarUrl);
+
+    if (username && !currentProfile?.username) {
+        patch.username = username;
+    }
+    if (fullName && !currentProfile?.full_name) {
+        patch.full_name = fullName;
+    }
+    if (avatarUrl && !currentProfile?.avatar_url) {
+        patch.avatar_url = avatarUrl;
     }
 
+    return patch;
+}
+
+export async function syncClerkProfileToSupabase(
+    supabase: SupabaseClient,
+    userId: string,
+    identity?: ClerkProfileIdentity,
+    currentProfile?: ProfileSnapshot | null,
+) {
+    const profilePatch = buildClerkProfilePatch(userId, identity, currentProfile);
+    if (Object.keys(profilePatch).length <= 1) return;
+
+    const { error } = await supabase
+        .from("profiles")
+        .upsert(profilePatch, { onConflict: "id" });
+
+    if (error) {
+        throw error;
+    }
+}
+
+async function ensureProfileRow(
+    supabase: SupabaseClient,
+    userId: string,
+    email?: string | null,
+    identity?: ClerkProfileIdentity,
+) {
+    const resolvedEmail = email?.trim() ?? null;
+    const profilePatch = buildClerkProfilePatch(userId, identity, null);
+
     const profilePayloadWithEmail = resolvedEmail
-        ? { id: userId, email: resolvedEmail, timezone: resolvedTimeZone }
-        : { id: userId, timezone: resolvedTimeZone };
+        ? { ...profilePatch, email: resolvedEmail }
+        : profilePatch;
 
     const { error } = await supabase
         .from("profiles")
@@ -67,7 +133,7 @@ async function ensureProfileRow(supabase: SupabaseClient, userId: string, email?
 
     const { error: fallbackError } = await supabase
         .from("profiles")
-        .upsert({ id: userId, timezone: resolvedTimeZone }, { onConflict: "id" });
+        .upsert(profilePatch, { onConflict: "id" });
 
     if (fallbackError) {
         throw fallbackError;
@@ -95,11 +161,12 @@ async function fetchAccessibleLists(supabase: SupabaseClient, userId: string) {
 
 export async function bootstrapUserWorkspace(
     supabase: SupabaseClient,
-    { userId, email, lists, hasProfile }: BootstrapOptions,
+    { userId, email, profileIdentity, currentProfile, lists, hasProfile }: BootstrapOptions,
 ) {
     try {
         const { error } = await supabase.rpc("ensure_default_inbox");
         if (!error) {
+            await syncClerkProfileToSupabase(supabase, userId, profileIdentity, currentProfile);
             return;
         }
     } catch {
@@ -107,7 +174,9 @@ export async function bootstrapUserWorkspace(
     }
 
     if (!hasProfile) {
-        await ensureProfileRow(supabase, userId, email);
+        await ensureProfileRow(supabase, userId, email, profileIdentity);
+    } else {
+        await syncClerkProfileToSupabase(supabase, userId, profileIdentity, currentProfile);
     }
 
     let accessibleLists = lists ?? [];

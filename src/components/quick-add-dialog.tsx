@@ -39,7 +39,7 @@ import {
     REMINDER_OFFSET_OPTIONS,
 } from "~/lib/task-reminders";
 import { createProject } from "~/lib/project-actions";
-import { createSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { createTask, replaceTaskLabels, uploadTaskAttachments } from "~/lib/task-actions";
 import { getDateInputValue } from "~/lib/task-views";
 import { getTimeInputValue } from "~/lib/task-deadlines";
@@ -55,7 +55,7 @@ interface QuickAddDefaults {
 
 const ESTIMATE_PRESETS = [15, 30, 45, 60, 90];
 const ACTION_CHIP_CLASS =
-    "cursor-pointer h-8 w-auto max-w-full rounded-md border border-border/70 bg-transparent px-2.5 text-xs font-medium text-muted-foreground shadow-sm transition-colors hover:bg-secondary hover:text-foreground focus-visible:border-ring focus-visible:ring-0";
+    "inline-flex h-8 w-auto max-w-full cursor-pointer items-center rounded-lg border border-border/60 bg-background/70 px-2.5 text-xs font-medium text-muted-foreground transition-colors duration-150 hover:border-border/80 hover:bg-accent/70 hover:text-foreground focus-visible:border-ring focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-60";
 const PENDING_PROJECT_SELECT_VALUE = "__pending_new_project__";
 
 function QuickAddField({
@@ -104,7 +104,7 @@ export function QuickAddDialog({
 }) {
     const { userId, lists, profile, refreshData } = useData();
     const { applyTaskPatch, upsertTask, upsertTaskLabels, taskLabels } = useTaskDataset();
-    const supabase = useMemo(() => createSupabaseBrowserClient(), []);
+    const supabase = useSupabaseBrowserClient();
     const defaultListId = useMemo(() => {
         const inbox = lists.find((list) => list.name.toLowerCase() === "inbox") ?? lists[0];
         return defaults?.listId ?? inbox?.id ?? "";
@@ -335,35 +335,10 @@ export function QuickAddDialog({
 
     const quickAddContent = (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
-            <div className="border-b border-border/60 bg-background/95 px-4 py-3 sm:px-5 sm:py-4">
-                <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 space-y-1">
-                        <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold tracking-tight text-foreground">
-                                Quick add
-                            </p>
-                            <span className="inline-flex items-center rounded-full border border-border/60 bg-muted/35 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                                Capture
-                            </span>
-                        </div>
-                    </div>
-
-                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => handleOpenChange(false)}>
-                        <X className="h-4 w-4" />
-                    </Button>
-                </div>
-            </div>
-
             <div className="task-detail-scroll min-h-0 flex-1 overflow-y-auto lg:overscroll-y-contain">
-                <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4 sm:p-5">
-                    <section className="rounded-2xl border border-border/60 bg-card shadow-sm">
-                        <div className="border-b border-border/60 px-4 py-4 sm:px-5">
-                            <div className="mb-3 flex items-center justify-between gap-3">
-                                <h3 className="text-sm font-semibold tracking-[-0.02em] text-foreground">
-                                    Capture bar
-                                </h3>
-                            </div>
-
+                <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 p-4 sm:p-5">
+                    <section>
+                        <div className="px-1 pb-3 pt-1">
                             <TaskSyntaxComposer
                                 ariaLabel="Task"
                                 rows={1}
@@ -389,9 +364,9 @@ export function QuickAddDialog({
                                 onSubmit={() => {
                                     void handleSubmit();
                                 }}
-                                inputClassName="text-[1.02rem]"
-                                highlightClassName="text-[1.02rem]"
-                                composerClassName="font-semibold leading-7 tracking-[-0.02em]"
+                                inputClassName="min-h-16 text-[1.05rem]"
+                                highlightClassName="text-[1.05rem]"
+                                composerClassName="min-h-16 font-semibold leading-7 tracking-[-0.02em]"
                             />
 
                             {parsedInput.chips.length > 0 ? (
@@ -399,7 +374,7 @@ export function QuickAddDialog({
                                     {parsedInput.chips.map((chip, index) => (
                                         <span
                                             key={`${chip.kind}-${chip.value}-${index}`}
-                                            className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-[10px] font-medium text-muted-foreground"
+                                            className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/60 px-2.5 py-1 text-[10px] font-medium text-muted-foreground"
                                         >
                                             <span className="uppercase tracking-[0.14em]">{chip.label}</span>
                                             <span className="text-foreground">{chip.value}</span>
@@ -411,27 +386,12 @@ export function QuickAddDialog({
                             {showEmptyTitleWarning ? (
                                 <p className="mt-2 text-sm text-destructive">Add a task name.</p>
                             ) : null}
-
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                {saving ? (
-                                    <span className="text-muted-foreground">Saving changes...</span>
-                                ) : isDirty ? (
-                                    <span className="text-primary">Draft not saved</span>
-                                ) : (
-                                    <span className="text-muted-foreground">Ready to capture</span>
-                                )}
-                                {effectiveLabelNames.length > 0 ? (
-                                    <span className="text-muted-foreground">
-                                        {effectiveLabelNames.length} label{effectiveLabelNames.length > 1 ? "s" : ""}
-                                    </span>
-                                ) : null}
-                            </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5">
-                            <div className="flex min-w-0 flex-wrap items-center gap-2">
-                                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/35 px-2.5 py-1 text-[10px] font-medium text-muted-foreground">
-                                    <Folder className="h-3.5 w-3.5" />
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/50 pt-3">
+                            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-muted/30 px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                                    <Folder className="h-3 w-3" />
                                     <span className="truncate">
                                         {pendingProjectName
                                             ? `Create ${pendingProjectName}`
@@ -439,36 +399,41 @@ export function QuickAddDialog({
                                     </span>
                                 </span>
                                 {effectiveLabelNames.length > 0 ? (
-                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/35 px-2.5 py-1 text-[10px] font-medium text-muted-foreground">
-                                        <Tag className="h-3.5 w-3.5" />
+                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-muted/30 px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                                        <Tag className="h-3 w-3" />
                                         <span>
                                             {effectiveLabelNames.length} label{effectiveLabelNames.length > 1 ? "s" : ""}
                                         </span>
                                     </span>
                                 ) : null}
                                 {(effectiveDueDate || effectiveDueTime) ? (
-                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/35 px-2.5 py-1 text-[10px] font-medium text-muted-foreground">
-                                        <Bell className="h-3.5 w-3.5" />
+                                    <span className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-muted/30 px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                                        <Bell className="h-3 w-3" />
                                         <span>Due set</span>
                                     </span>
                                 ) : null}
+                                {saving ? (
+                                    <span className="text-[10px] text-muted-foreground">Saving...</span>
+                                ) : isDirty ? (
+                                    <span className="text-[10px] text-primary">Unsaved</span>
+                                ) : null}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                                 <Button
                                     type="button"
-                                    variant="outline"
+                                    variant="ghost"
                                     size="sm"
-                                    className="h-8 rounded-md px-3 text-xs"
+                                    className="h-7 rounded-md px-2.5 text-xs text-muted-foreground"
                                     onClick={() => setDetailsOpen((current) => !current)}
                                 >
-                                    {detailsOpen ? "Hide options" : "More options"}
+                                    {detailsOpen ? "Less" : "More"}
                                 </Button>
                                 <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    className="h-8 rounded-md px-3 text-xs"
+                                    className="h-7 rounded-md px-2.5 text-xs text-muted-foreground"
                                     onClick={() => handleOpenChange(false)}
                                 >
                                     Cancel
@@ -476,26 +441,20 @@ export function QuickAddDialog({
                                 <Button
                                     type="button"
                                     size="sm"
-                                    className="h-8 rounded-md px-3 text-xs"
+                                    className="h-7 rounded-md px-3 text-xs"
                                     onClick={() => void handleSubmit()}
                                     disabled={saving || !cleanedTitle}
                                     aria-label={saving ? "Saving task" : "Add task"}
                                 >
-                                    <SendHorizontal className="mr-1.5 h-3.5 w-3.5" />
-                                    {saving ? "Saving..." : "Add task"}
+                                    <SendHorizontal className="h-3 w-3" />
+                                    {saving ? "Saving..." : "Add"}
                                 </Button>
                             </div>
                         </div>
                     </section>
 
                     {detailsOpen ? (
-                        <section className="rounded-2xl border border-border/60 bg-background">
-                            <div className="border-b border-border/60 px-4 py-4 sm:px-5">
-                                <h3 className="text-sm font-semibold tracking-[-0.02em] text-foreground">
-                                    Details
-                                </h3>
-                            </div>
-
+                        <section className="surface-card rounded-[1.35rem] bg-background/55">
                             <div className="grid gap-4 px-4 py-4 sm:px-5">
                                 <QuickAddField label="Notes">
                                     <Textarea
@@ -555,7 +514,7 @@ export function QuickAddDialog({
                                                 return (
                                                     <div
                                                         key={`${file.name}-${index}`}
-                                                        className="group flex items-center gap-2 rounded-xl border border-border/60 bg-muted/25 px-3 py-2"
+                                                        className="group flex items-center gap-2 rounded-xl border border-border/60 bg-background/65 px-3 py-2"
                                                     >
                                                         <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                                         <span className="min-w-0 flex-1 truncate text-sm text-foreground">
@@ -885,7 +844,7 @@ export function QuickAddDialog({
     return (
         <>
             <Dialog open={open} onOpenChange={handleOpenChange}>
-                <DialogContent className="sm:!max-w-none w-[min(92vw,640px)] max-h-[calc(100vh-2rem)] gap-0 overflow-hidden rounded-2xl border-border/60 bg-background p-0 shadow-2xl">
+                <DialogContent className="sm:!max-w-none w-[min(92vw,680px)] max-h-[calc(100vh-2rem)] gap-0 overflow-hidden rounded-2xl border-border/60 p-0 shadow-none" showCloseButton={false}>
                     <DialogHeader className="sr-only">
                         <DialogTitle>Quick Add</DialogTitle>
                         <DialogDescription>

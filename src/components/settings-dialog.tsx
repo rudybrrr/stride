@@ -34,40 +34,36 @@ export function SettingsDialog({
     }, [open, initialSection]);
 
     const sections = [
-        { id: "account", label: "Account", icon: User },
-        { id: "appearance", label: "Appearance", icon: Palette },
-        { id: "shortcuts", label: "Shortcuts", icon: Keyboard },
+        { id: "account", label: "Account", icon: User, description: "Profile, planner defaults, and security" },
+        { id: "appearance", label: "Appearance", icon: Palette, description: "Theme and accent choices" },
+        { id: "shortcuts", label: "Shortcuts", icon: Keyboard, description: "Keyboard flow and capture syntax" },
     ] as const;
+    const activeSectionConfig = sections.find((section) => section.id === activeSection) ?? sections[0];
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
-                showCloseButton
-                className="flex h-[100dvh] w-[100vw] max-h-[100dvh] flex-col overflow-hidden rounded-none border-border/60 bg-background p-0 shadow-[0_24px_70px_rgba(15,23,42,0.18)] sm:h-[90vh] sm:w-[95vw] sm:max-h-[90vh] sm:max-w-[1100px] sm:rounded-lg lg:flex-row"
+                showCloseButton={false}
+                className="flex h-[100dvh] w-[100vw] max-h-[100dvh] flex-col overflow-hidden rounded-none border-border/60 p-0 shadow-none sm:h-[88vh] sm:w-[95vw] sm:max-h-[88vh] sm:max-w-[1100px] sm:rounded-[1.35rem] lg:flex-row"
             >
                 <DialogTitle className="sr-only">Settings</DialogTitle>
                 <DialogDescription className="sr-only">
                     Manage your account, appearance, and shortcut preferences.
                 </DialogDescription>
 
-                <aside className="flex w-full flex-col border-b border-border/60 bg-muted/20 lg:w-64 lg:border-b-0 lg:border-r">
-                    <div className="flex items-start justify-between gap-3 border-b border-border/60 px-5 py-5">
-                        <div className="space-y-1">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                                Preferences
-                            </p>
-                            <h2 className="text-lg font-semibold tracking-[-0.03em] text-foreground">Settings</h2>
-                        </div>
+                <aside className="flex w-full flex-col border-b border-border/60 bg-background/35 lg:w-[15rem] lg:border-b-0 lg:border-r">
+                    <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-4">
+                        <h2 className="text-sm font-semibold tracking-[-0.01em] text-foreground">Settings</h2>
                         <button
                             type="button"
                             onClick={() => onOpenChange(false)}
-                            className="rounded-lg border border-border bg-background p-2 text-muted-foreground transition-colors hover:text-foreground lg:hidden"
+                            className="rounded-lg border border-border/60 bg-background/60 p-1.5 text-muted-foreground transition-colors duration-150 hover:bg-accent/80 hover:text-foreground"
                         >
-                            <X className="h-4.5 w-4.5" />
+                            <X className="h-4 w-4" />
                         </button>
                     </div>
 
-                    <nav className="flex-1 space-y-1 p-3">
+                    <nav className="flex-1 space-y-0.5 p-2">
                         {sections.map((section) => {
                             const Icon = section.icon;
                             const active = activeSection === section.id;
@@ -78,25 +74,14 @@ export function SettingsDialog({
                                     type="button"
                                     onClick={() => setActiveSection(section.id)}
                                     className={cn(
-                                        "flex w-full items-start gap-3 rounded-xl border px-3 py-3 text-left transition-colors",
+                                        "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors duration-150",
                                         active
-                                            ? "border-primary bg-primary/10 text-foreground"
-                                            : "border-transparent text-muted-foreground hover:border-border hover:bg-background/70 hover:text-foreground",
+                                            ? "bg-accent/70 text-foreground font-medium"
+                                            : "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
                                     )}
                                 >
-                                    <span
-                                        className={cn(
-                                            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border",
-                                            active
-                                                ? "border-primary/20 bg-primary/15 text-primary"
-                                                : "border-border/60 bg-secondary/60 text-muted-foreground",
-                                        )}
-                                    >
-                                        <Icon className="h-4.5 w-4.5" />
-                                    </span>
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block text-sm font-medium text-foreground">{section.label}</span>
-                                    </span>
+                                    <Icon className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-muted-foreground")} />
+                                    {section.label}
                                 </button>
                             );
                         })}
@@ -104,8 +89,13 @@ export function SettingsDialog({
 
                 </aside>
 
-                <main className="min-h-0 flex-1 bg-background">
+                <main className="min-h-0 flex-1 bg-background/45">
                     <ScrollArea className="h-full">
+                        <div className="border-b border-border/50 px-5 py-4 sm:px-7 lg:px-10">
+                            <h3 className="text-base font-semibold tracking-[-0.02em] text-foreground">
+                                {activeSectionConfig.label}
+                            </h3>
+                        </div>
                         <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-5 py-6 sm:px-7 sm:py-8 lg:px-10">
                             {activeSection === "account" ? <ProfileForm userId={userId} /> : null}
                             {activeSection === "appearance" ? <AppearanceSettings /> : null}

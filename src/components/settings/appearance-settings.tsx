@@ -92,7 +92,7 @@ export function AppearanceSettings() {
                             >
                                 <span className="flex items-center gap-3">
                                     <span
-                                        className="h-3.5 w-3.5 rounded-full border border-black/10"
+                                        className="h-3.5 w-3.5 rounded-full border border-border/70"
                                         style={{ backgroundColor: option.swatch }}
                                     />
                                     <span className="text-sm font-medium">{option.label}</span>
