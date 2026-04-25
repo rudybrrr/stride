@@ -40,6 +40,16 @@ const StrideLogo = () => (
     </div>
 );
 
+const SignInFallback = () => (
+    <div className="w-full max-w-[440px] rounded-[1.25rem] border border-border/60 bg-card/55 px-8 py-10 text-center shadow-none backdrop-blur-sm">
+        <div className="mx-auto h-10 w-10 animate-pulse rounded-2xl bg-primary/15" />
+        <p className="mt-5 text-sm font-semibold text-foreground">Loading sign in...</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+            Clerk is loading the secure authentication form.
+        </p>
+    </div>
+);
+
 export function SignInScreen() {
     return (
         <main className="auth-page relative isolate min-h-screen overflow-hidden bg-background px-4 py-10 text-foreground selection:bg-primary/30 sm:px-6 lg:px-8">
@@ -88,6 +98,10 @@ export function SignInScreen() {
                         <SignIn
                             path="/login"
                             routing="path"
+                            signUpUrl="/sign-up"
+                            fallbackRedirectUrl="/tasks"
+                            forceRedirectUrl="/tasks"
+                            fallback={<SignInFallback />}
                             appearance={{
                                 variables: {
                                     colorPrimary: "hsl(var(--primary))",
