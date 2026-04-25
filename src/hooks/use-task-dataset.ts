@@ -25,7 +25,8 @@ import {
     TODO_FIELDS,
     normalizeTodoRow,
 } from "~/lib/task-actions";
-import { getSmartViewTasks, type SmartView } from "~/lib/task-views";
+import { type SmartView } from "~/lib/task-views";
+import { getInboxListId, selectThingsView } from "~/lib/things-views";
 import type { PlannedFocusBlock, PlanningStatus, ProjectMemberProfile, TaskLabel, TodoImageRow, TodoLabelLinkRow, TodoList, TodoListMember, TodoRow } from "~/lib/types";
 
 export interface TaskDatasetRecord extends TodoRow {
@@ -884,12 +885,18 @@ function useTaskDatasetState(): TaskDatasetValue {
         });
     }, [markPendingPlannedBlockRealtimeEcho, updatePlannedBlocks]);
 
-    const smartViewCounts = useMemo<SmartViewCounts>(() => ({
-        today: getSmartViewTasks(tasks, "today", new Date(), profileTimeZone).length,
-        upcoming: getSmartViewTasks(tasks, "upcoming", new Date(), profileTimeZone).length,
-        inbox: getSmartViewTasks(tasks, "inbox", new Date(), profileTimeZone).length,
-        done: getSmartViewTasks(tasks, "done").length,
-    }), [profileTimeZone, tasks]);
+    const smartViewCounts = useMemo<SmartViewCounts>(() => {
+        const now = new Date();
+        const inboxListId = getInboxListId(lists);
+        const ctx = { inboxListId, timeZone: profileTimeZone, now };
+        return {
+            today: selectThingsView("today", tasks, ctx).length,
+            upcoming: selectThingsView("upcoming", tasks, ctx).length,
+            inbox: selectThingsView("inbox", tasks, ctx).length,
+            anytime: selectThingsView("anytime", tasks, ctx).length,
+            done: selectThingsView("logbook", tasks, ctx).length,
+        };
+    }, [lists, profileTimeZone, tasks]);
 
     return {
         userId,

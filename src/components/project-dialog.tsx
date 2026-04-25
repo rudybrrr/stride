@@ -33,6 +33,14 @@ function formatProjectOptionLabel(token: string) {
         .join(" ");
 }
 
+function getProjectErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error) return error.message;
+    if (error && typeof error === "object" && "message" in error) {
+        return String(error.message);
+    }
+    return fallback;
+}
+
 export function ProjectDialog({
     open,
     onOpenChange,
@@ -84,7 +92,7 @@ export function ProjectDialog({
             onOpenChange(false);
             onSaved?.(project.id);
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Unable to save project.");
+            toast.error(getProjectErrorMessage(error, "Unable to save project."));
         } finally {
             setSaving(false);
         }
@@ -101,7 +109,7 @@ export function ProjectDialog({
             onOpenChange(false);
             onRemoved?.();
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Unable to update the project.");
+            toast.error(getProjectErrorMessage(error, "Unable to update the project."));
         } finally {
             setRemoving(false);
         }

@@ -14,6 +14,7 @@ import {
   normalizeReminderOffsetMinutes,
 } from "~/lib/task-reminders";
 import { formatTaskDueLabel, isTaskOverdue } from "~/lib/task-views";
+import { getVisibleTaskLabels } from "~/lib/things-views";
 import type { ProjectMemberProfile, TodoList } from "~/lib/types";
 import type { TaskDatasetRecord } from "~/hooks/use-task-dataset";
 import { cn } from "~/lib/utils";
@@ -78,13 +79,14 @@ export const TaskListItem = memo(function TaskListItem({
     task.reminder_offset_minutes,
   );
   const palette = getProjectColorClasses(project?.color_token);
-  const visibleLabels = task.labels.slice(0, 2);
+  const displayLabels = getVisibleTaskLabels(task.labels);
+  const visibleLabels = displayLabels.slice(0, 2);
   const isTasksVariant = variant === "tasks";
   const isOverdue = dueLabel ? isTaskOverdue(task, now, timeZone) : false;
   const hasMetadata = [
     showProject && project,
     visibleLabels.length > 0,
-    task.labels.length > visibleLabels.length,
+    displayLabels.length > visibleLabels.length,
     task.priority,
     assignee,
     dueLabel,
@@ -309,9 +311,9 @@ export const TaskListItem = memo(function TaskListItem({
             {visibleLabels.map((label) => (
               <TaskLabelBadge key={label.id} label={label} className={cn(compact && "px-2 py-0.5 text-[10px] font-medium tracking-normal")} />
             ))}
-            {task.labels.length > visibleLabels.length ? (
+            {displayLabels.length > visibleLabels.length ? (
               <span className={cn("inline-flex items-center", compact && "rounded-full border border-border/70 bg-muted/40 px-2 py-0.5 font-medium tracking-normal normal-case")}>
-                +{task.labels.length - visibleLabels.length} label{task.labels.length - visibleLabels.length === 1 ? "" : "s"}
+                +{displayLabels.length - visibleLabels.length} label{displayLabels.length - visibleLabels.length === 1 ? "" : "s"}
               </span>
             ) : null}
             {task.priority ? (

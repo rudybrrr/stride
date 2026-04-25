@@ -111,7 +111,7 @@ export function TaskStepsSection({ taskId }: { taskId: string }) {
     }
 
     return (
-        <section className="space-y-3 rounded-xl border border-border/70 bg-muted/15 p-3">
+        <section className="space-y-3 rounded-lg border border-border/65 bg-[color:var(--surface-hover)]/60 p-3">
             <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold tracking-[-0.02em] text-foreground">Steps</h3>
@@ -124,7 +124,7 @@ export function TaskStepsSection({ taskId }: { taskId: string }) {
             </div>
 
             {loading && steps.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border/70 bg-background/35 px-3 py-3 text-sm text-muted-foreground">
+                <div className="rounded-md border border-dashed border-border/70 bg-background/35 px-3 py-3 text-sm text-muted-foreground">
                     Loading steps...
                 </div>
             ) : steps.length > 0 ? (
@@ -136,7 +136,7 @@ export function TaskStepsSection({ taskId }: { taskId: string }) {
                             <div
                                 key={step.id}
                                 className={cn(
-                                    "group flex items-center gap-2.5 rounded-lg border border-border/70 bg-background/60 px-2.5 py-2",
+                                    "group flex items-center gap-2.5 rounded-md border border-border/70 bg-background/50 px-2.5 py-2",
                                     pending && "opacity-70",
                                 )}
                             >
@@ -203,7 +203,7 @@ export function TaskStepsSection({ taskId }: { taskId: string }) {
             ) : null}
 
             <form
-                className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/55 px-2.5 py-2"
+                className="flex items-center gap-2 rounded-md border border-dashed border-border/70 bg-background/45 px-2.5 py-2"
                 onSubmit={(event) => {
                     event.preventDefault();
                     void handleCreateStep();

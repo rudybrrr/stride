@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
     ArrowUpRight,
-    BarChart3,
     Brain,
     CalendarRange,
+    CheckSquare2,
     Pause,
     Play,
     RotateCcw,
-    Users,
+    type LucideIcon,
 } from "lucide-react";
 
 import { AppShell } from "~/components/app-shell";
@@ -26,14 +26,9 @@ import {
     getNextPlannedBlock,
     getRemainingPlannedMinutesForDay,
 } from "~/lib/planning";
-import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { cn } from "~/lib/utils";
 
 const MODE_OPTIONS = ["focus", "shortBreak", "longBreak"] as const;
-
-interface WeeklyRankRow {
-    total_minutes: number | null;
-}
 
 function formatTime(seconds: number) {
     const minutes = Math.floor(seconds / 60);
@@ -43,12 +38,6 @@ function formatTime(seconds: number) {
 
 function clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
-}
-
-function getCommunityDescription(rank: number | null | undefined) {
-    if (rank === undefined) return "Checking rank";
-    if (rank === null) return "Not ranked yet";
-    return `#${rank} this week`;
 }
 
 function getModeLabel(mode: (typeof MODE_OPTIONS)[number]) {
@@ -162,7 +151,7 @@ function FocusLinkCard({
     description,
 }: {
     href: string;
-    icon: typeof BarChart3;
+    icon: LucideIcon;
     title: string;
     description: string;
 }) {
@@ -286,10 +275,8 @@ export default function FocusClient() {
 }
 
 function FocusPageContent() {
-    const { profile, stats, userId, loading: dataLoading } = useData();
+    const { profile, stats, loading: dataLoading } = useData();
     const { lists, plannedBlocks, tasks, todayFocusMinutes, orderedProjectSummaries, loading: datasetLoading } = useTaskDataset();
-    const supabase = useSupabaseBrowserClient();
-    const [communityRank, setCommunityRank] = useState<number | null | undefined>(undefined);
     const [now, setNow] = useState(() => new Date());
     const {
         mode,
@@ -382,48 +369,6 @@ function FocusPageContent() {
         const query = params.toString();
         return query ? `/calendar?${query}` : "/calendar";
     }, [plannerAnchorBlock, plannerTask, selectedProjectId]);
-
-    useEffect(() => {
-        if (!userId) {
-            setCommunityRank(null);
-            return;
-        }
-
-        let active = true;
-
-        const loadCommunityRank = async () => {
-            const { data: currentRow, error } = await supabase
-                .from("weekly_leaderboard")
-                .select("total_minutes")
-                .eq("user_id", userId)
-                .maybeSingle<WeeklyRankRow>();
-
-            if (error || !currentRow || (currentRow.total_minutes ?? 0) <= 0) {
-                if (active) setCommunityRank(null);
-                return;
-            }
-
-            const { count, error: countError } = await supabase
-                .from("weekly_leaderboard")
-                .select("user_id", { count: "exact", head: true })
-                .gt("total_minutes", currentRow.total_minutes ?? 0);
-
-            if (!active) return;
-
-            if (countError) {
-                setCommunityRank(null);
-                return;
-            }
-
-            setCommunityRank((count ?? 0) + 1);
-        };
-
-        void loadCommunityRank();
-
-        return () => {
-            active = false;
-        };
-    }, [supabase, userId]);
 
     useEffect(() => {
         const timer = window.setInterval(() => {
@@ -671,17 +616,17 @@ function FocusPageContent() {
                             </div>
                             <div className="space-y-1">
                                 <FocusLinkCard
-                                    href="/progress"
-                                    icon={BarChart3}
-                                    title="Progress"
-                                    description={isFocusDataLoading ? "Loading focus data" : stats ? `${stats.totalFocus} total focus` : "No focus logged yet"}
+                                    href="/tasks"
+                                    icon={CheckSquare2}
+                                    title="Today"
+                                    description="Return to the tasks due now."
                                 />
 
                                 <FocusLinkCard
-                                    href="/community"
-                                    icon={Users}
-                                    title="Community"
-                                    description={getCommunityDescription(communityRank)}
+                                    href={plannerHref}
+                                    icon={CalendarRange}
+                                    title="Calendar"
+                                    description={currentPlannedBlock || nextPlannedBlock ? "Open the active planning context." : "Plan the next focus block."}
                                 />
                             </div>
                         </section>

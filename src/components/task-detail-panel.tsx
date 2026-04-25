@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -287,7 +286,6 @@ function TaskDetailForm({
   onClose,
   previousTask,
   nextTask,
-  taskPositionLabel,
   onNavigateToTask,
   onDirtyChange,
   onSaved,
@@ -612,31 +610,6 @@ function TaskDetailForm({
     () => calculateTotalSize(images),
     [images],
   );
-  const reminderPreviewAt = useMemo(() => {
-    const deadlinePatch = buildTaskDeadlineMutation(
-      effectiveDueDate || null,
-      effectiveDueTime || null,
-      profile?.timezone,
-    );
-    return buildTaskReminderMutation(
-      deadlinePatch,
-      parsedReminderOffsetMinutes,
-      profile?.timezone,
-    ).reminder_at;
-  }, [
-    effectiveDueDate,
-    effectiveDueTime,
-    parsedReminderOffsetMinutes,
-    profile?.timezone,
-  ]);
-  const reminderPreviewLabel = useMemo(() => {
-    if (!reminderPreviewAt) return null;
-
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(reminderPreviewAt));
-  }, [reminderPreviewAt]);
   const { comments, loading: commentsLoading, addComment, removeComment } = 
     useTaskComments(task.id);
 

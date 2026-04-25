@@ -128,7 +128,7 @@ export interface TaskSavedViewRow {
     id: string;
     user_id: string;
     name: string;
-    smart_view: "today" | "upcoming" | "inbox" | "done";
+    smart_view: "today" | "upcoming" | "inbox" | "anytime" | "done";
     list_id: string | null;
     priority_filter: "all" | "none" | "high" | "medium" | "low";
     planning_status_filter: PlanningStatus | "all";

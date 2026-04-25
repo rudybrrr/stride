@@ -12,7 +12,7 @@ import {
 } from "~/lib/task-deadlines";
 import type { PlanningStatus } from "~/lib/types";
 
-export type SmartView = "today" | "upcoming" | "inbox" | "done";
+export type SmartView = "today" | "upcoming" | "inbox" | "anytime" | "done";
 export type TaskPriority = NonNullable<TodoRow["priority"]>;
 
 export interface TaskRecord extends TodoRow {
@@ -125,13 +125,18 @@ export function getSmartViewTasks<T extends TaskRecord>(tasks: T[], view: SmartV
             });
     }
 
-    return tasks
-        .filter((task) => task.is_done)
-        .sort((a, b) => {
-            const completedComparison = (b.completed_at ?? "").localeCompare(a.completed_at ?? "");
-            if (completedComparison !== 0) return completedComparison;
-            return compareDeterministicTasks(a, b);
-        });
+    if (view === "done") {
+        return tasks
+            .filter((task) => task.is_done)
+            .sort((a, b) => {
+                const completedComparison = (b.completed_at ?? "").localeCompare(a.completed_at ?? "");
+                if (completedComparison !== 0) return completedComparison;
+                return compareDeterministicTasks(a, b);
+            });
+    }
+
+    // anytime — Things-style project backlog.
+    return incomplete.sort(compareDeterministicTasks);
 }
 
 export function selectNextUpTask<T extends TaskRecord>(tasks: T[], now = new Date(), timeZone?: string | null): T | null {

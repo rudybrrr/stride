@@ -41,38 +41,32 @@ export async function createProject(
         throw new Error("Project name cannot be empty.");
     }
 
-    const basePayload = {
-        owner_id: userId,
-        name: trimmedName,
-    };
-
-    const { data: list, error: listError } = await supabase
-        .from("todo_lists")
-        .insert({
-            ...basePayload,
-            color_token: colorToken,
-            icon_token: iconToken,
-        })
-        .select(PROJECT_FIELDS)
+    const { data: rpcList, error: rpcError } = await supabase
+        .rpc("create_list_with_owner", { list_name: trimmedName })
         .single();
 
-    if (listError) throw listError;
+    if (rpcError) throw rpcError;
 
-    const createdList = list as TodoListRow | null;
+    const createdList = rpcList as TodoListRow | null;
 
     if (!createdList) {
         throw new Error("Project creation returned no data.");
     }
 
-    const { error: membershipError } = await supabase.from("todo_list_members").upsert({
-        list_id: createdList.id,
-        user_id: userId,
-        role: "owner",
-    });
+    const { data: updatedList, error: metadataError } = await supabase
+        .from("todo_lists")
+        .update({
+            color_token: colorToken,
+            icon_token: iconToken,
+        })
+        .eq("id", createdList.id)
+        .eq("owner_id", userId)
+        .select(PROJECT_FIELDS)
+        .single();
 
-    if (membershipError) throw membershipError;
+    if (metadataError) throw metadataError;
 
-    return normalizeProjectRow(createdList);
+    return normalizeProjectRow(updatedList as TodoListRow);
 }
 
 export async function updateProject(

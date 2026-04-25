@@ -24,7 +24,7 @@ type TaskFilterableTask = Pick<TodoRow, "deadline_at" | "deadline_on" | "due_dat
 
 const DEFAULT_TASK_FILTER_VIEW: SmartView = "today";
 const VALID_TASK_PRIORITY_FILTERS = new Set<TaskPriorityFilter>(["all", "none", "high", "medium", "low"]);
-const VALID_TASK_VIEWS = new Set<SmartView>(["today", "upcoming", "inbox", "done"]);
+const VALID_TASK_VIEWS = new Set<SmartView>(["today", "upcoming", "inbox", "anytime", "done"]);
 const VALID_TASK_DEADLINE_SCOPES = new Set<PlannerDeadlineScope>(["all", "due_soon", "no_deadline", "overdue", "today"]);
 const VALID_TASK_PLANNING_STATUS_FILTERS = new Set<PlannerPlanningStatusFilter>(["all", "fully_planned", "overplanned", "partially_planned", "unplanned"]);
 

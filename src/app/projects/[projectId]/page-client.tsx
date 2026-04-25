@@ -14,7 +14,9 @@ import { useCompactMode } from "~/components/compact-mode-provider";
 import { ProjectDialog } from "~/components/project-dialog";
 import { ProjectMembersDialog } from "~/components/project-members-dialog";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
-import { TaskList, TaskListItem } from "~/components/task-list";
+import { TaskListView } from "~/components/task/task-list-view";
+import { InlineTaskEditor } from "~/components/task/inline-task-editor";
+import { TaskRow } from "~/components/task/task-row";
 import { TaskSelectionBar } from "~/components/task-selection-bar";
 import { Button } from "~/components/ui/button";
 import {
@@ -140,6 +142,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     } = useTaskDataset();
     const { bufferedTasks, queueBufferedTask } = useTaskTransitionBuffer();
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [fullEditorOpen, setFullEditorOpen] = useState(false);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
     const [membersDialogOpen, setMembersDialogOpen] = useState(false);
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -1001,16 +1004,22 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                 )}
                             </DragDropContext>
                         ) : visibleDisplayTasks.length > 0 ? (
-                            <TaskList
+                            <TaskListView
                                 tasks={visibleDisplayTasks}
                                 lists={lists}
                                 selectedTaskId={selectedTaskId}
                                 selectedTaskIds={selectedTaskIdSet}
                                 selectionMode={selectionMode}
-                                variant="tasks"
                                 onSelectionToggle={handleTaskSelection}
                                 onSelect={handleTaskSelect}
                                 onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
+                                renderInlineDetail={(task) => (
+                                    <InlineTaskEditor
+                                        task={task}
+                                        onClose={() => setSelectedTaskId(null)}
+                                        onOpenFullEditor={() => setFullEditorOpen(true)}
+                                    />
+                                )}
                             />
                         ) : (
                             <EmptyState
@@ -1033,18 +1042,18 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             lists={lists}
                             images={selectedTask ? imagesByTodo[selectedTask.id] ?? [] : []}
                             userId={userId}
-                            open={!selectionMode && !!selectedTask}
+                            open={fullEditorOpen && !selectionMode && !!selectedTask}
                             onOpenChange={(open) => {
                                 if (!open) {
                                     requestTaskLeave(() => {
-                                        setSelectedTaskId(null);
+                                        setFullEditorOpen(false);
                                         setDetailDirty(false);
                                     });
                                 }
                             }}
                             onClose={() => {
                                 requestTaskLeave(() => {
-                                    setSelectedTaskId(null);
+                                    setFullEditorOpen(false);
                                     setDetailDirty(false);
                                 });
                             }}
@@ -1501,7 +1510,7 @@ function ProjectTaskDroppableList({
                                                     style={draggableProvided.draggableProps.style}
                                                     className={cn(index !== tasks.length - 1 && "mb-2")}
                                                 >
-                                                    <TaskListItem
+                                                    <TaskRow
                                                         task={task}
                                                         project={projectById.get(task.list_id) ?? null}
                                                         assignee={task.assignee_user_id ? (assigneeDirectory.get(`${task.list_id}:${task.assignee_user_id}`) ?? null) : null}
@@ -1509,9 +1518,7 @@ function ProjectTaskDroppableList({
                                                         selected={task.id === selectedTaskId}
                                                         bulkSelected={selectedTaskIds.has(task.id)}
                                                         selectionMode={selectionMode}
-                                                        divider={index !== tasks.length - 1}
                                                         isDragging={dragSnapshot.isDragging}
-                                                        compact
                                                         onSelectionToggle={onSelectionToggle}
                                                         onSelect={onSelect}
                                                         onToggle={onToggle}

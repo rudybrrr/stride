@@ -11,6 +11,7 @@ import { Button } from "~/components/ui/button";
 import { useTaskDataset } from "~/hooks/use-task-dataset";
 import { formatProjectScheduledLabel, getProjectScheduledBlockState } from "~/lib/project-summaries";
 import { getProjectColorClasses, getProjectIcon } from "~/lib/project-appearance";
+import { getInboxListId } from "~/lib/things-views";
 import type { TodoList } from "~/lib/types";
 import { cn } from "~/lib/utils";
 
@@ -23,16 +24,21 @@ export default function ProjectsClient() {
 }
 
 function ProjectsContent() {
-    const { orderedProjectSummaries, loading } = useTaskDataset();
+    const { lists, orderedProjectSummaries, loading } = useTaskDataset();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingProject, setEditingProject] = useState<TodoList | null>(null);
+    const inboxListId = useMemo(() => getInboxListId(lists), [lists]);
+    const visibleProjectSummaries = useMemo(
+        () => orderedProjectSummaries.filter((summary) => summary.list.id !== inboxListId),
+        [inboxListId, orderedProjectSummaries],
+    );
 
     const projectCounts = useMemo(() => {
-        const activeProjects = orderedProjectSummaries.filter((s) => s.incompleteCount > 0).length;
-        const urgentProjects = orderedProjectSummaries.filter((s) => s.overdueCount > 0 || s.dueSoonCount > 0).length;
-        const scheduledProjects = orderedProjectSummaries.filter((s) => s.nextScheduledBlock).length;
-        return { totalProjects: orderedProjectSummaries.length, activeProjects, urgentProjects, scheduledProjects };
-    }, [orderedProjectSummaries]);
+        const activeProjects = visibleProjectSummaries.filter((s) => s.incompleteCount > 0).length;
+        const urgentProjects = visibleProjectSummaries.filter((s) => s.overdueCount > 0 || s.dueSoonCount > 0).length;
+        const scheduledProjects = visibleProjectSummaries.filter((s) => s.nextScheduledBlock).length;
+        return { totalProjects: visibleProjectSummaries.length, activeProjects, urgentProjects, scheduledProjects };
+    }, [visibleProjectSummaries]);
 
     const overviewTitle = projectCounts.totalProjects === 0
         ? "Create the first workspace when you're ready."
@@ -97,15 +103,15 @@ function ProjectsContent() {
                 <div className="surface-muted rounded-xl px-4 py-4 text-sm text-muted-foreground">
                     Loading projects...
                 </div>
-            ) : orderedProjectSummaries.length > 0 ? (
+            ) : visibleProjectSummaries.length > 0 ? (
                 <section className="surface-card overflow-hidden">
                     <div className="flex items-center justify-between border-b border-border/40 px-5 py-3.5">
                         <h2 className="text-[0.9rem] font-medium tracking-[-0.01em] text-foreground/75">
-                            {orderedProjectSummaries.length} project{orderedProjectSummaries.length === 1 ? "" : "s"}
+                            {visibleProjectSummaries.length} project{visibleProjectSummaries.length === 1 ? "" : "s"}
                         </h2>
                     </div>
                     <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-                        {orderedProjectSummaries.map((summary) => (
+                        {visibleProjectSummaries.map((summary) => (
                             <ProjectCard
                                 key={summary.list.id}
                                 summary={summary}

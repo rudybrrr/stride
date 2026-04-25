@@ -1344,7 +1344,7 @@ function CalendarContent() {
     if (!loading && lists.length === 0) {
         return (
             <div className="page-container gap-4">
-                <h1 className="section-heading">Plan</h1>
+                <h1 className="section-heading">Calendar</h1>
                 <EmptyState
                     title="Create a project before planning"
                     description="Create a project first."
@@ -1357,7 +1357,7 @@ function CalendarContent() {
     return (
         <>
             <div className="page-container gap-4">
-                <h1 className="section-heading">Plan</h1>
+                <h1 className="section-heading">Calendar</h1>
 
                 {renderToolbar()}
                 <PlannerFilterBar

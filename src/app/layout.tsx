@@ -42,34 +42,34 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <ClerkProvider signInUrl="/login" signUpUrl="/sign-up">
     <html
       lang="en"
       suppressHydrationWarning
       className={`${manrope.variable} ${ibmPlexMono.variable}`}
     >
       <body className="font-sans antialiased">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          themes={["light", "dark"]}
-          disableTransitionOnChange
-        >
-          <DataProvider>
-            <CompactModeProvider>
-              <AccentProvider>
-                <FocusProvider>
-                  {children}
-                  <Toaster />
-                </FocusProvider>
-              </AccentProvider>
-            </CompactModeProvider>
-          </DataProvider>
-        </ThemeProvider>
-        <SpeedInsights />
+        <ClerkProvider signInUrl="/login" signUpUrl="/sign-up">
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            themes={["light", "dark"]}
+            disableTransitionOnChange
+          >
+            <DataProvider>
+              <CompactModeProvider>
+                <AccentProvider>
+                  <FocusProvider>
+                    {children}
+                    <Toaster />
+                  </FocusProvider>
+                </AccentProvider>
+              </CompactModeProvider>
+            </DataProvider>
+          </ThemeProvider>
+          <SpeedInsights />
+        </ClerkProvider>
       </body>
     </html>
-    </ClerkProvider>
   );
 }

@@ -8,6 +8,7 @@ import { TaskSyntaxComposer } from "~/components/task-syntax-composer";
 import { useData } from "~/components/data-provider";
 import { TaskLabelBadge } from "~/components/task-label-badge";
 import { TaskDueDatePicker } from "~/components/task-due-date-picker";
+import type { QuickAddDefaults } from "~/components/task/quick-add";
 import { Button } from "~/components/ui/button";
 import {
     Dialog,
@@ -32,6 +33,7 @@ import {
 import { formatTaskLabelInput, parseTaskLabelInput } from "~/lib/task-labels";
 import { getRecurrenceLabel, RECURRENCE_RULE_OPTIONS } from "~/lib/task-recurrence";
 import { calculateTotalSize, MAX_ATTACHMENT_SIZE_BYTES, MAX_ATTACHMENT_SIZE_MB } from "~/lib/task-attachments";
+import { getVisibleTaskLabels } from "~/lib/things-views";
 import {
     getReminderOffsetLabel,
     getReminderOffsetInputValue,
@@ -45,13 +47,6 @@ import { getDateInputValue } from "~/lib/task-views";
 import { getTimeInputValue } from "~/lib/task-deadlines";
 import type { RecurrenceRule } from "~/lib/types";
 import { cn } from "~/lib/utils";
-
-interface QuickAddDefaults {
-    listId?: string | null;
-    sectionId?: string | null;
-    title?: string;
-    dueDate?: string | null;
-}
 
 const ESTIMATE_PRESETS = [15, 30, 45, 60, 90];
 const ACTION_CHIP_CLASS =
@@ -91,6 +86,24 @@ function formatEstimateLabel(minutes: number) {
     }
 
     return `${remainder}m`;
+}
+
+function dedupeLabelNames(names: string[]) {
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    names.forEach((name) => {
+        const normalized = name.trim();
+        if (!normalized) return;
+
+        const key = normalized.toLowerCase();
+        if (seen.has(key)) return;
+
+        seen.add(key);
+        result.push(normalized);
+    });
+
+    return result;
 }
 
 export function QuickAddDialog({
@@ -137,13 +150,14 @@ export function QuickAddDialog({
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+    const visibleTaskLabels = useMemo(() => getVisibleTaskLabels(taskLabels), [taskLabels]);
     const parsedInput = useMemo(
-        () => parseQuickAddInput(inputValue, lists, { labels: taskLabels }),
-        [inputValue, lists, taskLabels],
+        () => parseQuickAddInput(inputValue, lists, { labels: visibleTaskLabels }),
+        [inputValue, lists, visibleTaskLabels],
     );
     const activeSuggestion = useMemo(
-        () => getQuickAddActiveSuggestionState(inputValue, composerSelection, lists, taskLabels),
-        [composerSelection, inputValue, lists, taskLabels],
+        () => getQuickAddActiveSuggestionState(inputValue, composerSelection, lists, visibleTaskLabels),
+        [composerSelection, inputValue, lists, visibleTaskLabels],
     );
     const effectiveListId = manualListId ?? (parsedInput.hasProjectToken ? parsedInput.listId : defaultListId) ?? "";
     const activeList = lists.find((list) => list.id === effectiveListId) ?? null;
@@ -164,9 +178,12 @@ export function QuickAddDialog({
     const effectiveEstimatedMinutes = manualEstimatedMinutes
         ?? (parsedInput.estimatedMinutes ? String(parsedInput.estimatedMinutes) : "");
     const effectiveLabelNames = useMemo(
-        () => manualLabelsInput != null ? parseTaskLabelInput(manualLabelsInput) : parsedInput.labelNames,
-        [manualLabelsInput, parsedInput.labelNames],
+        () => manualLabelsInput != null
+            ? dedupeLabelNames([...(defaults?.labelNames ?? []), ...parseTaskLabelInput(manualLabelsInput)])
+            : dedupeLabelNames([...(defaults?.labelNames ?? []), ...parsedInput.labelNames]),
+        [defaults?.labelNames, manualLabelsInput, parsedInput.labelNames],
     );
+    const visibleEffectiveLabelNames = effectiveLabelNames;
     const pendingProjectName = manualListId === undefined ? parsedInput.pendingProjectName : null;
     const projectSelectValue = pendingProjectName ? PENDING_PROJECT_SELECT_VALUE : (effectiveListId || "");
     const parsedEstimateMinutes = effectiveEstimatedMinutes ? Number.parseInt(effectiveEstimatedMinutes, 10) : null;
@@ -398,11 +415,11 @@ export function QuickAddDialog({
                                             : (lists.find((l) => l.id === effectiveListId)?.name ?? "Inbox")}
                                     </span>
                                 </span>
-                                {effectiveLabelNames.length > 0 ? (
+                                {visibleEffectiveLabelNames.length > 0 ? (
                                     <span className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-muted/30 px-2 py-1 text-[10px] font-medium text-muted-foreground">
                                         <Tag className="h-3 w-3" />
                                         <span>
-                                            {effectiveLabelNames.length} label{effectiveLabelNames.length > 1 ? "s" : ""}
+                                            {visibleEffectiveLabelNames.length} label{visibleEffectiveLabelNames.length > 1 ? "s" : ""}
                                         </span>
                                     </span>
                                 ) : null}
@@ -794,7 +811,7 @@ export function QuickAddDialog({
                                             >
                                                 <Tag className="h-4 w-4 shrink-0 text-muted-foreground" />
                                                 <span className="truncate">
-                                                    {effectiveLabelNames.length > 0 ? `${effectiveLabelNames.length} label${effectiveLabelNames.length > 1 ? "s" : ""}` : "Labels"}
+                                                    {visibleEffectiveLabelNames.length > 0 ? `${visibleEffectiveLabelNames.length} label${visibleEffectiveLabelNames.length > 1 ? "s" : ""}` : "Labels"}
                                                 </span>
                                             </button>
                                         </PopoverTrigger>
@@ -802,20 +819,20 @@ export function QuickAddDialog({
                                             <div className="space-y-3">
                                                 <Input
                                                     placeholder="Type labels, comma-separated..."
-                                                    value={manualLabelsInput ?? formatTaskLabelInput(effectiveLabelNames.map((label) => ({ name: label })))}
+                                                    value={manualLabelsInput ?? formatTaskLabelInput(visibleEffectiveLabelNames.map((label) => ({ name: label })))}
                                                     onChange={(event) => setManualLabelsInput(event.target.value)}
                                                     className="h-10 rounded-xl"
                                                 />
                                                 {taskLabels.length > 0 ? (
                                                     <div className="grid gap-1 border-t border-border/60 pt-3">
-                                                        {taskLabels.map((label) => {
+                                                {visibleTaskLabels.map((label) => {
                                                             const active = effectiveLabelNames.includes(label.name);
                                                             return (
                                                                 <button
                                                                     key={label.id}
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        const nextSet = new Set(effectiveLabelNames);
+                                                                        const nextSet = new Set(visibleEffectiveLabelNames);
                                                                         if (nextSet.has(label.name)) nextSet.delete(label.name);
                                                                         else nextSet.add(label.name);
                                                                         setManualLabelsInput(Array.from(nextSet).join(", "));
@@ -844,7 +861,7 @@ export function QuickAddDialog({
     return (
         <>
             <Dialog open={open} onOpenChange={handleOpenChange}>
-                <DialogContent className="sm:!max-w-none w-[min(92vw,680px)] max-h-[calc(100vh-2rem)] gap-0 overflow-hidden rounded-2xl border-border/60 p-0 shadow-none" showCloseButton={false}>
+                <DialogContent className="sm:!max-w-none w-[min(92vw,640px)] max-h-[calc(100vh-3rem)] gap-0 overflow-hidden rounded-[1.25rem] border-none bg-[var(--paper-elevated)] p-0 shadow-[var(--shadow-raised)]" showCloseButton={false}>
                     <DialogHeader className="sr-only">
                         <DialogTitle>Quick Add</DialogTitle>
                         <DialogDescription>

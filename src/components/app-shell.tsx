@@ -1,20 +1,21 @@
 "use client";
 
 import {
-    BarChart3,
     CalendarRange,
+    CheckCircle2,
     CheckSquare2,
     ChevronLeft,
     ChevronRight,
     FolderKanban,
     Inbox,
+    Layers,
     LogOut,
     Menu,
     Plus,
     Search,
     Settings,
+    Star,
     Timer,
-    Users,
 } from "lucide-react";
 import { DragDropContext, Draggable, Droppable, type DropResult } from "@hello-pangea/dnd";
 import Link from "next/link";
@@ -22,8 +23,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { MagicPlus } from "~/components/magic-plus";
 import { ProjectDialog } from "~/components/project-dialog";
 import { QuickAddDialog } from "~/components/quick-add-dialog";
+import type { QuickAddDefaults } from "~/components/task/quick-add";
 import { SettingsDialog } from "~/components/settings-dialog";
 import { WorkspaceDataProvider, useTaskDataset } from "~/hooks/use-task-dataset";
 import { useData } from "~/components/data-provider";
@@ -47,10 +50,11 @@ import { formatTaskReminderScheduledLabel, getReminderOffsetLabel, hasTaskRemind
 import { useClerk } from "@clerk/nextjs";
 import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { formatTaskDueLabel, taskMatchesSearch } from "~/lib/task-views";
+import { getInboxListId } from "~/lib/things-views";
 import { cn } from "~/lib/utils";
 
 interface ShellActionsContextValue {
-    openQuickAdd: (defaults?: { listId?: string | null; sectionId?: string | null; title?: string; dueDate?: string | null }) => void;
+    openQuickAdd: (defaults?: QuickAddDefaults) => void;
     openSettings: (section?: "account" | "appearance" | "shortcuts") => void;
     enterPrimaryActivity: (activityId: string) => void;
     registerPrimaryActivityReset: (activityId: string, reset: () => void) => () => void;
@@ -64,34 +68,31 @@ const SIDEBAR_HOVER_PREVIEW_CLOSE_DELAY_MS = 160;
 const DESKTOP_SIDEBAR_COLLAPSED_WIDTH = "4.25rem";
 const DESKTOP_SIDEBAR_PREVIEW_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
-const PRIMARY_ITEMS = [
-    { href: "/tasks", label: "Today", icon: CheckSquare2 },
-    { href: "/calendar", label: "Plan", icon: CalendarRange },
+// Things 3 IA — six lean views. Each view has a fixed tint via --icon-* tokens
+// in globals.css that does NOT shift with the user's accent.
+const THINGS_VIEW_ITEMS = [
+    { href: "/tasks?view=inbox", value: "inbox", label: "Inbox", icon: Inbox, tintVar: "--icon-inbox" },
+    { href: "/tasks", value: "today", label: "Today", icon: Star, tintVar: "--icon-today" },
+    { href: "/tasks?view=upcoming", value: "upcoming", label: "Upcoming", icon: CalendarRange, tintVar: "--icon-upcoming" },
+    { href: "/tasks?view=anytime", value: "anytime", label: "Anytime", icon: Layers, tintVar: "--icon-anytime" },
+    { href: "/tasks?view=done", value: "done", label: "Logbook", icon: CheckCircle2, tintVar: "--icon-logbook" },
+] as const;
+
+// Utility nav (below Projects) — Calendar, Focus, Settings.
+const UTILITY_ITEMS = [
+    { href: "/calendar", label: "Calendar", icon: CalendarRange },
     { href: "/focus", label: "Focus", icon: Timer },
-    { href: "/progress", label: "Progress", icon: BarChart3 },
-] as const;
-
-const SECONDARY_ITEMS = [
-    { href: "/projects", label: "Projects", icon: FolderKanban },
-    { href: "/community", label: "Community", icon: Users },
-] as const;
-
-const SMART_VIEW_ITEMS = [
-    { href: "/tasks?view=upcoming", value: "upcoming", label: "Upcoming", icon: CalendarRange },
-    { href: "/tasks?view=inbox", value: "inbox", label: "No Due Date", icon: Inbox },
-    { href: "/tasks?view=done", value: "done", label: "Completed", icon: CheckSquare2 },
 ] as const;
 
 const GLOBAL_SEARCH_VIEW_ITEMS = [
-    { href: "/tasks", label: "Today", icon: CheckSquare2, keywords: ["tasks", "focus"] },
-    { href: "/calendar", label: "Plan", icon: CalendarRange, keywords: ["calendar", "plan"] },
+    { href: "/tasks?view=inbox", label: "Inbox", icon: Inbox, keywords: ["capture"] },
+    { href: "/tasks", label: "Today", icon: Star, keywords: ["tasks", "focus", "due"] },
+    { href: "/tasks?view=upcoming", label: "Upcoming", icon: CalendarRange, keywords: ["schedule", "future"] },
+    { href: "/tasks?view=anytime", label: "Anytime", icon: Layers, keywords: ["backlog", "no deadline"] },
+    { href: "/tasks?view=done", label: "Logbook", icon: CheckCircle2, keywords: ["done", "completed", "history"] },
+    { href: "/projects", label: "Projects", icon: FolderKanban, keywords: ["workspace", "lists"] },
+    { href: "/calendar", label: "Calendar", icon: CalendarRange, keywords: ["plan", "schedule"] },
     { href: "/focus", label: "Focus", icon: Timer, keywords: ["pomodoro", "timer", "study"] },
-    { href: "/progress", label: "Progress", icon: BarChart3, keywords: ["analytics", "review", "stats"] },
-    { href: "/projects", label: "Projects", icon: FolderKanban, keywords: ["workspace"] },
-    { href: "/community", label: "Community", icon: Users, keywords: ["leaderboard", "friends", "feed"] },
-    { href: "/tasks?view=upcoming", label: "Upcoming", icon: CalendarRange, keywords: ["schedule"] },
-    { href: "/tasks?view=inbox", label: "No Due Date", icon: Inbox, keywords: ["inbox"] },
-    { href: "/tasks?view=done", label: "Completed", icon: CheckSquare2, keywords: ["done"] },
 ] as const;
 
 const COMMAND_ACTION_ITEMS = [
@@ -104,7 +105,12 @@ type ShellCommandActionId = (typeof COMMAND_ACTION_ITEMS)[number]["id"];
 
 function getActiveSmartView(pathname: string, rawView: string | null) {
     if (pathname !== "/tasks") return null;
-    if (rawView === "upcoming" || rawView === "inbox" || rawView === "done") {
+    if (
+        rawView === "upcoming" ||
+        rawView === "inbox" ||
+        rawView === "anytime" ||
+        rawView === "done"
+    ) {
         return rawView;
     }
     return null;
@@ -175,7 +181,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     const [mobileProfileMenuSource, setMobileProfileMenuSource] = useState<"sidebar" | "topbar" | null>(null);
     const [desktopProfileMenuId, setDesktopProfileMenuId] = useState<string | null>(null);
     const [quickAddOpen, setQuickAddOpen] = useState(false);
-    const [quickAddDefaults, setQuickAddDefaults] = useState<{ listId?: string | null; sectionId?: string | null; title?: string; dueDate?: string | null } | null>(null);
+    const [quickAddDefaults, setQuickAddDefaults] = useState<QuickAddDefaults | null>(null);
     const [projectDialogOpen, setProjectDialogOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [settingsSection, setSettingsSection] = useState<"account" | "appearance" | "shortcuts">("account");
@@ -192,6 +198,11 @@ function AppShellLayout({ children }: { children: ReactNode }) {
 
     const activeSmartView = getActiveSmartView(pathname, searchParams.get("view"));
     const activeProjectId = pathname.startsWith("/projects/") ? pathname.split("/")[2] ?? null : null;
+    const inboxListId = useMemo(() => getInboxListId(lists), [lists]);
+    const visibleProjectSummaries = useMemo(
+        () => orderedProjectSummaries.filter((summary) => summary.list.id !== inboxListId),
+        [inboxListId, orderedProjectSummaries],
+    );
     const settingsRequestedByUrl = searchParams.get("settings") === "true";
     const avatarUrl = getPublicAvatarUrl(supabase, profile?.avatar_url);
     const normalizedGlobalSearchQuery = globalSearchQuery.trim().toLowerCase();
@@ -218,12 +229,12 @@ function AppShellLayout({ children }: { children: ReactNode }) {
     }, [normalizedGlobalSearchQuery]);
 
     const matchingProjectResults = useMemo(() => {
-        const filtered = orderedProjectSummaries.filter((summary) => {
+        const filtered = visibleProjectSummaries.filter((summary) => {
             if (!normalizedGlobalSearchQuery) return true;
             return summary.list.name.toLowerCase().includes(normalizedGlobalSearchQuery);
         });
         return filtered.slice(0, normalizedGlobalSearchQuery ? 8 : 5);
-    }, [normalizedGlobalSearchQuery, orderedProjectSummaries]);
+    }, [normalizedGlobalSearchQuery, visibleProjectSummaries]);
 
     const matchingTaskResults = useMemo(() => {
         if (!globalSearchOpen || !deferredGlobalSearchQuery) return [];
@@ -416,7 +427,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    const openQuickAdd = useCallback((defaults?: { listId?: string | null; sectionId?: string | null; title?: string; dueDate?: string | null }) => {
+    const openQuickAdd = useCallback((defaults?: QuickAddDefaults) => {
         enterPrimaryActivity("shell:quick-add");
         setQuickAddDefaults(defaults ?? null);
         setQuickAddOpen(true);
@@ -610,7 +621,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             return;
         }
 
-        const nextProjectIds = orderedProjectSummaries.map((summary) => summary.list.id);
+        const nextProjectIds = visibleProjectSummaries.map((summary) => summary.list.id);
         const [movedProjectId] = nextProjectIds.splice(result.source.index, 1);
         if (!movedProjectId) return;
 
@@ -636,17 +647,9 @@ function AppShellLayout({ children }: { children: ReactNode }) {
                         <p className="truncate text-xs text-muted-foreground">Account, preferences, and quick jumps</p>
                     </div>
                 </div>
-                <DropdownMenuItem className="rounded-[0.85rem] px-3 py-2.5" onClick={() => handleNavigate("/progress")}>
-                    <BarChart3 className="h-4 w-4" />
-                    Progress
-                </DropdownMenuItem>
-                <DropdownMenuItem className="rounded-[0.85rem] px-3 py-2.5" onClick={() => handleNavigate("/community")}>
-                    <Users className="h-4 w-4" />
-                    Community
-                </DropdownMenuItem>
-                <DropdownMenuItem className="rounded-[0.85rem] px-3 py-2.5" onClick={() => handleNavigate("/tasks?view=done")}>
-                    <CheckSquare2 className="h-4 w-4" />
-                    Completed Tasks
+                <DropdownMenuItem className="rounded-[0.85rem] px-3 py-2.5" onClick={() => handleNavigate("/projects")}>
+                    <FolderKanban className="h-4 w-4" />
+                    All Projects
                 </DropdownMenuItem>
                 <DropdownMenuItem className="rounded-[0.85rem] px-3 py-2.5" onClick={() => openSettings()}>
                     <Settings className="h-4 w-4" />
@@ -701,7 +704,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
         if (collapsed) {
             return (
                 <nav className="space-y-2">
-                    {orderedProjectSummaries.slice(0, 8).map((summary) => {
+                    {visibleProjectSummaries.slice(0, 8).map((summary) => {
                         const active = activeProjectId === summary.list.id;
                         const palette = getProjectColorClasses(summary.list.color_token);
                         const Icon = getProjectIcon(summary.list.icon_token);
@@ -739,7 +742,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
 
         const content = (
             <nav className="space-y-0.5">
-                {orderedProjectSummaries.map((summary, index) => {
+                {visibleProjectSummaries.map((summary, index) => {
                     const active = activeProjectId === summary.list.id;
                     const palette = getProjectColorClasses(summary.list.color_token);
 
@@ -789,7 +792,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
         if (!mounted) {
             return (
                 <nav className="space-y-0.5">
-                    {orderedProjectSummaries.map((summary) => {
+                    {visibleProjectSummaries.map((summary) => {
                         const active = activeProjectId === summary.list.id;
                         const palette = getProjectColorClasses(summary.list.color_token);
 
@@ -935,36 +938,46 @@ function AppShellLayout({ children }: { children: ReactNode }) {
                 </div>
 
                 <div className={cn("flex-1 overflow-y-auto py-3", collapsed ? "px-2" : "px-2.5")}>
-                    <div className={cn("space-y-3", collapsed && "space-y-3")}>
+                    <div className="space-y-3">
                         <section className="space-y-0.5">
                             <nav className="space-y-0.5">
-                                {PRIMARY_ITEMS.map((item) => {
-                                    const active = item.href === "/tasks"
+                                {THINGS_VIEW_ITEMS.map((item) => {
+                                    const active = item.value === "today"
                                         ? pathname === "/tasks" && activeSmartView === null
-                                        : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                                        : pathname === "/tasks" && activeSmartView === item.value;
+
+                                    const count = smartViewCounts[item.value];
 
                                     return (
                                         <button
-                                            key={item.href}
+                                            key={item.value}
                                             type="button"
                                             onClick={() => handleNavigate(item.href)}
                                             title={collapsed ? item.label : undefined}
                                             aria-current={active ? "page" : undefined}
                                             className={cn(
-                                                "relative flex w-full cursor-pointer items-center justify-start rounded-[0.75rem] border border-transparent text-left font-medium transition-colors duration-150",
-                                                collapsed ? "mx-auto h-9 w-9 justify-center px-0" : cn("gap-2.5 px-2.5", isCompact ? "py-[0.3rem] text-[13px]" : "py-[0.45rem] text-[13.5px]"),
+                                                "relative flex w-full cursor-pointer items-center justify-start rounded-[0.65rem] border border-transparent text-left transition-colors duration-150",
+                                                collapsed
+                                                    ? "mx-auto h-9 w-9 justify-center px-0"
+                                                    : cn("gap-3 px-2.5", isCompact ? "py-[0.32rem] text-[13px]" : "py-[0.42rem] text-[13.5px] font-medium"),
                                                 active
-                                                    ? "bg-sidebar-accent/75 text-sidebar-foreground"
-                                                    : "text-muted-foreground hover:bg-sidebar-accent/45 hover:text-sidebar-foreground",
+                                                    ? "bg-sidebar-accent/85 text-sidebar-foreground"
+                                                    : "text-sidebar-foreground/85 hover:bg-sidebar-accent/55 hover:text-sidebar-foreground",
                                             )}
                                         >
-                                            <item.icon className="h-4 w-4 shrink-0" />
-                                            {collapsed ? <span className="sr-only">{item.label}</span> : (
+                                            <item.icon
+                                                className="h-[1.05rem] w-[1.05rem] shrink-0"
+                                                style={{ color: `var(${item.tintVar})` }}
+                                                strokeWidth={2}
+                                            />
+                                            {collapsed ? (
+                                                <span className="sr-only">{item.label}</span>
+                                            ) : (
                                                 <>
                                                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                                                    {item.href === "/tasks" ? (
-                                                        <span className="ml-auto font-mono text-[11px] text-muted-foreground/60">
-                                                            {smartViewCounts.today}
+                                                    {count != null && count > 0 ? (
+                                                        <span className="ml-auto font-mono text-[11px] tabular-nums text-muted-foreground/70">
+                                                            {count}
                                                         </span>
                                                     ) : null}
                                                 </>
@@ -976,79 +989,13 @@ function AppShellLayout({ children }: { children: ReactNode }) {
                         </section>
 
                         <section className="space-y-0.5">
-                            <nav className="space-y-0.5">
-                                {SECONDARY_ITEMS.map((item) => {
-                                    const active = item.href === "/projects"
-                                        ? pathname === "/projects"
-                                        : pathname === item.href || pathname.startsWith(`${item.href}/`);
-
-                                    return (
-                                        <button
-                                            key={item.href}
-                                            type="button"
-                                            onClick={() => handleNavigate(item.href)}
-                                            title={collapsed ? item.label : undefined}
-                                            aria-current={active ? "page" : undefined}
-                                            className={cn(
-                                                "relative flex w-full cursor-pointer items-center justify-start rounded-[0.75rem] border border-transparent text-left font-medium transition-colors duration-150",
-                                                collapsed ? "mx-auto h-9 w-9 justify-center px-0" : cn("gap-2.5 px-2.5", isCompact ? "py-[0.3rem] text-[13px]" : "py-[0.45rem] text-[13.5px]"),
-                                                active
-                                                    ? "bg-sidebar-accent/75 text-sidebar-foreground"
-                                                    : "text-muted-foreground hover:bg-sidebar-accent/45 hover:text-sidebar-foreground",
-                                            )}
-                                        >
-                                            <item.icon className="h-4 w-4 shrink-0" />
-                                            {collapsed ? <span className="sr-only">{item.label}</span> : (
-                                                <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </nav>
-                        </section>
-
-                        {!collapsed && pathname === "/tasks" ? (
-                            <section className="space-y-0.5">
-                                <nav className="space-y-0.5">
-                                    {SMART_VIEW_ITEMS.map((item) => {
-                                        const active = activeSmartView === item.value;
-                                        const count = smartViewCounts[item.value];
-                                        return (
-                                            <button
-                                                key={item.value}
-                                                type="button"
-                                                onClick={() => handleNavigate(item.href)}
-                                                aria-current={active ? "page" : undefined}
-                                                className={cn(
-                                                    "flex w-full cursor-pointer items-center gap-2.5 rounded-[0.75rem] border border-transparent px-2.5 text-left font-medium transition-colors duration-150",
-                                                    isCompact ? "py-[0.3rem] text-[13px]" : "py-[0.45rem] text-[13.5px]",
-                                                    active
-                                                        ? "bg-sidebar-accent/75 text-sidebar-foreground"
-                                                        : "text-muted-foreground hover:bg-sidebar-accent/45 hover:text-sidebar-foreground",
-                                                )}
-                                            >
-                                                <span className="flex min-w-0 flex-1 items-center gap-2.5">
-                                                    <item.icon className="h-4 w-4 shrink-0" />
-                                                    <span className="truncate">{item.label}</span>
-                                                </span>
-                                                <span className="ml-auto font-mono text-[11px] text-muted-foreground/60">
-                                                    {count}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                </nav>
-                            </section>
-                        ) : null}
-
-                        <section className="space-y-0.5">
                             {!collapsed ? (
-                                <div className="flex items-center justify-between px-2.5 py-1">
+                                <div className="mt-1 flex items-center justify-between px-2.5 py-1">
                                     <button
                                         type="button"
                                         onClick={() => handleNavigate("/projects")}
                                         className={cn(
-                                            "text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors hover:text-foreground",
+                                            "eyebrow transition-colors hover:text-foreground",
                                             projectsIndexActive ? "text-foreground" : "text-muted-foreground/70",
                                         )}
                                     >
@@ -1066,6 +1013,42 @@ function AppShellLayout({ children }: { children: ReactNode }) {
                                 </div>
                             ) : null}
                             {renderProjectLinks({ collapsed, mobile })}
+                        </section>
+
+                        <section className="space-y-0.5 pt-1">
+                            <nav className="space-y-0.5">
+                                {UTILITY_ITEMS.map((item) => {
+                                    const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                                    return (
+                                        <button
+                                            key={item.href}
+                                            type="button"
+                                            onClick={() => handleNavigate(item.href)}
+                                            title={collapsed ? item.label : undefined}
+                                            aria-current={active ? "page" : undefined}
+                                            className={cn(
+                                                "relative flex w-full cursor-pointer items-center justify-start rounded-[0.65rem] border border-transparent text-left transition-colors duration-150",
+                                                collapsed
+                                                    ? "mx-auto h-9 w-9 justify-center px-0"
+                                                    : cn("gap-3 px-2.5", isCompact ? "py-[0.32rem] text-[13px]" : "py-[0.42rem] text-[13.5px] font-medium"),
+                                                active
+                                                    ? "bg-sidebar-accent/85 text-sidebar-foreground"
+                                                    : "text-sidebar-foreground/70 hover:bg-sidebar-accent/55 hover:text-sidebar-foreground",
+                                            )}
+                                        >
+                                            <item.icon
+                                                className="h-[1.05rem] w-[1.05rem] shrink-0 text-muted-foreground/80"
+                                                strokeWidth={2}
+                                            />
+                                            {collapsed ? (
+                                                <span className="sr-only">{item.label}</span>
+                                            ) : (
+                                                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </nav>
                         </section>
                     </div>
                 </div>
@@ -1176,6 +1159,8 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             <main className={cn("pt-0 transition-[padding-left,padding-top] duration-200 lg:pt-0", desktopCollapsed ? "lg:pl-[4.25rem]" : "lg:pl-72")}>
                 {children}
             </main>
+
+            {userId ? <MagicPlus /> : null}
 
             {userId ? (
                 <>

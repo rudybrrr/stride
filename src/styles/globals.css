@@ -52,64 +52,292 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* ==========================================================================
+   Things 3 × Todoist Hybrid — Token System
+   ==========================================================================
+   - Light: warm paper background (#fafaf7), no card chrome by default.
+   - Dark:  warm-near-black background (#1c1b18), gentle elevation only on
+            popovers/floating surfaces.
+   - View icons (Inbox/Today/Upcoming/Anytime/Logbook) use a fixed
+            palette that does NOT shift with the user's accent.
+   - Accents (--accent-brand, --accent-soft, etc.) drive selected/active
+            states only.
+   ========================================================================== */
+
 :root {
   --radius: 0.5rem;
-  --surface-base: #f5f3ef;
-  --surface-secondary: #eeecea;
-  --surface-elevated: #ffffff;
-  --surface-glass: rgba(255, 255, 255, 0.88);
-  --surface-glass-border: rgba(210, 207, 202, 0.68);
-  --surface-overlay: rgba(20, 18, 16, 0.24);
-  --surface-topline: rgba(255, 255, 255, 0.30);
-  --surface-hover: #e8e6e2;
-  --surface-selected: #dedad5;
-  --surface-selected-strong: #d0ccc5;
-  --shadow-xs: 0 1px 2px rgba(20, 18, 16, 0.06);
-  --shadow-soft: 0 6px 20px rgba(20, 18, 16, 0.08);
-  --shadow-raised: 0 16px 48px rgba(20, 18, 16, 0.14);
+
+  /* Paper surfaces */
+  --paper: #fafaf7;
+  --paper-elevated: #ffffff;
+  --paper-sunken: #f3f1ec;
+
+  --surface-base: var(--paper);
+  --surface-secondary: var(--paper-sunken);
+  --surface-elevated: var(--paper-elevated);
+  --surface-glass: rgba(255, 255, 255, 0.84);
+  --surface-glass-border: rgba(214, 210, 202, 0.62);
+  --surface-overlay: rgba(28, 27, 24, 0.28);
+  --surface-topline: rgba(255, 255, 255, 0.34);
+  --surface-hover: rgba(28, 27, 24, 0.04);
+  --surface-selected: rgba(28, 27, 24, 0.07);
+  --surface-selected-strong: rgba(28, 27, 24, 0.10);
+
+  --shadow-xs: 0 1px 2px rgba(28, 27, 24, 0.04);
+  --shadow-soft: 0 4px 14px rgba(28, 27, 24, 0.06);
+  --shadow-raised: 0 14px 42px rgba(28, 27, 24, 0.10);
+
+  /* Accent (selected/active states) — slate by default */
   --accent-brand: #5d6878;
   --accent-ink: #334150;
   --accent-soft: #e6eaf0;
   --accent-hover: #eef2f6;
-  --background: #ffffff;
-  --foreground: #202020;
-  --card: var(--surface-base);
-  --card-foreground: #202020;
-  --popover: var(--surface-elevated);
-  --popover-foreground: #202020;
+
+  /* Semantic */
+  --background: var(--paper);
+  --foreground: #1c1b18;
+  --card: var(--paper-elevated);
+  --card-foreground: #1c1b18;
+  --popover: var(--paper-elevated);
+  --popover-foreground: #1c1b18;
   --primary: var(--accent-brand);
   --primary-foreground: #fbfbfc;
-  --secondary: var(--surface-secondary);
-  --secondary-foreground: #202020;
-  --muted: var(--surface-hover);
-  --muted-foreground: #777777;
+  --secondary: var(--paper-sunken);
+  --secondary-foreground: #1c1b18;
+  --muted: var(--paper-sunken);
+  --muted-foreground: #76736d;
   --accent: var(--accent-soft);
   --accent-foreground: var(--accent-ink);
-  --destructive: #913636;
+  --destructive: #b1413c;
   --destructive-foreground: #fff7f5;
-  --border: #e5e3df;
-  --input: #ccc9c3;
+  --border: rgba(28, 27, 24, 0.08);
+  --input: rgba(28, 27, 24, 0.14);
   --ring: color-mix(in oklab, var(--accent-brand) 76%, white);
+
   --chart-1: var(--accent-brand);
   --chart-2: #5f8696;
   --chart-3: #a88863;
   --chart-4: #a56c72;
   --chart-5: #8a87a7;
-  --sidebar: #f5f3ef;
-  --sidebar-foreground: #202020;
+
+  --sidebar: var(--paper);
+  --sidebar-foreground: #2a2823;
   --sidebar-primary: var(--accent-brand);
   --sidebar-primary-foreground: #fbfbfc;
-  --sidebar-accent: #eae8e4;
-  --sidebar-accent-foreground: #202020;
-  --sidebar-border: #e5e3df;
+  --sidebar-accent: rgba(28, 27, 24, 0.06);
+  --sidebar-accent-foreground: #1c1b18;
+  --sidebar-border: rgba(28, 27, 24, 0.07);
   --sidebar-ring: var(--ring);
+
+  /* Project dot colors (existing) */
   --project-cobalt: #748391;
   --project-emerald: #5f7e71;
   --project-amber: #ab845f;
   --project-rose: #ad7278;
   --project-violet: #837da1;
   --project-slate: #6d7880;
+
+  /* View icons — FIXED across all accent themes (Things 3 hallmark) */
+  --icon-inbox: #6c7480;
+  --icon-today: #f0b400;
+  --icon-upcoming: #d94f4f;
+  --icon-anytime: #e07b3a;
+  --icon-logbook: #6a9955;
+  --icon-trash: #9a8470;
+
+  /* Priority dots (Todoist parity) */
+  --priority-p1: #d94f4f;
+  --priority-p2: #e07b3a;
+  --priority-p3: #4a8ec0;
+  --priority-p4: transparent;
+
+  /* Motion */
+  --motion-fast: 160ms;
+  --motion-base: 220ms;
+  --motion-slow: 320ms;
+  --motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-spring: cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+.dark {
+  --paper: #1c1b18;
+  --paper-elevated: #232220;
+  --paper-sunken: #161513;
+
+  --surface-base: var(--paper);
+  --surface-secondary: var(--paper-sunken);
+  --surface-elevated: var(--paper-elevated);
+  --surface-glass: rgba(28, 27, 24, 0.92);
+  --surface-glass-border: rgba(255, 252, 245, 0.06);
+  --surface-overlay: rgba(0, 0, 0, 0.62);
+  --surface-topline: rgba(255, 252, 245, 0.04);
+  --surface-hover: rgba(255, 252, 245, 0.04);
+  --surface-selected: rgba(255, 252, 245, 0.07);
+  --surface-selected-strong: rgba(255, 252, 245, 0.10);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.42);
+  --shadow-soft: 0 6px 20px rgba(0, 0, 0, 0.42);
+  --shadow-raised: 0 18px 48px rgba(0, 0, 0, 0.56);
+
+  --accent-brand: #91a3bf;
+  --accent-ink: #edf1f6;
+  --accent-soft: rgba(145, 163, 191, 0.14);
+  --accent-hover: rgba(145, 163, 191, 0.20);
+
+  --background: var(--paper);
+  --foreground: #ece8e0;
+  --card: var(--paper-elevated);
+  --card-foreground: #ece8e0;
+  --popover: var(--paper-elevated);
+  --popover-foreground: #ece8e0;
+  --primary: var(--accent-brand);
+  --primary-foreground: #131210;
+  --secondary: var(--paper-sunken);
+  --secondary-foreground: #ece8e0;
+  --muted: var(--paper-sunken);
+  --muted-foreground: #94918b;
+  --accent: var(--accent-soft);
+  --accent-foreground: var(--accent-ink);
+  --destructive: #d97a76;
+  --destructive-foreground: #1a0c0b;
+  --border: rgba(255, 252, 245, 0.08);
+  --input: rgba(255, 252, 245, 0.12);
+  --ring: color-mix(in oklab, var(--accent-brand) 72%, white);
+
+  --chart-1: var(--accent-brand);
+  --chart-2: #8fb2c5;
+  --chart-3: #d1ae82;
+  --chart-4: #d3a2a7;
+  --chart-5: #c2b6e1;
+
+  --sidebar: var(--paper-sunken);
+  --sidebar-foreground: #d8d4cc;
+  --sidebar-primary: var(--accent-brand);
+  --sidebar-primary-foreground: #131210;
+  --sidebar-accent: rgba(255, 252, 245, 0.06);
+  --sidebar-accent-foreground: #ece8e0;
+  --sidebar-border: rgba(255, 252, 245, 0.06);
+  --sidebar-ring: var(--ring);
+
+  --project-cobalt: #9facc0;
+  --project-emerald: #92b6a4;
+  --project-amber: #caaa80;
+  --project-rose: #cc9ea3;
+  --project-violet: #b8addd;
+  --project-slate: #a2adb3;
+
+  /* View icons — slightly desaturated for dark, still recognisably tinted */
+  --icon-inbox: #a8aab0;
+  --icon-today: #f5c84a;
+  --icon-upcoming: #e88080;
+  --icon-anytime: #ea9c64;
+  --icon-logbook: #94be7c;
+  --icon-trash: #b8a591;
+
+  --priority-p1: #e88080;
+  --priority-p2: #ea9c64;
+  --priority-p3: #7eb1d4;
+  --priority-p4: transparent;
+}
+
+/* Backwards-compatible alias used by some shells */
+.paperback {
+  --radius: 0.5rem;
+}
+
+/* ============================== Accent variants ============================== */
+
+.light[data-accent="blue"],
+.paperback[data-accent="blue"] {
+  --accent-brand: #467987;
+  --accent-ink: #305664;
+  --accent-soft: #dfebef;
+  --accent-hover: #e9f2f4;
+}
+
+.dark[data-accent="blue"] {
+  --accent-brand: #86b6c6;
+  --accent-ink: #edf3f8;
+  --accent-soft: rgba(134, 182, 198, 0.14);
+  --accent-hover: rgba(134, 182, 198, 0.20);
+}
+
+.light[data-accent="teal"],
+.paperback[data-accent="teal"] {
+  --accent-brand: #4f7f79;
+  --accent-ink: #345f5a;
+  --accent-soft: #e0ece9;
+  --accent-hover: #ebf3f1;
+}
+
+.dark[data-accent="teal"] {
+  --accent-brand: #9bc0b7;
+  --accent-ink: #e8f1ec;
+  --accent-soft: rgba(155, 192, 183, 0.14);
+  --accent-hover: rgba(155, 192, 183, 0.20);
+}
+
+.light[data-accent="green"],
+.paperback[data-accent="green"] {
+  --accent-brand: #5f7669;
+  --accent-ink: #203f37;
+  --accent-soft: #e5eee8;
+  --accent-hover: #eef5ef;
+}
+
+.dark[data-accent="green"] {
+  --accent-brand: #89a996;
+  --accent-ink: #dce8de;
+  --accent-soft: rgba(137, 169, 150, 0.14);
+  --accent-hover: rgba(137, 169, 150, 0.20);
+}
+
+.light[data-accent="amber"],
+.paperback[data-accent="amber"] {
+  --accent-brand: #9b7552;
+  --accent-ink: #6c4d2d;
+  --accent-soft: #efe5d8;
+  --accent-hover: #f5eee5;
+}
+
+.dark[data-accent="amber"] {
+  --accent-brand: #d2ae82;
+  --accent-ink: #f0ddbe;
+  --accent-soft: rgba(210, 174, 130, 0.14);
+  --accent-hover: rgba(210, 174, 130, 0.20);
+}
+
+.light[data-accent="rose"],
+.paperback[data-accent="rose"] {
+  --accent-brand: #a06d75;
+  --accent-ink: #76454d;
+  --accent-soft: #f0e3e6;
+  --accent-hover: #f6ecee;
+}
+
+.dark[data-accent="rose"] {
+  --accent-brand: #c7a5ac;
+  --accent-ink: #f0dee1;
+  --accent-soft: rgba(199, 165, 172, 0.14);
+  --accent-hover: rgba(199, 165, 172, 0.20);
+}
+
+.light[data-accent="slate"],
+.paperback[data-accent="slate"] {
+  --accent-brand: #5d6878;
+  --accent-ink: #334150;
+  --accent-soft: #e6eaf0;
+  --accent-hover: #eef2f6;
+}
+
+.dark[data-accent="slate"] {
+  --accent-brand: #91a3bf;
+  --accent-ink: #edf1f6;
+  --accent-soft: rgba(145, 163, 191, 0.14);
+  --accent-hover: rgba(145, 163, 191, 0.20);
+}
+
+/* ============================== Compact mode ============================== */
 
 .compact {
   --radius: 0.4375rem;
@@ -175,7 +403,6 @@
   padding: 1.25rem;
 }
 
-/* Sidebar Overrides */
 .compact nav.space-y-1 > *,
 .compact nav.space-y-2 > * {
   @apply py-1.5;
@@ -190,234 +417,7 @@
   @apply text-[9px] tracking-[0.2em];
 }
 
-.paperback {
-  --radius: 0.5rem;
-  --surface-base: #f5f3ef;
-  --surface-secondary: #eeecea;
-  --surface-elevated: #ffffff;
-  --surface-glass: rgba(255, 255, 255, 0.88);
-  --surface-glass-border: rgba(210, 207, 202, 0.68);
-  --surface-hover: #e8e6e2;
-  --surface-selected: #dedad5;
-  --surface-selected-strong: #d0ccc5;
-  --shadow-xs: 0 1px 2px rgba(20, 18, 16, 0.06);
-  --shadow-soft: 0 6px 20px rgba(20, 18, 16, 0.08);
-  --shadow-raised: 0 16px 48px rgba(20, 18, 16, 0.14);
-  --accent-brand: #5d6878;
-  --accent-ink: #334150;
-  --accent-soft: #e6eaf0;
-  --accent-hover: #eef2f6;
-  --background: #ffffff;
-  --foreground: #202020;
-  --card: var(--surface-base);
-  --card-foreground: #202020;
-  --popover: var(--surface-elevated);
-  --popover-foreground: #202020;
-  --primary: var(--accent-brand);
-  --primary-foreground: #fbfbfc;
-  --secondary: var(--surface-secondary);
-  --secondary-foreground: #202020;
-  --muted: var(--surface-hover);
-  --muted-foreground: #777777;
-  --accent: var(--accent-soft);
-  --accent-foreground: var(--accent-ink);
-  --destructive: #913636;
-  --destructive-foreground: #fff7f5;
-  --border: #e5e3df;
-  --input: #ccc9c3;
-  --ring: color-mix(in oklab, var(--accent-brand) 76%, white);
-  --chart-1: var(--accent-brand);
-  --chart-2: #5f8696;
-  --chart-3: #a88863;
-  --chart-4: #a56c72;
-  --chart-5: #8a87a7;
-  --sidebar: #f5f3ef;
-  --sidebar-foreground: #202020;
-  --sidebar-primary: var(--accent-brand);
-  --sidebar-primary-foreground: #fbfbfc;
-  --sidebar-accent: #eae8e4;
-  --sidebar-accent-foreground: #202020;
-  --sidebar-border: #e5e3df;
-  --sidebar-ring: var(--ring);
-  --project-cobalt: #748391;
-  --project-emerald: #5f7e71;
-  --project-amber: #ab845f;
-  --project-rose: #ad7278;
-  --project-violet: #837da1;
-  --project-slate: #6d7880;
-}
-
-.dark {
-  --surface-base: color-mix(in oklab, #0f0f0f 91%, var(--accent-brand));
-  --surface-secondary: color-mix(in oklab, #121212 91%, var(--accent-brand));
-  --surface-elevated: color-mix(in oklab, #181818 89%, var(--accent-brand));
-  --surface-glass: rgba(10, 10, 14, 0.96);
-  --surface-glass-border: rgba(38, 42, 54, 0.65);
-  --surface-overlay: rgba(0, 0, 0, 0.70);
-  --surface-topline: rgba(255, 255, 255, 0.04);
-  --surface-hover: color-mix(in oklab, #151515 90%, var(--accent-brand));
-  --surface-selected: color-mix(in oklab, #1e1e1e 85%, var(--accent-brand));
-  --surface-selected-strong: color-mix(in oklab, #272727 81%, var(--accent-brand));
-  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.65);
-  --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.58);
-  --shadow-raised: 0 22px 60px rgba(0, 0, 0, 0.72);
-  --accent-brand: #91a3bf;
-  --accent-ink: #edf1f6;
-  --accent-soft: #1e262f;
-  --accent-hover: #222c36;
-  --background: color-mix(in oklab, #060606 94%, var(--accent-brand));
-  --foreground: #e8ecf2;
-  --card: var(--surface-base);
-  --card-foreground: #e8ecf2;
-  --popover: var(--surface-elevated);
-  --popover-foreground: #e8ecf2;
-  --primary: var(--accent-brand);
-  --primary-foreground: #0a0e12;
-  --secondary: var(--surface-secondary);
-  --secondary-foreground: #e8ecf2;
-  --muted: var(--surface-hover);
-  --muted-foreground: color-mix(in oklab, #7a7a7a 74%, var(--accent-brand));
-  --accent: var(--accent-soft);
-  --accent-foreground: var(--accent-ink);
-  --destructive: #f0aaa6;
-  --destructive-foreground: #281110;
-  --border: color-mix(in oklab, #202020 87%, var(--accent-brand));
-  --input: color-mix(in oklab, #2e2e2e 84%, var(--accent-brand));
-  --ring: color-mix(in oklab, var(--accent-brand) 72%, white);
-  --chart-1: var(--accent-brand);
-  --chart-2: #8fb2c5;
-  --chart-3: #d1ae82;
-  --chart-4: #d3a2a7;
-  --chart-5: #c2b6e1;
-  --sidebar: color-mix(in oklab, #030303 94%, var(--accent-brand));
-  --sidebar-foreground: #e8ecf2;
-  --sidebar-primary: var(--accent-brand);
-  --sidebar-primary-foreground: #0a0e12;
-  --sidebar-accent: color-mix(in oklab, #111111 91%, var(--accent-brand));
-  --sidebar-accent-foreground: #e8ecf2;
-  --sidebar-border: color-mix(in oklab, #161616 90%, var(--accent-brand));
-  --sidebar-ring: var(--ring);
-  --project-cobalt: #9facc0;
-  --project-emerald: #92b6a4;
-  --project-amber: #caaa80;
-  --project-rose: #cc9ea3;
-  --project-violet: #b8addd;
-  --project-slate: #a2adb3;
-}
-
-.light[data-accent="blue"],
-.paperback[data-accent="blue"] {
-  --accent-brand: #467987;
-  --accent-ink: #305664;
-  --accent-soft: #dfebef;
-  --accent-hover: #e9f2f4;
-  --surface-selected: #d6e4e8;
-  --surface-selected-strong: #c4d7db;
-}
-
-.dark[data-accent="blue"] {
-  --accent-brand: #86b6c6;
-  --accent-ink: #edf3f8;
-  --accent-soft: #223036;
-  --accent-hover: #27353b;
-  --surface-selected: #26343a;
-  --surface-selected-strong: #314047;
-}
-
-.light[data-accent="teal"],
-.paperback[data-accent="teal"] {
-  --accent-brand: #4f7f79;
-  --accent-ink: #345f5a;
-  --accent-soft: #e0ece9;
-  --accent-hover: #ebf3f1;
-  --surface-selected: #d7e5e1;
-  --surface-selected-strong: #c4d7d0;
-}
-
-.dark[data-accent="teal"] {
-  --accent-brand: #9bc0b7;
-  --accent-ink: #e8f1ec;
-  --accent-soft: #26312d;
-  --accent-hover: #2a3530;
-  --surface-selected: #293530;
-  --surface-selected-strong: #33413a;
-}
-
-.light[data-accent="green"],
-.paperback[data-accent="green"] {
-  --accent-brand: #5f7669;
-  --accent-ink: #203f37;
-  --accent-soft: #e5eee8;
-  --accent-hover: #eef5ef;
-  --surface-selected: #dce8df;
-  --surface-selected-strong: #c8d9cf;
-}
-
-.dark[data-accent="green"] {
-  --accent-brand: #89a996;
-  --accent-ink: #dce8de;
-  --accent-soft: #2b362f;
-  --accent-hover: #27322c;
-  --surface-selected: #2a362f;
-  --surface-selected-strong: #334239;
-}
-
-.light[data-accent="amber"],
-.paperback[data-accent="amber"] {
-  --accent-brand: #9b7552;
-  --accent-ink: #6c4d2d;
-  --accent-soft: #efe5d8;
-  --accent-hover: #f5eee5;
-  --surface-selected: #e7dccf;
-  --surface-selected-strong: #dac8b4;
-}
-
-.dark[data-accent="amber"] {
-  --accent-brand: #d2ae82;
-  --accent-ink: #f0ddbe;
-  --accent-soft: #30291f;
-  --accent-hover: #362e24;
-  --surface-selected: #342c22;
-  --surface-selected-strong: #42372a;
-}
-
-.light[data-accent="rose"],
-.paperback[data-accent="rose"] {
-  --accent-brand: #a06d75;
-  --accent-ink: #76454d;
-  --accent-soft: #f0e3e6;
-  --accent-hover: #f6ecee;
-  --surface-selected: #e6d8dc;
-  --surface-selected-strong: #d8c4ca;
-}
-
-.dark[data-accent="rose"] {
-  --accent-brand: #c7a5ac;
-  --accent-ink: #f0dee1;
-  --accent-soft: #2f2629;
-  --accent-hover: #362b2f;
-  --surface-selected: #34292d;
-  --surface-selected-strong: #42353a;
-}
-
-.light[data-accent="slate"],
-.paperback[data-accent="slate"] {
-  --accent-brand: #5d6878;
-  --accent-ink: #334150;
-  --accent-soft: #e6eaf0;
-  --accent-hover: #eef2f6;
-  --surface-selected: #dde4ea;
-  --surface-selected-strong: #ccd5de;
-}
-
-.dark[data-accent="slate"] {
-  --accent-brand: #91a3bf;
-  --accent-ink: #edf1eb;
-  --accent-soft: #2a3037;
-  --accent-hover: #293138;
-  --surface-selected: #2b3138;
-  --surface-selected-strong: #36404a;
-}
+/* ============================== Auth pages ============================== */
 
 .auth-page {
   --surface-base: #fbfbfc;
@@ -425,7 +425,7 @@
   --surface-elevated: #fffffe;
   --surface-glass: rgba(255, 255, 255, 0.84);
   --surface-glass-border: rgba(195, 204, 216, 0.72);
-  --shadow-soft: 0 10px 28px rgba(26, 33, 45, 0.1);
+  --shadow-soft: 0 10px 28px rgba(26, 33, 45, 0.10);
   --shadow-raised: 0 22px 64px rgba(26, 33, 45, 0.16);
   --background: #eef1f5;
   --foreground: #20251f;
@@ -448,7 +448,7 @@
   --ring: color-mix(in oklab, var(--primary) 74%, white);
   --auth-shell-backdrop: radial-gradient(circle at top, rgba(93, 104, 120, 0.14), transparent 34%), linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, transparent 38%, rgba(93, 104, 120, 0.06) 100%);
   --auth-halo: rgba(93, 104, 120, 0.11);
-  --auth-panel-overlay: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, transparent 18%, transparent 84%, rgba(93, 104, 120, 0.08) 100%);
+  --auth-panel-overlay: linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, transparent 18%, transparent 84%, rgba(93, 104, 120, 0.08) 100%);
   --auth-panel-top-line: rgba(255, 255, 255, 0.76);
   --auth-panel-shadow: 0 24px 90px rgba(26, 33, 45, 0.14);
   color-scheme: light;
@@ -459,7 +459,7 @@
     --surface-base: #1b2128;
     --surface-secondary: #20262e;
     --surface-elevated: #242c34;
-    --surface-glass: rgba(36, 44, 52, 0.9);
+    --surface-glass: rgba(36, 44, 52, 0.90);
     --surface-glass-border: rgba(72, 82, 96, 0.78);
     --shadow-soft: 0 14px 34px rgba(7, 10, 16, 0.34);
     --shadow-raised: 0 26px 72px rgba(7, 10, 16, 0.52);
@@ -485,11 +485,13 @@
     --auth-shell-backdrop: radial-gradient(circle at top, rgba(145, 163, 191, 0.16), transparent 34%), linear-gradient(180deg, rgba(20, 25, 31, 0.36) 0%, transparent 36%, rgba(7, 10, 16, 0.56) 100%);
     --auth-halo: rgba(145, 163, 191, 0.15);
     --auth-panel-overlay: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 18%, transparent 84%, rgba(145, 163, 191, 0.08) 100%);
-    --auth-panel-top-line: rgba(255, 255, 255, 0.2);
+    --auth-panel-top-line: rgba(255, 255, 255, 0.20);
     --auth-panel-shadow: 0 32px 100px rgba(7, 10, 16, 0.46);
     color-scheme: dark;
   }
 }
+
+/* ============================== Base ============================== */
 
 @layer base {
   * {
@@ -510,13 +512,21 @@
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
     background-color: var(--background);
-    background-image: linear-gradient(180deg, color-mix(in oklab, var(--background) 86%, var(--surface-secondary)) 0%, var(--background) 22%, var(--background) 100%);
+    font-feature-settings: "ss01", "cv11";
+    letter-spacing: -0.005em;
   }
 
   ::selection {
-    background: color-mix(in oklab, var(--primary) 24%, transparent);
+    background: color-mix(in oklab, var(--primary) 22%, transparent);
+  }
+
+  /* Things 3-style heading rhythm */
+  h1, h2, h3, h4 {
+    letter-spacing: -0.022em;
   }
 }
+
+/* ============================== Utilities ============================== */
 
 @layer utilities {
   .surface-card {
@@ -527,21 +537,30 @@
 
   .surface-muted {
     @apply rounded-xl;
-    background: color-mix(in oklab, var(--surface-secondary) 80%, var(--surface-elevated));
+    background: var(--paper-sunken);
   }
 
   .page-container {
-    @apply mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-5 pb-12 pt-14 sm:px-7 lg:px-10 lg:pb-12 lg:pt-8;
+    @apply mx-auto flex w-full max-w-[1100px] flex-col gap-6 px-5 pb-12 pt-10 sm:px-7 lg:px-12 lg:pb-12 lg:pt-12;
   }
 
   .eyebrow {
-    @apply text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70;
+    @apply text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80;
+  }
+
+  /* Things 3 view title — large, weighted, slightly tightened */
+  .view-heading {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.028em;
+    line-height: 1.1;
+    color: var(--foreground);
   }
 
   .section-heading {
     font-size: 1.65rem;
     font-weight: 600;
-    letter-spacing: -0.038em;
+    letter-spacing: -0.030em;
     line-height: 1.2;
     color: var(--foreground);
   }
@@ -560,15 +579,35 @@
   }
 
   .surface-empty-state {
-    @apply rounded-[1.15rem] border;
-    min-height: 13rem;
-    border-color: color-mix(in oklab, var(--border) 74%, transparent);
-    background: color-mix(in oklab, var(--secondary) 56%, var(--surface-elevated));
-    box-shadow: var(--shadow-xs);
+    @apply rounded-2xl;
+    min-height: 12rem;
+    background: transparent;
+    box-shadow: none;
   }
 
   .motion-safe-lift {
     will-change: transform;
+  }
+
+  /* Soft strikethrough fade for completed tasks (Phase 2 hook) */
+  .task-row[data-completed="true"] .task-row-title {
+    color: var(--muted-foreground);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+    transition: color var(--motion-base) var(--motion-ease),
+                text-decoration-color var(--motion-base) var(--motion-ease);
+  }
+
+  .task-row .task-row-title {
+    transition: color var(--motion-base) var(--motion-ease),
+                text-decoration-color var(--motion-base) var(--motion-ease);
+  }
+
+  /* Long lists: skip rendering offscreen items without virtualization (Phase 2 hook) */
+  .list-paint-skip > * {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 44px;
   }
 
   .task-detail-scroll {
@@ -596,7 +635,8 @@
   }
 }
 
-/* Task detail dialog — expand-from-list animation */
+/* Legacy task-detail-dialog animation kept while Phase 2 migrates away from
+   modal-based detail panels. Will be removed in Phase 8 cleanup. */
 @keyframes task-detail-enter {
   0% {
     opacity: 0;
@@ -620,11 +660,11 @@
 }
 
 .task-detail-dialog[data-state="open"] {
-  animation: task-detail-enter 360ms cubic-bezier(0.16, 1, 0.3, 1) both !important;
+  animation: task-detail-enter 320ms var(--motion-spring) both !important;
 }
 
 .task-detail-dialog[data-state="closed"] {
-  animation: task-detail-exit 200ms cubic-bezier(0.4, 0, 1, 1) both !important;
+  animation: task-detail-exit 180ms var(--motion-ease) both !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

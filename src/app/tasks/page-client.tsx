@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
+import { addDays, differenceInCalendarDays, parseISO } from "date-fns";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, CheckSquare2, Filter, Plus } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -8,11 +9,11 @@ import { toast } from "sonner";
 
 import { AppShell, useShellActions } from "~/components/app-shell";
 import { EmptyState } from "~/components/app-primitives";
-import { cn } from "~/lib/utils";
 import { useData } from "~/components/data-provider";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
-import { TaskList } from "~/components/task-list";
-import { useCompactMode } from "~/components/compact-mode-provider";
+import { TaskListView } from "~/components/task/task-list-view";
+import { InlineTaskEditor } from "~/components/task/inline-task-editor";
+import { QuickAddInlineComposer, type QuickAddDefaults } from "~/components/task/quick-add";
 import { TaskSelectionBar } from "~/components/task-selection-bar";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -43,6 +44,7 @@ import { useTaskDataset } from "~/hooks/use-task-dataset";
 import { dedupeTasks, useTaskSelectionActions } from "~/hooks/use-task-selection-actions";
 import { mergeBufferedTasks, useTaskTransitionBuffer } from "~/hooks/use-task-transition-buffer";
 import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
+import { getTaskDeadlineDateKey, toDateKeyInTimeZone } from "~/lib/task-deadlines";
 import { normalizeTaskSavedViewLabelIds } from "~/lib/task-labels";
 import {
     PLANNER_DEADLINE_SCOPE_OPTIONS,
@@ -64,20 +66,18 @@ import {
     type TaskViewFilterState,
 } from "~/lib/task-filters";
 import {
-    getSmartViewTasks,
     isTaskDueToday,
     isTaskOverdue,
     type SmartView,
 } from "~/lib/task-views";
+import {
+    getInboxListId,
+    selectThingsView,
+    THINGS_VIEW_LABELS,
+    type ThingsViewKind,
+} from "~/lib/things-views";
 import type { TaskLabel, TaskSavedViewRow } from "~/lib/types";
 import { TaskSavedViewBar } from "./_components/task-saved-view-bar";
-
-const VIEW_OPTIONS: Array<{ value: SmartView; label: string }> = [
-    { value: "today", label: "Today" },
-    { value: "upcoming", label: "Upcoming" },
-    { value: "inbox", label: "No Due Date" },
-    { value: "done", label: "Completed" },
-];
 
 interface PendingTaskLeaveAction {
     run: () => void;
@@ -93,10 +93,48 @@ function isTaskNavigationBlockedTarget(target: EventTarget | null) {
 }
 
 function getRouteView(value: string | null): SmartView {
-    if (value === "upcoming" || value === "inbox" || value === "done") {
+    if (value === "upcoming" || value === "inbox" || value === "done" || value === "anytime") {
         return value;
     }
     return "today";
+}
+
+function getThingsViewKind(view: SmartView): ThingsViewKind {
+    return view === "done" ? "logbook" : view;
+}
+
+function getUpcomingGroupId(task: TaskDatasetRecord, now: Date, timeZone?: string | null) {
+    const deadlineDateKey = getTaskDeadlineDateKey(task, timeZone);
+    if (!deadlineDateKey) return "later";
+
+    const todayKey = toDateKeyInTimeZone(now, timeZone);
+    const diffDays = differenceInCalendarDays(parseISO(`${deadlineDateKey}T00:00:00`), parseISO(`${todayKey}T00:00:00`));
+
+    if (diffDays <= 0) return "today";
+    if (diffDays === 1) return "tomorrow";
+    if (diffDays <= 7) return "this-week";
+    return "later";
+}
+
+function groupUpcomingTasks(tasks: TaskDatasetRecord[], now: Date, timeZone?: string | null) {
+    const groupOrder = [
+        { id: "today", title: "Today" },
+        { id: "tomorrow", title: "Tomorrow" },
+        { id: "this-week", title: "This Week" },
+        { id: "later", title: "Later" },
+    ];
+    const tasksByGroup = new Map<string, TaskDatasetRecord[]>();
+
+    tasks.forEach((task) => {
+        const groupId = getUpcomingGroupId(task, now, timeZone);
+        const current = tasksByGroup.get(groupId) ?? [];
+        current.push(task);
+        tasksByGroup.set(groupId, current);
+    });
+
+    return groupOrder
+        .map((group) => ({ ...group, tasks: tasksByGroup.get(group.id) ?? [] }))
+        .filter((group) => group.tasks.length > 0);
 }
 
 function sortTaskSavedViews(views: TaskSavedViewRow[]) {
@@ -142,7 +180,6 @@ function TasksContent({
     const searchParams = useSearchParams();
     const { enterPrimaryActivity, openQuickAdd, registerPrimaryActivityReset } = useShellActions();
     const { profile } = useData();
-    const { isCompact } = useCompactMode();
     const { userId, tasks, taskLabels, lists, imagesByTodo, loading } = useTaskDataset();
     const { bufferedTasks, queueBufferedTask } = useTaskTransitionBuffer();
     const supabase = useSupabaseBrowserClient();
@@ -161,6 +198,7 @@ function TasksContent({
     const [saveViewName, setSaveViewName] = useState("");
     const [savingView, setSavingView] = useState(false);
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId ?? null);
+    const [fullEditorOpen, setFullEditorOpen] = useState(false);
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [bulkDeletingOpen, setBulkDeletingOpen] = useState(false);
     const [detailDirty, setDetailDirty] = useState(false);
@@ -185,10 +223,15 @@ function TasksContent({
         [currentFilterState, profile?.timezone, tasks],
     );
 
-    const visibleTasks = useMemo(
-        () => getSmartViewTasks(filteredTasks, view, new Date(), profile?.timezone),
-        [filteredTasks, profile?.timezone, view],
-    );
+    const inboxListId = useMemo(() => getInboxListId(lists), [lists]);
+    const visibleTasks = useMemo(() => {
+        const viewKind = getThingsViewKind(view);
+        return selectThingsView(viewKind, filteredTasks, {
+            inboxListId,
+            timeZone: profile?.timezone,
+            now: new Date(),
+        });
+    }, [filteredTasks, inboxListId, profile?.timezone, view]);
     const overdueTasks = useMemo(
         () => visibleTasks.filter((task) => isTaskOverdue(task, new Date(), profile?.timezone)),
         [profile?.timezone, visibleTasks],
@@ -199,12 +242,20 @@ function TasksContent({
     );
     const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
     const defaultListId = useMemo(
-        () => projectFilter !== "all"
-            ? projectFilter
-            : (lists.find((list) => list.name === "Inbox")?.id ?? lists[0]?.id ?? null),
-        [lists, projectFilter],
+        () => {
+            if (projectFilter !== "all") return projectFilter;
+
+            const firstProject = lists.find((list) => list.id !== inboxListId);
+            if (view === "anytime") {
+                return firstProject?.id ?? inboxListId ?? lists[0]?.id ?? null;
+            }
+
+            return inboxListId ?? lists[0]?.id ?? null;
+        },
+        [inboxListId, lists, projectFilter, view],
     );
-    const currentViewLabel = VIEW_OPTIONS.find((option) => option.value === view)?.label ?? "Today";
+    const thingsViewKind = getThingsViewKind(view);
+    const currentViewMeta = THINGS_VIEW_LABELS[thingsViewKind];
     const activeSavedView = useMemo(
         () => activeSavedViewId ? savedViews.find((savedView) => savedView.id === activeSavedViewId) ?? null : null,
         [activeSavedViewId, savedViews],
@@ -445,15 +496,46 @@ function TasksContent({
         [bufferedTasks, view, visibleTasks],
     );
     const hasTodayDisplayTasks = overdueDisplayTasks.length > 0 || dueTodayDisplayTasks.length > 0;
+    const upcomingGroups = useMemo(
+        () => view === "upcoming" ? groupUpcomingTasks(visibleDisplayTasks, new Date(), profile?.timezone) : [],
+        [profile?.timezone, view, visibleDisplayTasks],
+    );
+    const taskCreationDefaults = useMemo<QuickAddDefaults>(() => {
+        const defaults: QuickAddDefaults = {};
+
+        if (defaultListId) {
+            defaults.listId = defaultListId;
+        }
+
+        if (view === "today") {
+            defaults.dueDate = toDateKeyInTimeZone(new Date(), profile?.timezone);
+        } else if (view === "upcoming") {
+            defaults.dueDate = toDateKeyInTimeZone(addDays(new Date(), 1), profile?.timezone);
+        }
+
+        return defaults;
+    }, [defaultListId, profile?.timezone, view]);
+    const inlineComposerPlaceholder = view === "today"
+        ? "Add to Today"
+        : view === "upcoming"
+            ? "Add to Tomorrow"
+            : view === "inbox"
+                ? "Add to Inbox"
+                : "Add a task";
+    const openTaskCreation = useCallback(() => {
+        openQuickAdd(taskCreationDefaults);
+    }, [openQuickAdd, taskCreationDefaults]);
     const currentViewDescription = view === "today"
         ? hasTodayDisplayTasks
-            ? `${overdueDisplayTasks.length} overdue and ${dueTodayDisplayTasks.length} due today.`
+            ? `${overdueDisplayTasks.length} overdue / ${dueTodayDisplayTasks.length} due today`
             : "Nothing due today."
         : view === "upcoming"
-            ? `${visibleDisplayTasks.length} upcoming tasks.`
+            ? `${visibleDisplayTasks.length} upcoming`
             : view === "inbox"
-                ? `${visibleDisplayTasks.length} tasks without a date.`
-                : `${visibleDisplayTasks.length} completed tasks.`;
+                ? `${visibleDisplayTasks.length} in your inbox`
+                : view === "anytime"
+                    ? `${visibleDisplayTasks.length} ready when you are`
+                    : `${visibleDisplayTasks.length} completed`;
     const selectableTasks = useMemo(
         () => view === "today"
             ? dedupeTasks([...overdueDisplayTasks, ...dueTodayDisplayTasks])
@@ -689,6 +771,17 @@ function TasksContent({
         };
     }, [bulkDeletingOpen, requestSelectionModeExit, selectionMode]);
 
+    const renderInlineTaskEditor = useCallback((task: TaskDatasetRecord) => (
+        <InlineTaskEditor
+            task={task}
+            showProject={projectFilter === "all"}
+            onClose={() => setSelectedTaskId(null)}
+            onOpenFullEditor={() => setFullEditorOpen(true)}
+        />
+    ), [projectFilter]);
+
+    const canCreateInCurrentView = view !== "done";
+
     const taskContent = loading ? (
         <div className="px-1 py-6 text-sm text-muted-foreground">Loading tasks...</div>
     ) : view === "today" ? (
@@ -700,37 +793,35 @@ function TasksContent({
                             <h2 className="text-[1.05rem] font-semibold tracking-[-0.025em] text-foreground/80">Overdue</h2>
                             <span className="text-[13px] text-muted-foreground/50">{overdueTasks.length}</span>
                         </div>
-                        <TaskList
+                        <TaskListView
                             tasks={overdueDisplayTasks}
                             lists={lists}
                             showProject
                             selectedTaskId={selectedTaskId}
                             selectedTaskIds={selectedTaskIdSet}
                             selectionMode={selectionMode}
-                            compact={isCompact}
-                            variant="tasks"
                             onSelectionToggle={handleTaskSelection}
                             onSelect={handleTaskSelect}
                             onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
                             emptyMessage="Nothing overdue."
+                            renderInlineDetail={renderInlineTaskEditor}
                         />
                     </div>
                 ) : null}
 
                 <div>
-                    <TaskList
+                    <TaskListView
                         tasks={dueTodayDisplayTasks}
                         lists={lists}
                         showProject
                         selectedTaskId={selectedTaskId}
                         selectedTaskIds={selectedTaskIdSet}
                         selectionMode={selectionMode}
-                        compact={isCompact}
-                        variant="tasks"
                         onSelectionToggle={handleTaskSelection}
                         onSelect={handleTaskSelect}
                         onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
                         emptyMessage="Nothing else due today."
+                        renderInlineDetail={renderInlineTaskEditor}
                     />
                 </div>
             </div>
@@ -739,12 +830,12 @@ function TasksContent({
                 title="No tasks"
                 description="Adjust filters or add one."
                 size="compact"
-                action={
-                    <Button size="sm" onClick={() => openQuickAdd(defaultListId ? { listId: defaultListId } : undefined)}>
+                action={canCreateInCurrentView ? (
+                    <Button size="sm" onClick={openTaskCreation}>
                         <Plus className="h-4 w-4" />
                         Add
                     </Button>
-                }
+                ) : undefined}
             />
         )
     ) : visibleDisplayTasks.length === 0 ? (
@@ -752,26 +843,48 @@ function TasksContent({
             title="No tasks"
             description="Adjust filters or add one."
             size="compact"
-            action={
-                <Button size="sm" onClick={() => openQuickAdd(defaultListId ? { listId: defaultListId } : undefined)}>
+            action={canCreateInCurrentView ? (
+                <Button size="sm" onClick={openTaskCreation}>
                     <Plus className="h-4 w-4" />
                     Add
                 </Button>
-            }
+            ) : undefined}
         />
+    ) : view === "upcoming" ? (
+        <div className="space-y-3">
+            {upcomingGroups.map((group) => (
+                <div key={group.id}>
+                    <div className="flex items-baseline gap-3 px-1 pb-1 pt-3">
+                        <h2 className="text-[1.05rem] font-semibold tracking-[-0.025em] text-foreground/80">{group.title}</h2>
+                        <span className="text-[13px] text-muted-foreground/50">{group.tasks.length}</span>
+                    </div>
+                    <TaskListView
+                        tasks={group.tasks}
+                        lists={lists}
+                        showProject={projectFilter === "all"}
+                        selectedTaskId={selectedTaskId}
+                        selectedTaskIds={selectedTaskIdSet}
+                        selectionMode={selectionMode}
+                        onSelectionToggle={handleTaskSelection}
+                        onSelect={handleTaskSelect}
+                        onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
+                        renderInlineDetail={renderInlineTaskEditor}
+                    />
+                </div>
+            ))}
+        </div>
     ) : (
-        <TaskList
+        <TaskListView
             tasks={visibleDisplayTasks}
             lists={lists}
             showProject={projectFilter === "all"}
             selectedTaskId={selectedTaskId}
             selectedTaskIds={selectedTaskIdSet}
             selectionMode={selectionMode}
-            compact={isCompact}
-            variant="tasks"
             onSelectionToggle={handleTaskSelection}
             onSelect={handleTaskSelect}
             onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
+            renderInlineDetail={renderInlineTaskEditor}
         />
     );
 
@@ -779,10 +892,10 @@ function TasksContent({
         <>
             <div className={selectionMode ? "page-container gap-4 pb-28" : "page-container gap-4"}>
                 <div className="mx-auto w-full max-w-[44rem]">
-                    <header className="flex items-start justify-between gap-4 pb-1">
+                    <header className="flex items-start justify-between gap-4 pb-2">
                         <div>
-                            <h1 className="section-heading">{currentViewLabel}</h1>
-                            <p className="mt-1 text-[13px] text-muted-foreground/60">{currentViewDescription}</p>
+                            <h1 className="view-heading">{currentViewMeta.title}</h1>
+                            <p className="mt-1.5 text-[13px] text-muted-foreground/60">{currentViewDescription}</p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2 pt-1">
                             <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
@@ -887,8 +1000,8 @@ function TasksContent({
                                 <span className="sr-only">{selectionMode ? "Exit selection mode" : "Select tasks"}</span>
                             </Button>
 
-                            {!selectionMode ? (
-                                <Button size="sm" className="rounded-full px-4" onClick={() => openQuickAdd(defaultListId ? { listId: defaultListId } : undefined)}>
+                            {!selectionMode && canCreateInCurrentView ? (
+                                <Button size="sm" className="rounded-full px-4" onClick={openTaskCreation}>
                                     <Plus className="h-4 w-4" />
                                     Add
                                 </Button>
@@ -932,7 +1045,16 @@ function TasksContent({
                 />
 
                 <div className="grid gap-5 lg:flex lg:items-start lg:gap-0">
-                    <div className="mx-auto w-full max-w-[44rem] min-w-0 flex-1">{taskContent}</div>
+                    <div className="mx-auto w-full max-w-[44rem] min-w-0 flex-1">
+                        {taskContent}
+                        {canCreateInCurrentView && !loading && !selectionMode ? (
+                            <QuickAddInlineComposer
+                                className="mt-2"
+                                defaults={taskCreationDefaults}
+                                placeholder={inlineComposerPlaceholder}
+                            />
+                        ) : null}
+                    </div>
                     {userId ? (
                         <TaskDetailPanel
                             task={selectedTask}
@@ -942,18 +1064,18 @@ function TasksContent({
                             previousTask={previousTask}
                             nextTask={nextTask}
                             taskPositionLabel={taskPositionLabel}
-                            open={!selectionMode && !!selectedTask}
+                            open={fullEditorOpen && !selectionMode && !!selectedTask}
                             onOpenChange={(open) => {
                                 if (!open) {
                                     requestTaskLeave(() => {
-                                        setSelectedTaskId(null);
+                                        setFullEditorOpen(false);
                                         setDetailDirty(false);
                                     });
                                 }
                             }}
                             onClose={() => {
                                 requestTaskLeave(() => {
-                                    setSelectedTaskId(null);
+                                    setFullEditorOpen(false);
                                     setDetailDirty(false);
                                 });
                             }}
