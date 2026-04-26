@@ -491,6 +491,31 @@
   }
 }
 
+.auth-page .cl-formButtonPrimary {
+  min-height: 2.75rem;
+  overflow: hidden;
+  background: var(--primary) !important;
+  color: var(--primary-foreground) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+.auth-page .cl-formButtonPrimary::before,
+.auth-page .cl-formButtonPrimary::after {
+  display: none !important;
+}
+
+.auth-page .cl-formButtonPrimary span,
+.auth-page .cl-formButtonPrimary svg {
+  color: inherit !important;
+  opacity: 1 !important;
+}
+
+.auth-page .cl-formButtonPrimary:disabled {
+  background: var(--muted) !important;
+  color: var(--muted-foreground) !important;
+}
+
 /* ============================== Base ============================== */
 
 @layer base {

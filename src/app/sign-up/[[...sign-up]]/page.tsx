@@ -88,12 +88,12 @@ export default function SignUpPage() {
                         <SignUp
                             appearance={{
                                 variables: {
-                                    colorPrimary: "hsl(var(--primary))",
-                                    colorBackground: "hsl(var(--card))",
-                                    colorText: "hsl(var(--foreground))",
-                                    colorTextSecondary: "hsl(var(--muted-foreground))",
-                                    colorInputBackground: "hsl(var(--background))",
-                                    colorInputText: "hsl(var(--foreground))",
+                                    colorPrimary: "var(--primary)",
+                                    colorBackground: "var(--card)",
+                                    colorText: "var(--foreground)",
+                                    colorTextSecondary: "var(--muted-foreground)",
+                                    colorInputBackground: "var(--background)",
+                                    colorInputText: "var(--foreground)",
                                     borderRadius: "1.15rem",
                                     fontFamily: "var(--font-manrope), sans-serif",
                                 },
