@@ -56,6 +56,15 @@ function isMissingProfilesEmailColumnError(error: unknown) {
     return code === "PGRST204" && message.includes("email");
 }
 
+function isDuplicateProfilesUsernameError(error: unknown) {
+    if (!error || typeof error !== "object") return false;
+
+    const code = "code" in error ? String(error.code) : "";
+    const message = "message" in error ? String(error.message) : "";
+
+    return code === "23505" && (message.includes("profiles_username_key") || message.includes("username"));
+}
+
 function cleanProfileText(value?: string | null) {
     const cleaned = value?.trim();
     if (!cleaned) return null;
@@ -76,7 +85,6 @@ function buildClerkProfilePatch(
     const patch: Record<string, string> = { id: userId };
     const username = normalizeClerkUsername(identity?.username);
     const fullName = cleanProfileText(identity?.fullName);
-    const avatarUrl = cleanProfileText(identity?.avatarUrl);
 
     if (username && !currentProfile?.username) {
         patch.username = username;
@@ -84,11 +92,43 @@ function buildClerkProfilePatch(
     if (fullName && !currentProfile?.full_name) {
         patch.full_name = fullName;
     }
-    if (avatarUrl && !currentProfile?.avatar_url) {
-        patch.avatar_url = avatarUrl;
-    }
 
     return patch;
+}
+
+async function upsertProfileWithSafeFallbacks(
+    supabase: SupabaseClient,
+    payload: Record<string, string>,
+) {
+    let nextPayload = { ...payload };
+    let canDropEmail = "email" in nextPayload;
+    let canDropUsername = "username" in nextPayload;
+
+    while (true) {
+        const { error } = await supabase
+            .from("profiles")
+            .upsert(nextPayload, { onConflict: "id" });
+
+        if (!error) return;
+
+        if (canDropEmail && isMissingProfilesEmailColumnError(error)) {
+            const { email: _email, ...payloadWithoutEmail } = nextPayload;
+            void _email;
+            nextPayload = payloadWithoutEmail;
+            canDropEmail = false;
+            continue;
+        }
+
+        if (canDropUsername && isDuplicateProfilesUsernameError(error)) {
+            const { username: _username, ...payloadWithoutUsername } = nextPayload;
+            void _username;
+            nextPayload = payloadWithoutUsername;
+            canDropUsername = false;
+            continue;
+        }
+
+        throw error;
+    }
 }
 
 export async function syncClerkProfileToSupabase(
@@ -100,13 +140,7 @@ export async function syncClerkProfileToSupabase(
     const profilePatch = buildClerkProfilePatch(userId, identity, currentProfile);
     if (Object.keys(profilePatch).length <= 1) return;
 
-    const { error } = await supabase
-        .from("profiles")
-        .upsert(profilePatch, { onConflict: "id" });
-
-    if (error) {
-        throw error;
-    }
+    await upsertProfileWithSafeFallbacks(supabase, profilePatch);
 }
 
 async function ensureProfileRow(
@@ -122,22 +156,7 @@ async function ensureProfileRow(
         ? { ...profilePatch, email: resolvedEmail }
         : profilePatch;
 
-    const { error } = await supabase
-        .from("profiles")
-        .upsert(profilePayloadWithEmail, { onConflict: "id" });
-
-    if (!error) return;
-    if (!isMissingProfilesEmailColumnError(error)) {
-        throw error;
-    }
-
-    const { error: fallbackError } = await supabase
-        .from("profiles")
-        .upsert(profilePatch, { onConflict: "id" });
-
-    if (fallbackError) {
-        throw fallbackError;
-    }
+    await upsertProfileWithSafeFallbacks(supabase, profilePayloadWithEmail);
 }
 
 async function fetchAccessibleLists(supabase: SupabaseClient, userId: string) {
@@ -163,20 +182,19 @@ export async function bootstrapUserWorkspace(
     supabase: SupabaseClient,
     { userId, email, profileIdentity, currentProfile, lists, hasProfile }: BootstrapOptions,
 ) {
-    try {
-        const { error } = await supabase.rpc("ensure_default_inbox");
-        if (!error) {
-            await syncClerkProfileToSupabase(supabase, userId, profileIdentity, currentProfile);
-            return;
-        }
-    } catch {
-        // Fall through to client-side repair.
-    }
-
     if (!hasProfile) {
         await ensureProfileRow(supabase, userId, email, profileIdentity);
     } else {
         await syncClerkProfileToSupabase(supabase, userId, profileIdentity, currentProfile);
+    }
+
+    try {
+        const { error } = await supabase.rpc("ensure_default_inbox");
+        if (!error) {
+            return;
+        }
+    } catch {
+        // Fall through to client-side repair.
     }
 
     let accessibleLists = lists ?? [];

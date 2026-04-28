@@ -128,7 +128,7 @@ export interface QuickAddParseResult {
 
 const ENTITY_TRIGGER_CHARS = new Set(["#", "+"]);
 const PRIORITY_TOKEN_PATTERN = /(^|\s)(p[123])\b/gi;
-const DATE_TOKEN_PATTERN = /(^|\s)(today|tomorrow|tmr)\b/gi;
+const DATE_TOKEN_PATTERN = /(^|\s)(today|tod|tomorrow|tmr)\b/gi;
 const NEXT_WEEKDAY_PATTERN =
     /(^|\s)(next\s+(monday|mon|tuesday|tue|tues|wednesday|wed|thursday|thu|thur|thurs|friday|fri|saturday|sat|sunday|sun))\b/gi;
 const TIME_TOKEN_PATTERN = /(^|\s)(\d{1,2}(?::\d{2})?\s*(?:am|pm)|(?:[01]?\d|2[0-3]):[0-5]\d)\b/gi;
@@ -761,9 +761,10 @@ export function parseQuickAddInput(
             parsedDateValue.setDate(parsedDateValue.getDate() + 1);
         }
 
+        const isTodayToken = dateToken === "today" || dateToken === "tod";
         parsedDate = {
             value: format(parsedDateValue, "yyyy-MM-dd"),
-            label: dateToken === "today" ? "Today" : "Tomorrow",
+            label: isTodayToken ? "Today" : "Tomorrow",
         };
         const start = getTokenStart(matchIndex, leadingWhitespace);
         tokens.push({ kind: "date", start, end: start + rawToken.length });

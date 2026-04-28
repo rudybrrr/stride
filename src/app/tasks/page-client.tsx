@@ -83,12 +83,24 @@ interface PendingTaskLeaveAction {
     run: () => void;
 }
 
+interface TaskLeaveOptions {
+    requireSave?: boolean;
+}
+
 function isTaskNavigationBlockedTarget(target: EventTarget | null) {
     if (!(target instanceof HTMLElement)) return false;
     if (target.isContentEditable) return true;
 
     return Boolean(target.closest(
         "input, textarea, select, [contenteditable='true'], #detailDue, [data-slot='select-trigger'], [data-slot='select-content'], [data-slot='select-item'], [data-slot='popover-content']",
+    ));
+}
+
+function isInlineTaskOutsideClickBlockedTarget(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false;
+
+    return Boolean(target.closest(
+        "[data-inline-task-card='true'], [data-slot='select-content'], [data-slot='select-item'], [data-slot='popover-content'], [data-slot='dialog-content'], [data-slot='calendar'], [role='dialog'], [role='menu'], [role='listbox']",
     ));
 }
 
@@ -202,6 +214,7 @@ function TasksContent({
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [bulkDeletingOpen, setBulkDeletingOpen] = useState(false);
     const [detailDirty, setDetailDirty] = useState(false);
+    const [inlineDetailDirty, setInlineDetailDirty] = useState(false);
     const [pendingTaskLeaveAction, setPendingTaskLeaveAction] = useState<PendingTaskLeaveAction | null>(null);
 
     useEffect(() => {
@@ -595,14 +608,21 @@ function TasksContent({
         setBulkDeletingOpen(false);
     }
 
-    const requestTaskLeave = useCallback((action: () => void) => {
-        if (detailDirty && selectedTaskId) {
+    const taskHasUnsavedEdits = detailDirty || inlineDetailDirty;
+
+    const requestTaskLeave = useCallback((action: () => void, options?: TaskLeaveOptions) => {
+        if (taskHasUnsavedEdits && selectedTaskId) {
+            if (options?.requireSave) {
+                toast.error("Save your task edits before closing.");
+                return;
+            }
+
             setPendingTaskLeaveAction({ run: action });
             return;
         }
 
         action();
-    }, [detailDirty, selectedTaskId]);
+    }, [selectedTaskId, taskHasUnsavedEdits]);
 
     const activateSelectionMode = useCallback(() => {
         if (selectionMode) return;
@@ -616,6 +636,7 @@ function TasksContent({
         const { run } = pendingTaskLeaveAction;
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineDetailDirty(false);
         run();
     }, [pendingTaskLeaveAction]);
 
@@ -636,6 +657,7 @@ function TasksContent({
         requestTaskLeave(() => {
             setSelectedTaskId(null);
             setDetailDirty(false);
+            setInlineDetailDirty(false);
             activateSelectionMode();
         });
     }, [activateSelectionMode, requestSelectionModeExit, requestTaskLeave, selectionMode]);
@@ -645,6 +667,7 @@ function TasksContent({
             requestTaskLeave(() => {
                 setSelectedTaskId(null);
                 setDetailDirty(false);
+                setInlineDetailDirty(false);
                 enterPrimaryActivity("tasks:selection");
                 handleToggleTaskSelection(task, { shiftKey: true, enterSelectionMode: true });
             });
@@ -658,6 +681,7 @@ function TasksContent({
             }
             setSelectedTaskId(nextTaskId);
             setDetailDirty(false);
+            setInlineDetailDirty(false);
         });
     }, [enterPrimaryActivity, handleToggleTaskSelection, requestTaskLeave, selectedTaskId]);
 
@@ -668,6 +692,7 @@ function TasksContent({
             enterPrimaryActivity("tasks:detail");
             setSelectedTaskId(taskId);
             setDetailDirty(false);
+            setInlineDetailDirty(false);
         });
     }, [enterPrimaryActivity, requestTaskLeave, selectedTaskId]);
 
@@ -679,12 +704,14 @@ function TasksContent({
         setBulkDeletingOpen(false);
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineDetailDirty(false);
         handleCancelSelectionMode();
     }), [handleCancelSelectionMode, registerPrimaryActivityReset]);
 
     useEffect(() => registerPrimaryActivityReset("tasks:detail", () => {
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineDetailDirty(false);
         setSelectedTaskId(null);
     }), [registerPrimaryActivityReset]);
 
@@ -700,13 +727,40 @@ function TasksContent({
         if (!selectionMode) return;
         setSelectedTaskId(null);
         setDetailDirty(false);
+        setInlineDetailDirty(false);
     }, [selectionMode]);
 
     useEffect(() => {
         if (selectedTask) return;
         setDetailDirty(false);
+        setInlineDetailDirty(false);
         setPendingTaskLeaveAction(null);
     }, [selectedTask]);
+
+    useEffect(() => {
+        setInlineDetailDirty(false);
+    }, [selectedTaskId]);
+
+    useEffect(() => {
+        if (!selectedTaskId || selectionMode) return;
+
+        const handleClick = (event: MouseEvent) => {
+            if (event.defaultPrevented) return;
+            if (pendingTaskLeaveAction || bulkDeletingOpen || mobileFiltersOpen) return;
+            if (isInlineTaskOutsideClickBlockedTarget(event.target)) return;
+
+            requestTaskLeave(() => {
+                setSelectedTaskId(null);
+                setDetailDirty(false);
+                setInlineDetailDirty(false);
+            }, { requireSave: true });
+        };
+
+        document.addEventListener("click", handleClick);
+        return () => {
+            document.removeEventListener("click", handleClick);
+        };
+    }, [bulkDeletingOpen, mobileFiltersOpen, pendingTaskLeaveAction, requestTaskLeave, selectedTaskId, selectionMode]);
 
     useEffect(() => {
         if (!selectedTask || selectionMode) return;
@@ -715,6 +769,16 @@ function TasksContent({
             if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
             if (pendingTaskLeaveAction || bulkDeletingOpen || mobileFiltersOpen) return;
             if (isTaskNavigationBlockedTarget(event.target)) return;
+
+            if (event.key === "Escape") {
+                event.preventDefault();
+                requestTaskLeave(() => {
+                    setSelectedTaskId(null);
+                    setDetailDirty(false);
+                    setInlineDetailDirty(false);
+                }, { requireSave: true });
+                return;
+            }
 
             if (event.key === "ArrowLeft") {
                 if (!previousTask) return;
@@ -741,6 +805,7 @@ function TasksContent({
         nextTask,
         pendingTaskLeaveAction,
         previousTask,
+        requestTaskLeave,
         selectedTask,
         selectionMode,
     ]);
@@ -768,6 +833,7 @@ function TasksContent({
             showProject={projectFilter === "all"}
             onClose={() => setSelectedTaskId(null)}
             onOpenFullEditor={() => setFullEditorOpen(true)}
+            onDirtyChange={setInlineDetailDirty}
         />
     ), [projectFilter]);
 
@@ -817,18 +883,16 @@ function TasksContent({
                 </div>
             </div>
         ) : (
-            <EmptyState
-                title="No tasks"
-                description="Adjust filters or add one."
-                size="compact"
-            />
+            null
         )
     ) : visibleDisplayTasks.length === 0 ? (
-        <EmptyState
-            title="No tasks"
-            description="Adjust filters or add one."
-            size="compact"
-        />
+        view === "done" ? (
+            <EmptyState
+                title="No completed tasks"
+                description="Completed tasks will appear here."
+                size="compact"
+            />
+        ) : null
     ) : view === "upcoming" ? (
         <div className="space-y-3">
             {upcomingGroups.map((group) => (
@@ -936,7 +1000,7 @@ function TasksContent({
                                         <span className="sr-only">Open filters</span>
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent align="end" className="floating-surface w-[22rem] p-3.5">
+                                <PopoverContent align="end" className="w-[22rem] rounded-[1.15rem] border-border/55 bg-[var(--surface-elevated)] p-2.5 shadow-[var(--shadow-raised)]">
                                     <TasksFilterPanel
                                         lists={lists}
                                         taskLabels={taskLabels}
@@ -1019,14 +1083,14 @@ function TasksContent({
 
                 <div className="grid gap-5 lg:flex lg:items-start lg:gap-0">
                     <div className="mx-auto w-full max-w-[44rem] min-w-0 flex-1">
-                        {taskContent}
                         {canCreateInCurrentView && !loading && !selectionMode ? (
                             <QuickAddInlineComposer
-                                className="mt-2"
+                                className="mb-2"
                                 defaults={taskCreationDefaults}
                                 placeholder={inlineComposerPlaceholder}
                             />
                         ) : null}
+                        {taskContent}
                     </div>
                     {userId ? (
                         <TaskDetailPanel
@@ -1043,13 +1107,15 @@ function TasksContent({
                                     requestTaskLeave(() => {
                                         setFullEditorOpen(false);
                                         setDetailDirty(false);
-                                    });
+                                        setInlineDetailDirty(false);
+                                    }, { requireSave: true });
                                 }
                             }}
                             onClose={() => {
                                 requestTaskLeave(() => {
                                     setFullEditorOpen(false);
                                     setDetailDirty(false);
+                                    setInlineDetailDirty(false);
                                 });
                             }}
                             onNavigateToTask={handleTaskPanelNavigate}
@@ -1058,6 +1124,7 @@ function TasksContent({
                             onDeleted={() => {
                                 setPendingTaskLeaveAction(null);
                                 setDetailDirty(false);
+                                setInlineDetailDirty(false);
                                 setSelectedTaskId(null);
                             }}
                         />
@@ -1162,11 +1229,11 @@ function TasksFilterPanel({
         || selectedLabelIds.length > 0;
 
     return (
-        <div className="space-y-4 p-1">
-            <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Project</p>
+        <div className="space-y-3">
+            <div className="space-y-1.5">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">Project</p>
                 <Select value={projectFilter} onValueChange={onProjectFilterChange}>
-                    <SelectTrigger className="h-9 rounded-lg bg-background">
+                    <SelectTrigger className="h-9 rounded-xl border-border/50 bg-[color:var(--surface-hover)] px-3 text-[13px] shadow-none transition-colors hover:bg-[color:var(--surface-selected)] focus-visible:ring-2">
                         <SelectValue placeholder="All projects" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1180,9 +1247,9 @@ function TasksFilterPanel({
                 </Select>
             </div>
 
-            <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Priority</p>
-                <div className="flex flex-wrap gap-2">
+            <div className="space-y-1.5">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">Priority</p>
+                <div className="flex flex-wrap gap-1.5">
                     {TASK_PRIORITY_FILTER_OPTIONS.map((option) => (
                         <button
                             key={option.value}
@@ -1196,13 +1263,13 @@ function TasksFilterPanel({
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Planning</p>
+            <div className="space-y-1.5">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">Planning</p>
                 <Select value={planningStatusFilter} onValueChange={(value) => {
                     if (!isTaskSavedViewPlanningStatusFilter(value)) return;
                     onPlanningStatusFilterChange(value);
                 }}>
-                    <SelectTrigger className="h-9 rounded-lg bg-background">
+                    <SelectTrigger className="h-9 rounded-xl border-border/50 bg-[color:var(--surface-hover)] px-3 text-[13px] shadow-none transition-colors hover:bg-[color:var(--surface-selected)] focus-visible:ring-2">
                         <SelectValue placeholder="All planning" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1215,13 +1282,13 @@ function TasksFilterPanel({
                 </Select>
             </div>
 
-            <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Deadline</p>
+            <div className="space-y-1.5">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">Deadline</p>
                 <Select value={deadlineScope} onValueChange={(value) => {
                     if (!isTaskSavedViewDeadlineScope(value)) return;
                     onDeadlineScopeChange(value);
                 }}>
-                    <SelectTrigger className="h-9 rounded-lg bg-background">
+                    <SelectTrigger className="h-9 rounded-xl border-border/50 bg-[color:var(--surface-hover)] px-3 text-[13px] shadow-none transition-colors hover:bg-[color:var(--surface-selected)] focus-visible:ring-2">
                         <SelectValue placeholder="All deadlines" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1235,9 +1302,9 @@ function TasksFilterPanel({
             </div>
 
             {taskLabels.length > 0 ? (
-                <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Labels</p>
-                    <div className="flex flex-wrap gap-2">
+                <div className="space-y-1.5">
+                    <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">Labels</p>
+                    <div className="flex flex-wrap gap-1.5">
                         {taskLabels.map((label) => {
                             const active = selectedLabelIds.includes(label.id);
 
@@ -1257,18 +1324,19 @@ function TasksFilterPanel({
                 </div>
             ) : null}
 
-            <div className="space-y-2 border-t border-border/60 pt-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">Saved view</p>
+            <div className="space-y-2 border-t border-border/35 pt-3.5">
+                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/45">Saved view</p>
                 <Input
                     value={saveViewName}
                     onChange={(event) => onChangeSaveViewName(event.target.value)}
                     placeholder="Exam prep, deep work, backlog"
-                    className="h-9 rounded-lg bg-background"
+                    className="h-9 rounded-xl border-border/50 bg-[color:var(--surface-hover)] px-3 text-[13px] shadow-none placeholder:text-muted-foreground/45 focus-visible:ring-2"
                 />
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                     <Button
-                        variant="secondary"
+                        variant="tonal"
                         size="sm"
+                        className="h-8 rounded-full px-3 text-[12px] shadow-none"
                         disabled={savingView}
                         onClick={onSaveCurrentView}
                     >
@@ -1277,6 +1345,7 @@ function TasksFilterPanel({
                     <Button
                         variant="outline"
                         size="sm"
+                        className="h-8 rounded-full border-border/50 bg-[color:var(--surface-hover)] px-3 text-[12px] shadow-none hover:bg-[color:var(--surface-selected)]"
                         disabled={savingView || !canUpdateActiveSavedView}
                         onClick={onUpdateActiveSavedView}
                     >
@@ -1285,6 +1354,7 @@ function TasksFilterPanel({
                     <Button
                         variant="ghost"
                         size="sm"
+                        className="h-8 rounded-full px-3 text-[12px] shadow-none hover:bg-[color:var(--surface-selected)]"
                         disabled={savingView || !canDeleteActiveSavedView}
                         onClick={onDeleteActiveSavedView}
                     >
@@ -1297,7 +1367,7 @@ function TasksFilterPanel({
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9 w-full justify-center rounded-lg"
+                    className="h-9 w-full justify-center rounded-xl border border-transparent text-muted-foreground/70 shadow-none hover:border-border/35 hover:bg-[color:var(--surface-hover)] hover:text-foreground"
                     onClick={onClearFilters}
                 >
                     Clear filters
@@ -1309,6 +1379,6 @@ function TasksFilterPanel({
 
 function cnFilterChip(active: boolean, className?: string) {
     return active
-        ? `inline-flex items-center gap-1.5 rounded-lg border border-primary bg-primary/10 px-3 py-1.5 text-[11px] font-semibold tracking-normal text-primary ${className ?? ""}`.trim()
-        : `inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-[11px] font-medium tracking-normal text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground ${className ?? ""}`.trim();
+        ? `inline-flex h-8 items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 text-[11.5px] font-semibold tracking-normal text-foreground shadow-none transition-colors hover:bg-primary/12 ${className ?? ""}`.trim()
+        : `inline-flex h-8 items-center gap-1.5 rounded-full border border-border/50 bg-[color:var(--surface-hover)] px-3 text-[11.5px] font-medium tracking-normal text-muted-foreground/82 transition-colors hover:border-border/70 hover:bg-[color:var(--surface-selected)] hover:text-foreground ${className ?? ""}`.trim();
 }

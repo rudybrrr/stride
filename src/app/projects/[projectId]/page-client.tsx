@@ -2,7 +2,7 @@
 
 import { DragDropContext, Draggable, Droppable, type DraggableProvidedDragHandleProps, type DropResult } from "@hello-pangea/dnd";
 import { AnimatePresence } from "framer-motion";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarRange, CheckSquare2, Clock3, Filter, FolderKanban, GripVertical, ListTodo, MoreHorizontal, PencilLine, Plus, Rows3, Share2, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -14,6 +14,7 @@ import { useCompactMode } from "~/components/compact-mode-provider";
 import { ProjectDialog } from "~/components/project-dialog";
 import { ProjectMembersDialog } from "~/components/project-members-dialog";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
+import { QuickAddInlineComposer } from "~/components/task/quick-add";
 import { TaskListView } from "~/components/task/task-list-view";
 import { InlineTaskEditor } from "~/components/task/inline-task-editor";
 import { TaskRow } from "~/components/task/task-row";
@@ -103,6 +104,10 @@ interface PendingTaskLeaveAction {
     run: () => void;
 }
 
+interface TaskLeaveOptions {
+    requireSave?: boolean;
+}
+
 function buildAssigneeDirectory(
     membersByListId: Record<string, ProjectMemberProfile[]>,
 ) {
@@ -150,6 +155,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     const [priorityFilter, setPriorityFilter] = useState<PriorityFilterValue>("all");
     const [bulkDeletingOpen, setBulkDeletingOpen] = useState(false);
     const [detailDirty, setDetailDirty] = useState(false);
+    const [inlineDetailDirty, setInlineDetailDirty] = useState(false);
     const [pendingTaskLeaveAction, setPendingTaskLeaveAction] = useState<PendingTaskLeaveAction | null>(null);
     const [createSectionOpen, setCreateSectionOpen] = useState(false);
     const [newSectionName, setNewSectionName] = useState("");
@@ -240,6 +246,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     const projectScheduledState = getProjectScheduledBlockState(projectSummary?.nextScheduledBlock);
     const projectPalette = getProjectColorClasses(project?.color_token);
     const ProjectIcon = getProjectIcon(project?.icon_token);
+    const projectTaskDefaults = useMemo(() => ({ listId: projectId }), [projectId]);
 
     useEffect(() => {
         if (!selectedTaskId) return;
@@ -295,14 +302,21 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
         setBulkDeletingOpen(false);
     }
 
-    const requestTaskLeave = useCallback((action: () => void) => {
-        if (detailDirty && selectedTaskId) {
+    const taskHasUnsavedEdits = detailDirty || inlineDetailDirty;
+
+    const requestTaskLeave = useCallback((action: () => void, options?: TaskLeaveOptions) => {
+        if (taskHasUnsavedEdits && selectedTaskId) {
+            if (options?.requireSave) {
+                toast.error("Save your task edits before closing.");
+                return;
+            }
+
             setPendingTaskLeaveAction({ run: action });
             return;
         }
 
         action();
-    }, [detailDirty, selectedTaskId]);
+    }, [selectedTaskId, taskHasUnsavedEdits]);
 
     const enterSelectionMode = useCallback(() => {
         if (selectionMode) return;
@@ -316,6 +330,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
         const { run } = pendingTaskLeaveAction;
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineDetailDirty(false);
         run();
     }, [pendingTaskLeaveAction]);
 
@@ -336,6 +351,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
         requestTaskLeave(() => {
             setSelectedTaskId(null);
             setDetailDirty(false);
+            setInlineDetailDirty(false);
             enterSelectionMode();
         });
     }, [enterSelectionMode, requestSelectionModeExit, requestTaskLeave, selectionMode]);
@@ -345,6 +361,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
             requestTaskLeave(() => {
                 setSelectedTaskId(null);
                 setDetailDirty(false);
+                setInlineDetailDirty(false);
                 enterPrimaryActivity("project-workspace:selection");
                 handleToggleTaskSelection(task, { shiftKey: true, enterSelectionMode: true });
             });
@@ -358,6 +375,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
             }
             setSelectedTaskId(nextTaskId);
             setDetailDirty(false);
+            setInlineDetailDirty(false);
         });
     }, [enterPrimaryActivity, handleToggleTaskSelection, requestTaskLeave, selectedTaskId]);
 
@@ -408,8 +426,8 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
         const task = projectTasks.find((item) => item.id === result.draggableId);
         if (!task) return;
 
-        if (detailDirty && selectedTaskId === task.id) {
-            toast.error("Save or discard changes before moving this task.");
+        if (taskHasUnsavedEdits && selectedTaskId === task.id) {
+            toast.error("Save changes before moving this task.");
             return;
         }
 
@@ -491,18 +509,20 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
             .finally(() => {
                 removePendingTaskMoveIds(pendingTaskIds);
             });
-    }, [addPendingTaskMoveIds, applyTaskPatch, detailDirty, profile?.timezone, projectTasks, removePendingTaskMoveIds, reorderSections, sections, selectedTaskId, supabase, upsertTask]);
+    }, [addPendingTaskMoveIds, applyTaskPatch, profile?.timezone, projectTasks, removePendingTaskMoveIds, reorderSections, sections, selectedTaskId, supabase, taskHasUnsavedEdits, upsertTask]);
 
     useEffect(() => registerPrimaryActivityReset("project-workspace:selection", () => {
         setBulkDeletingOpen(false);
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineDetailDirty(false);
         handleCancelSelectionMode();
     }), [handleCancelSelectionMode, registerPrimaryActivityReset]);
 
     useEffect(() => registerPrimaryActivityReset("project-workspace:task-detail", () => {
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineDetailDirty(false);
         setSelectedTaskId(null);
     }), [registerPrimaryActivityReset]);
 
@@ -526,6 +546,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
         if (!selectionMode) return;
         setSelectedTaskId(null);
         setDetailDirty(false);
+        setInlineDetailDirty(false);
     }, [selectionMode]);
 
     useEffect(() => {
@@ -549,8 +570,13 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
     useEffect(() => {
         if (selectedTask) return;
         setDetailDirty(false);
+        setInlineDetailDirty(false);
         setPendingTaskLeaveAction(null);
     }, [selectedTask]);
+
+    useEffect(() => {
+        setInlineDetailDirty(false);
+    }, [selectedTaskId]);
 
     useEffect(() => {
         if (!selectionMode) return;
@@ -795,15 +821,6 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                     </div>
                 </div>
 
-                <ProjectWorkspaceSummaryStrip
-                    incompleteCount={projectSummary.incompleteCount}
-                    overdueCount={projectSummary.overdueCount}
-                    needsCoverageCount={needsCoverageCount}
-                    partiallyPlannedCount={projectSummary.partiallyPlannedCount}
-                    scheduledLabel={projectScheduledLabel}
-                    scheduledState={projectScheduledState}
-                />
-
                 <AnimatePresence>
                     {selectionMode ? (
                         <TaskSelectionBar
@@ -883,6 +900,13 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
 
                 <div className="grid gap-5 lg:flex lg:items-start lg:gap-0">
                     <div className="min-w-0 flex-1">
+                        {!loading && !selectionMode && taskFilter !== "done" ? (
+                            <QuickAddInlineComposer
+                                className="mb-3"
+                                defaults={projectTaskDefaults}
+                                placeholder={`Add to ${project.name}`}
+                            />
+                        ) : null}
                         {loading ? (
                             <div className="surface-muted px-4 py-6 text-sm text-muted-foreground">Loading tasks...</div>
                         ) : shouldShowSectionGroups ? (
@@ -1018,6 +1042,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                         task={task}
                                         onClose={() => setSelectedTaskId(null)}
                                         onOpenFullEditor={() => setFullEditorOpen(true)}
+                                        onDirtyChange={setInlineDetailDirty}
                                     />
                                 )}
                             />
@@ -1026,12 +1051,6 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                 title="No tasks"
                                 description={activeFilterCount > 0 ? "Adjust filters or add one." : "Add a task to this project."}
                                 size="compact"
-                                action={(
-                                    <Button size="sm" onClick={() => openQuickAdd({ listId: project.id })}>
-                                        <Plus className="h-4 w-4" />
-                                        Add
-                                    </Button>
-                                )}
                             />
                         )}
                     </div>
@@ -1048,13 +1067,15 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                                     requestTaskLeave(() => {
                                         setFullEditorOpen(false);
                                         setDetailDirty(false);
-                                    });
+                                        setInlineDetailDirty(false);
+                                    }, { requireSave: true });
                                 }
                             }}
                             onClose={() => {
                                 requestTaskLeave(() => {
                                     setFullEditorOpen(false);
                                     setDetailDirty(false);
+                                    setInlineDetailDirty(false);
                                 });
                             }}
                             onDirtyChange={setDetailDirty}
@@ -1062,6 +1083,7 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                             onDeleted={() => {
                                 setPendingTaskLeaveAction(null);
                                 setDetailDirty(false);
+                                setInlineDetailDirty(false);
                                 setSelectedTaskId(null);
                             }}
                         />
@@ -1198,88 +1220,6 @@ function ProjectWorkspaceContent({ projectId }: { projectId: string }) {
                 </DialogContent>
             </Dialog>
         </>
-    );
-}
-
-function ProjectWorkspaceSummaryStrip({
-    incompleteCount,
-    overdueCount,
-    needsCoverageCount,
-    partiallyPlannedCount,
-    scheduledLabel,
-    scheduledState,
-}: {
-    incompleteCount: number;
-    overdueCount: number;
-    needsCoverageCount: number;
-    partiallyPlannedCount: number;
-    scheduledLabel: string | null;
-    scheduledState: "current" | "upcoming" | null;
-}) {
-    return (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <ProjectSummaryCard
-                icon={<ListTodo className="h-4 w-4" />}
-                eyebrow="Open"
-                value={`${incompleteCount}`}
-                note={incompleteCount === 1 ? "1 active task" : `${incompleteCount} active tasks`}
-            />
-            <ProjectSummaryCard
-                icon={<AlertTriangle className="h-4 w-4" />}
-                eyebrow="Overdue"
-                value={`${overdueCount}`}
-                note={overdueCount > 0 ? "Needs attention now" : "Nothing overdue"}
-                tone={overdueCount > 0 ? "danger" : "muted"}
-            />
-            <ProjectSummaryCard
-                icon={<Rows3 className="h-4 w-4" />}
-                eyebrow="Needs Coverage"
-                value={`${needsCoverageCount}`}
-                note={partiallyPlannedCount > 0 ? `${partiallyPlannedCount} partially planned` : "Planning looks clear"}
-                tone={needsCoverageCount > 0 ? "warning" : "muted"}
-            />
-            <ProjectSummaryCard
-                icon={<Clock3 className="h-4 w-4" />}
-                eyebrow="Next Work"
-                value={scheduledLabel ? (scheduledState === "current" ? "In progress" : "Scheduled") : "No block"}
-                note={scheduledLabel ?? "Nothing planned yet"}
-                tone={scheduledState === "current" ? "success" : "muted"}
-            />
-        </div>
-    );
-}
-
-function ProjectSummaryCard({
-    icon,
-    eyebrow,
-    value,
-    note,
-    tone = "muted",
-}: {
-    icon: ReactNode;
-    eyebrow: string;
-    value: string;
-    note: string;
-    tone?: "danger" | "muted" | "success" | "warning";
-}) {
-    return (
-        <div
-            className={cn(
-                "surface-card px-4 py-3",
-                tone === "danger" && "border-destructive/20 bg-destructive/6",
-                tone === "warning" && "border-amber-500/18 bg-amber-500/6",
-                tone === "success" && "border-emerald-500/18 bg-emerald-500/6",
-            )}
-        >
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border/60 bg-background/78 text-foreground">
-                    {icon}
-                </span>
-                {eyebrow}
-            </div>
-            <p className="mt-3 text-[1rem] font-semibold tracking-[-0.03em] text-foreground">{value}</p>
-            <p className="mt-1 text-sm text-muted-foreground">{note}</p>
-        </div>
     );
 }
 

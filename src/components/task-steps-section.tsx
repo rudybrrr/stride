@@ -112,23 +112,17 @@ export function TaskStepsSection({ taskId }: { taskId: string }) {
 
     return (
         <section className="space-y-3 rounded-lg border border-border/65 bg-[color:var(--surface-hover)]/60 p-3">
-            <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold tracking-[-0.02em] text-foreground">Steps</h3>
-                    {totalCount > 0 ? (
-                        <span className="rounded-full border border-border/70 bg-background/70 px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
-                            {completedCount}/{totalCount}
-                        </span>
-                    ) : null}
-                </div>
-            </div>
-
             {loading && steps.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border/70 bg-background/35 px-3 py-3 text-sm text-muted-foreground">
                     Loading steps...
                 </div>
             ) : steps.length > 0 ? (
                 <div className="space-y-2">
+                    {totalCount > 0 ? (
+                        <p className="px-1 font-mono text-[10px] text-muted-foreground/60">
+                            {completedCount}/{totalCount}
+                        </p>
+                    ) : null}
                     {steps.map((step) => {
                         const pending = pendingStepIds.has(step.id);
 

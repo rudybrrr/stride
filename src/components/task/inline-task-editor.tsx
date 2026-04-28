@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, MoreHorizontal, Trash2 } from "lucide-react";
+import { ChevronDown, MoreHorizontal, Save, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -45,6 +45,7 @@ interface InlineTaskEditorProps {
     task: TaskDatasetRecord;
     onClose: () => void;
     onOpenFullEditor?: () => void;
+    onDirtyChange?: (dirty: boolean) => void;
     showProject?: boolean;
 }
 
@@ -63,6 +64,7 @@ export function InlineTaskEditor({
     task,
     onClose,
     onOpenFullEditor,
+    onDirtyChange,
     showProject = false,
 }: InlineTaskEditorProps) {
     const supabase = useSupabaseBrowserClient();
@@ -81,6 +83,19 @@ export function InlineTaskEditor({
     const [listId, setListId] = useState<string>(task.list_id);
     const [saving, setSaving] = useState(false);
     const lastTaskIdRef = useRef(task.id);
+    const normalizedDescription = description.trim();
+    const normalizedTaskDescription = task.description?.trim() ?? "";
+    const descriptionDirty = normalizedDescription !== normalizedTaskDescription;
+
+    useEffect(() => {
+        onDirtyChange?.(descriptionDirty);
+    }, [descriptionDirty, onDirtyChange]);
+
+    useEffect(() => {
+        return () => {
+            onDirtyChange?.(false);
+        };
+    }, [onDirtyChange]);
 
     useEffect(() => {
         if (lastTaskIdRef.current === task.id) return;
@@ -125,13 +140,20 @@ export function InlineTaskEditor({
                 preferredTimeZone: timeZone,
             });
             applyTaskPatch(task.id, updated);
+            return true;
         } catch (err) {
             toast.error("Couldn't save task", {
                 description: err instanceof Error ? err.message : "Unknown error",
             });
+            return false;
         } finally {
             setSaving(false);
         }
+    }
+
+    async function saveDescription() {
+        if (!descriptionDirty) return;
+        await persistField({ description });
     }
 
     async function commitLabels(raw: string) {
@@ -177,18 +199,36 @@ export function InlineTaskEditor({
 
     return (
         <div className="space-y-3">
-            <Textarea
-                placeholder="Notes"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                onBlur={() => {
-                    if ((task.description ?? "") !== description) {
-                        void persistField({ description });
-                    }
-                }}
-                className="min-h-[42px] resize-none border-none bg-transparent px-0 py-0 text-[13.5px] leading-relaxed text-muted-foreground/90 shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/45"
-                rows={1}
-            />
+            <div className="space-y-2">
+                <Textarea
+                    placeholder="Notes"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    onBlur={() => {
+                        if (descriptionDirty) {
+                            void saveDescription();
+                        }
+                    }}
+                    className="min-h-[42px] resize-none border-none bg-transparent px-0 py-0 text-[13.5px] leading-relaxed text-muted-foreground/90 shadow-none focus-visible:ring-0 placeholder:text-muted-foreground/45"
+                    rows={1}
+                />
+                {descriptionDirty ? (
+                    <div className="flex justify-end">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="h-7 gap-1.5 rounded-full px-3 text-[12px]"
+                            disabled={saving}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => void saveDescription()}
+                        >
+                            <Save className="h-3.5 w-3.5" />
+                            {saving ? "Saving..." : "Save notes"}
+                        </Button>
+                    </div>
+                ) : null}
+            </div>
 
             <TaskStepsSection taskId={task.id} />
 

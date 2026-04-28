@@ -309,8 +309,22 @@ function hasMissingSupabaseProfileIdentity(profile: DataProfile | null, identity
     return [
         Boolean(identity.username && !profile.username),
         Boolean(identity.fullName && !profile.full_name),
-        Boolean(identity.avatarUrl && !profile.avatar_url),
     ].some(Boolean);
+}
+
+function getErrorLogDetails(error: unknown) {
+    if (!error || typeof error !== "object") {
+        return error instanceof Error ? error.message : String(error);
+    }
+
+    const details: Record<string, unknown> = {};
+    for (const key of ["name", "message", "code", "details", "hint", "status", "statusCode"]) {
+        if (key in error) {
+            details[key] = (error as Record<string, unknown>)[key];
+        }
+    }
+
+    return Object.keys(details).length > 0 ? details : error;
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
@@ -509,7 +523,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             const nextProfile = await fetchShellData(uid);
             await fetchStatsData(uid, nextProfile?.timezone, nextProfile?.week_starts_on);
         } catch (error) {
-            console.error("Global Data fetch error:", error);
+            console.error("Global Data fetch error:", getErrorLogDetails(error));
         } finally {
             setLoading(false);
         }
@@ -563,7 +577,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
                 const nextProfile = await fetchShellData(userId);
                 await fetchStatsData(userId, nextProfile?.timezone, nextProfile?.week_starts_on);
             } catch (error) {
-                console.error("Global Data refresh error:", error);
+                console.error("Global Data refresh error:", getErrorLogDetails(error));
             }
         }
     }, [fetchShellData, fetchStatsData, userId]);
@@ -599,7 +613,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
         void ensureWorkspaceBootstrap(userId, clerkUserEmail).catch((error) => {
             inboxProvisionAttemptedForRef.current = null;
-            console.error("Workspace bootstrap failed:", error);
+            console.error("Workspace bootstrap failed:", getErrorLogDetails(error));
         });
     }, [clerkUserEmail, ensureWorkspaceBootstrap, lists, loading, profile, userId]);
 
@@ -615,7 +629,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             userId,
             username: clerkProfileIdentity.username,
             fullName: clerkProfileIdentity.fullName,
-            avatarUrl: clerkProfileIdentity.avatarUrl,
         });
 
         if (clerkProfileSyncAttemptedForRef.current === syncKey) return;
@@ -625,7 +638,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
             .then(() => refreshData())
             .catch((error) => {
                 clerkProfileSyncAttemptedForRef.current = null;
-                console.error("Clerk profile sync failed:", error);
+                console.error("Clerk profile sync failed:", getErrorLogDetails(error));
             });
     }, [clerkProfileIdentity, loading, profile, refreshData, supabase, userId]);
 

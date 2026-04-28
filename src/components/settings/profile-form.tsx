@@ -23,6 +23,12 @@ interface ProfileUpdatePayload {
     full_name: string | null;
 }
 
+interface ProfileRollbackPayload {
+    id: string;
+    username: string | null;
+    full_name: string | null;
+}
+
 interface AvatarUpdatePayload {
     id: string;
     avatar_url: string;
@@ -57,6 +63,12 @@ function normalizeUsername(value: string) {
     return value.trim().toLowerCase().replace(/\s+/g, "_");
 }
 
+function cleanProfileText(value?: string | null) {
+    const cleaned = value?.trim();
+    if (!cleaned) return "";
+    return cleaned;
+}
+
 function splitDisplayName(value: string) {
     const parts = value.trim().split(/\s+/).filter(Boolean);
 
@@ -89,29 +101,6 @@ function getClerkErrorMessage(error: unknown) {
     }
 
     return error instanceof Error ? error.message : "Unknown Error";
-}
-
-function isAdditionalVerificationError(error: unknown) {
-    const message = getClerkErrorMessage(error).toLowerCase();
-    if (message.includes("additional verification") || message.includes("reverification")) {
-        return true;
-    }
-
-    if (!error || typeof error !== "object" || !("errors" in error) || !Array.isArray(error.errors)) {
-        return false;
-    }
-
-    return error.errors.some((clerkError: unknown) => {
-        if (!clerkError || typeof clerkError !== "object") return false;
-
-        const code = "code" in clerkError ? clerkError.code : null;
-        if (typeof code === "string" && (code.includes("verification") || code.includes("reauth"))) {
-            return true;
-        }
-
-        const message = "message" in clerkError ? clerkError.message : null;
-        return typeof message === "string" && message.toLowerCase().includes("additional verification");
-    });
 }
 
 function inferAvatarExtension(file: File) {
@@ -177,10 +166,27 @@ export function ProfileForm({ userId }: { userId: string }) {
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
+    const clerkUsername = useMemo(
+        () => normalizeUsername(cleanProfileText(clerkUser?.username)),
+        [clerkUser?.username],
+    );
+    const clerkFullName = useMemo(() => {
+        const fallbackFullName = [clerkUser?.firstName, clerkUser?.lastName]
+            .map((name) => cleanProfileText(name))
+            .filter(Boolean)
+            .join(" ");
+
+        return cleanProfileText(clerkUser?.fullName) || fallbackFullName;
+    }, [clerkUser?.firstName, clerkUser?.fullName, clerkUser?.lastName]);
+    const clerkAvatarUrl = useMemo(
+        () => cleanProfileText(clerkUser?.imageUrl) || null,
+        [clerkUser?.imageUrl],
+    );
+
     useEffect(() => {
-        setUsername(profile?.username ?? "");
-        setFullName(profile?.full_name ?? "");
-        setAvatarPath(profile?.avatar_url ?? null);
+        setUsername(profile?.username ?? clerkUsername);
+        setFullName(profile?.full_name ?? clerkFullName);
+        setAvatarPath(profile?.avatar_url ?? clerkAvatarUrl);
         setDailyGoal(String(profile?.daily_focus_goal_minutes ?? 120));
         setTimeZone(profile?.timezone ?? getBrowserTimeZone());
         const plannerPreferences = getPlannerPreferences(profile);
@@ -188,7 +194,7 @@ export function ProfileForm({ userId }: { userId: string }) {
         setWeekStartsOn(String(plannerPreferences.weekStartsOn));
         setPlannerDayStartHour(String(plannerPreferences.dayStartHour));
         setPlannerDayEndHour(String(plannerPreferences.dayEndHour));
-    }, [profile]);
+    }, [clerkAvatarUrl, clerkFullName, clerkUsername, profile]);
 
     useEffect(() => {
         const startHour = Number.parseInt(plannerDayStartHour, 10);
@@ -237,6 +243,7 @@ export function ProfileForm({ userId }: { userId: string }) {
 
         return initials || "U";
     }, [fullName, username]);
+    const isUsingClerkUsernameFallback = !profile?.username && Boolean(clerkUsername);
 
     async function updateProfile(e: React.FormEvent) {
         e.preventDefault();
@@ -283,21 +290,11 @@ export function ProfileForm({ userId }: { userId: string }) {
                 username: normalizedUsername,
                 full_name: normalizedFullName ? normalizedFullName : null,
             };
-
-            let clerkUpdateNeedsVerification = false;
-            try {
-                await clerkUser.update({
-                    username: normalizedUsername,
-                    firstName,
-                    lastName,
-                });
-            } catch (error: unknown) {
-                if (!isAdditionalVerificationError(error)) {
-                    throw error;
-                }
-
-                clerkUpdateNeedsVerification = true;
-            }
+            const profileRollback: ProfileRollbackPayload = {
+                id: userId,
+                username: profile?.username ?? null,
+                full_name: profile?.full_name ?? null,
+            };
 
             const { error } = await supabase.from("profiles").upsert(profileUpdate, { onConflict: "id" });
             if (error) {
@@ -314,11 +311,25 @@ export function ProfileForm({ userId }: { userId: string }) {
                     throw error;
                 }
             } else {
-                toast.success(
-                    clerkUpdateNeedsVerification
-                        ? "Profile saved in Stride. Clerk needs additional verification before updating account details."
-                        : "Profile updated successfully!",
-                );
+                try {
+                    await clerkUser.update({
+                        username: normalizedUsername,
+                        firstName,
+                        lastName,
+                    });
+                } catch (clerkError) {
+                    const { error: rollbackError } = await supabase
+                        .from("profiles")
+                        .upsert(profileRollback, { onConflict: "id" });
+
+                    if (rollbackError) {
+                        console.warn("Could not roll back Supabase profile after Clerk update failed:", rollbackError.message);
+                    }
+
+                    throw clerkError;
+                }
+
+                toast.success("Profile updated successfully!");
                 void refreshData();
             }
         } catch (error: unknown) {
@@ -568,6 +579,11 @@ export function ProfileForm({ userId }: { userId: string }) {
                                     required
                                 />
                             </div>
+                            {isUsingClerkUsernameFallback ? (
+                                <p className="text-xs leading-5 text-muted-foreground">
+                                    This handle came from Clerk. Save it to claim it in Stride, or choose a different one if it is taken.
+                                </p>
+                            ) : null}
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="fullName" className="text-sm font-medium text-foreground">

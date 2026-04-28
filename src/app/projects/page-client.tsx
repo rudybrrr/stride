@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AlertTriangle, ChevronRight, Clock3, FolderKanban, Plus, Rows3, SlidersHorizontal } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { AppShell } from "~/components/app-shell";
@@ -24,6 +25,7 @@ export default function ProjectsClient() {
 }
 
 function ProjectsContent() {
+    const router = useRouter();
     const { lists, orderedProjectSummaries, loading } = useTaskDataset();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingProject, setEditingProject] = useState<TodoList | null>(null);
@@ -134,7 +136,11 @@ function ProjectsContent() {
                 />
             )}
 
-            <ProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+            <ProjectDialog
+                open={dialogOpen}
+                onOpenChange={setDialogOpen}
+                onSaved={(projectId) => router.push(`/projects/${projectId}`)}
+            />
             {editingProject ? (
                 <ProjectDialog
                     open={!!editingProject}

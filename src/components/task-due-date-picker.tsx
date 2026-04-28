@@ -1,6 +1,6 @@
 "use client";
 
-import { addDays, format, isValid, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
 import { CalendarDays, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -33,6 +33,18 @@ function getSelectedDate(value?: string | null) {
     if (!value) return undefined;
     const parsed = parseISO(value);
     return isValid(parsed) ? parsed : undefined;
+}
+
+function formatSelectedDateLabel(date: Date) {
+    const diff = differenceInCalendarDays(date, new Date());
+
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Tomorrow";
+    if (diff === -1) return "Yesterday";
+    if (diff > 1 && diff < 7) return format(date, "EEEE");
+    if (diff < -1 && diff > -7) return `Last ${format(date, "EEEE")}`;
+
+    return format(date, "MMM d");
 }
 
 export function TaskDueDateMenu({
@@ -218,7 +230,7 @@ export function TaskDueDatePicker({
                         <span className="inline-flex min-w-0 items-center gap-2">
                             <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
                             <span className={cn("truncate", selectedDate ? "text-foreground" : "text-muted-foreground")}>
-                                {selectedDate ? format(selectedDate, "dd MMM yyyy") : placeholder}
+                                {selectedDate ? formatSelectedDateLabel(selectedDate) : placeholder}
                             </span>
                         </span>
                     </button>
@@ -250,7 +262,7 @@ export function TaskDueDatePicker({
                     <span className="inline-flex min-w-0 items-center gap-2">
                         <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <span className={cn("truncate", selectedDate ? "text-foreground" : "text-muted-foreground")}>
-                            {selectedDate ? format(selectedDate, "dd MMM yyyy") : placeholder}
+                            {selectedDate ? formatSelectedDateLabel(selectedDate) : placeholder}
                         </span>
                     </span>
                 </button>

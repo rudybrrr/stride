@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { Bell, CalendarRange, Repeat } from "lucide-react";
 import { memo, type ReactNode } from "react";
 
@@ -59,6 +60,12 @@ export const TaskRow = memo(function TaskRow({
     const visibleLabels = displayLabels.slice(0, 3);
     const remainingLabels = displayLabels.length - visibleLabels.length;
     const reminderActive = !task.is_done && hasTaskReminder(task);
+    const transition = {
+        type: "spring" as const,
+        stiffness: 420,
+        damping: 34,
+        mass: 0.85,
+    };
 
     const handleClick = (event: React.MouseEvent) => {
         if (selectionMode) {
@@ -79,7 +86,9 @@ export const TaskRow = memo(function TaskRow({
     };
 
     return (
-        <div
+        <motion.div
+            layout="position"
+            transition={transition}
             className={cn(
                 "task-row group/task relative transition-[background,border-color,box-shadow] duration-[var(--motion-base)]",
                 hasInlineDetail && "rounded-[0.72rem] border border-border/80 bg-[color:var(--surface-elevated)] shadow-[var(--shadow-xs)]",
@@ -87,6 +96,7 @@ export const TaskRow = memo(function TaskRow({
             )}
             data-completed={task.is_done ? "true" : undefined}
             data-selected={selected ? "true" : undefined}
+            data-inline-task-card={hasInlineDetail ? "true" : undefined}
         >
             <div
                 role="button"
@@ -211,12 +221,23 @@ export const TaskRow = memo(function TaskRow({
                 </div>
             </div>
 
-            {inlineDetail ? (
-                <div className="ml-[calc(18px+1.25rem)] border-t border-border/70 pb-3 pl-0 pr-3 pt-3">
-                    {inlineDetail}
-                </div>
-            ) : null}
-        </div>
+            <AnimatePresence initial={false}>
+                {inlineDetail ? (
+                    <motion.div
+                        key="inline-detail"
+                        initial={{ height: 0, opacity: 0, y: -4 }}
+                        animate={{ height: "auto", opacity: 1, y: 0 }}
+                        exit={{ height: 0, opacity: 0, y: -4 }}
+                        transition={transition}
+                        className="overflow-hidden"
+                    >
+                        <div className="ml-[calc(18px+1.25rem)] border-t border-border/70 pb-3 pl-0 pr-3 pt-3">
+                            {inlineDetail}
+                        </div>
+                    </motion.div>
+                ) : null}
+            </AnimatePresence>
+        </motion.div>
     );
 });
 

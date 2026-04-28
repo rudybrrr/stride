@@ -945,7 +945,7 @@ function AppShellLayout({ children }: { children: ReactNode }) {
                                         ? pathname === "/tasks" && activeSmartView === null
                                         : pathname === "/tasks" && activeSmartView === item.value;
 
-                                    const count = smartViewCounts[item.value];
+                                    const count = item.value === "done" ? null : smartViewCounts[item.value];
 
                                     return (
                                         <button
@@ -1369,7 +1369,11 @@ function AppShellLayout({ children }: { children: ReactNode }) {
                 defaults={quickAddDefaults}
                 onOpenChange={setQuickAddOpen}
             />
-            <ProjectDialog open={projectDialogOpen} onOpenChange={handleProjectDialogOpenChange} />
+            <ProjectDialog
+                open={projectDialogOpen}
+                onOpenChange={handleProjectDialogOpenChange}
+                onSaved={(projectId) => router.push(`/projects/${projectId}`)}
+            />
             {userId && (
                 <SettingsDialog 
                     open={settingsOpen} 

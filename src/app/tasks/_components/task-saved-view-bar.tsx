@@ -12,6 +12,10 @@ import {
     type TaskViewFilterState,
 } from "~/lib/task-filters";
 import type { TaskLabel, TaskSavedViewRow, TodoList } from "~/lib/types";
+import { cn } from "~/lib/utils";
+
+const filterChipClass = "inline-flex h-7 items-center rounded-full border border-border/55 bg-[color:var(--surface-hover)] px-3 text-[11.5px] font-medium text-muted-foreground/90 transition-colors";
+const activeFilterChipClass = "border-primary/20 bg-primary/10 text-foreground";
 
 export function TaskSavedViewBar({
     activeSavedViewId,
@@ -46,14 +50,14 @@ export function TaskSavedViewBar({
     }
 
     return (
-        <div className="surface-card px-3.5 py-3">
-            <div className="space-y-3">
+        <div className="mx-auto w-full max-w-[44rem] space-y-2.5">
+            <div className="space-y-2.5">
                 {savedViews.length > 0 ? (
-                    <div className="space-y-2">
-                        <p className="eyebrow">
+                    <section className="flex flex-col gap-2 rounded-xl border border-border/35 bg-[color:var(--surface-hover)]/45 px-3 py-2.5 sm:flex-row sm:items-center">
+                        <p className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/48">
                             Saved views
                         </p>
-                        <div className="surface-muted flex flex-wrap items-center gap-2 overflow-x-auto px-2.5 py-2">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                             {savedViews.map((view) => {
                                 const active = activeSavedViewId === view.id && activeSavedViewStateApplied;
 
@@ -62,49 +66,54 @@ export function TaskSavedViewBar({
                                         key={view.id}
                                         type="button"
                                         size="xs"
-                                        variant={active ? "tonal" : "ghost"}
+                                        variant="ghost"
                                         onClick={() => onApplySavedView(view.id)}
-                                        className={active ? "h-8 rounded-full px-3.5" : "h-8 rounded-full border border-transparent px-3.5 text-muted-foreground hover:border-border/60 hover:text-foreground"}
+                                        className={cn(
+                                            "h-7 rounded-full border px-3 text-[11.5px] shadow-none",
+                                            active
+                                                ? "border-primary/20 bg-primary/10 text-foreground hover:bg-primary/12"
+                                                : "border-border/45 bg-transparent text-muted-foreground/78 hover:border-border/70 hover:bg-[color:var(--surface-selected)] hover:text-foreground",
+                                        )}
                                     >
                                         <span
-                                            className={active ? "bg-primary-foreground h-1.5 w-1.5 rounded-full" : "bg-border h-1.5 w-1.5 rounded-full"}
+                                            className={active ? "h-1.5 w-1.5 rounded-full bg-primary" : "h-1.5 w-1.5 rounded-full bg-border"}
                                         />
                                         {view.name}
                                     </Button>
                                 );
                             })}
                         </div>
-                    </div>
+                    </section>
                 ) : null}
 
                 {(hasTaskFilters || activeSavedView) ? (
-                    <div className="space-y-2">
-                        <p className="eyebrow">
+                    <section className="flex flex-col gap-2 rounded-xl border border-border/35 bg-[color:var(--surface-hover)]/45 px-3 py-2.5 sm:flex-row sm:items-center">
+                        <p className="w-24 shrink-0 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/48">
                             Active filters
                         </p>
-                        <div className="surface-muted flex flex-wrap items-center gap-2 px-2.5 py-2">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                             {activeSavedView ? (
-                                <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 normal-case tracking-normal">
+                                <Badge variant="secondary" className={cn(filterChipClass, activeFilterChipClass, "normal-case tracking-normal")}>
                                     {activeSavedView.name}
                                 </Badge>
                             ) : null}
                             {currentFilterState.listId !== "all" ? (
-                                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 normal-case tracking-normal">
+                                <Badge variant="outline" className="h-7 rounded-full border-border/55 bg-[color:var(--surface-hover)] px-3 text-[11.5px] font-medium normal-case tracking-normal text-muted-foreground/90">
                                     {listMap.get(currentFilterState.listId)?.name ?? "Project"}
                                 </Badge>
                             ) : null}
                             {currentFilterState.priorityFilter !== "all" ? (
-                                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 normal-case tracking-normal">
+                                <Badge variant="outline" className="h-7 rounded-full border-border/55 bg-[color:var(--surface-hover)] px-3 text-[11.5px] font-medium normal-case tracking-normal text-muted-foreground/90">
                                     {getTaskPriorityFilterLabel(currentFilterState.priorityFilter)}
                                 </Badge>
                             ) : null}
                             {currentFilterState.planningStatusFilter !== "all" ? (
-                                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 normal-case tracking-normal">
+                                <Badge variant="outline" className="h-7 rounded-full border-border/55 bg-[color:var(--surface-hover)] px-3 text-[11.5px] font-medium normal-case tracking-normal text-muted-foreground/90">
                                     {getPlannerPlanningStatusFilterLabel(currentFilterState.planningStatusFilter)}
                                 </Badge>
                             ) : null}
                             {currentFilterState.deadlineScope !== "all" ? (
-                                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 normal-case tracking-normal">
+                                <Badge variant="outline" className="h-7 rounded-full border-border/55 bg-[color:var(--surface-hover)] px-3 text-[11.5px] font-medium normal-case tracking-normal text-muted-foreground/90">
                                     {getPlannerDeadlineScopeLabel(currentFilterState.deadlineScope)}
                                 </Badge>
                             ) : null}
@@ -113,14 +122,14 @@ export function TaskSavedViewBar({
                                 if (!label) return null;
 
                                 return (
-                                    <TaskLabelBadge key={labelId} label={label} className="px-2.5 py-0.5 text-[10px] font-medium tracking-normal" />
+                                    <TaskLabelBadge key={labelId} label={label} className="h-7 px-3 py-0 text-[11px] font-medium tracking-normal" />
                                 );
                             })}
-                            <Button type="button" size="xs" variant="ghost" onClick={onClearFilters} className="h-8 rounded-full px-3.5 text-muted-foreground hover:text-foreground">
+                            <Button type="button" size="xs" variant="ghost" onClick={onClearFilters} className="h-7 rounded-full px-3 text-[11.5px] text-muted-foreground/72 shadow-none hover:bg-[color:var(--surface-selected)] hover:text-foreground">
                                 Clear all
                             </Button>
                         </div>
-                    </div>
+                    </section>
                 ) : null}
             </div>
         </div>

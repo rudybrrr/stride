@@ -100,6 +100,21 @@ describe("quick-add-parser", () => {
         });
     });
 
+    test("parses tod as a today shorthand and strips it from the title", () => {
+        expect(parseQuickAddInput(
+            "Check Imaaoc tod p1",
+            lists,
+            {
+                labels,
+                now: new Date("2026-04-11T08:00:00.000Z"),
+            },
+        )).toMatchObject({
+            title: "Check Imaaoc",
+            dueDate: "2026-04-11",
+            priority: "high",
+        });
+    });
+
     test("parses multi-word project and label tokens against existing data", () => {
         expect(parseQuickAddInput(
             "Plan finals schedule #projects & exams next monday +deep work +urgent",
