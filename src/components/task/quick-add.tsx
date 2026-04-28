@@ -14,6 +14,7 @@ import {
     parseQuickAddInput,
 } from "~/lib/quick-add-parser";
 import { createProject } from "~/lib/project-actions";
+import { ensureDefaultInboxListId, getDefaultInboxListId } from "~/lib/default-inbox";
 import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { createTask, replaceTaskLabels } from "~/lib/task-actions";
 import { getDateInputValue, getTimeInputValue } from "~/lib/task-deadlines";
@@ -64,8 +65,7 @@ export function QuickAddInlineComposer({
     const [saving, setSaving] = useState(false);
 
     const defaultListId = useMemo(() => {
-        const inbox = lists.find((list) => list.name.toLowerCase() === "inbox") ?? lists[0];
-        return defaults?.listId ?? inbox?.id ?? "";
+        return defaults?.listId ?? getDefaultInboxListId(lists);
     }, [defaults?.listId, lists]);
     const defaultDueDate = useMemo(
         () => defaults?.dueDate ? getDateInputValue(defaults.dueDate, profile?.timezone) : "",
@@ -126,8 +126,8 @@ export function QuickAddInlineComposer({
             }
 
             if (!resolvedListId) {
-                toast.error("Choose a project before adding the task.");
-                return;
+                resolvedListId = await ensureDefaultInboxListId(supabase);
+                await refreshData();
             }
 
             const createdTask = await createTask(supabase, {

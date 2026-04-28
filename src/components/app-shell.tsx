@@ -23,7 +23,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
-import { MagicPlus } from "~/components/magic-plus";
 import { ProjectDialog } from "~/components/project-dialog";
 import { QuickAddDialog } from "~/components/quick-add-dialog";
 import type { QuickAddDefaults } from "~/components/task/quick-add";
@@ -1159,8 +1158,6 @@ function AppShellLayout({ children }: { children: ReactNode }) {
             <main className={cn("pt-0 transition-[padding-left,padding-top] duration-200 lg:pt-0", desktopCollapsed ? "lg:pl-[4.25rem]" : "lg:pl-72")}>
                 {children}
             </main>
-
-            {userId ? <MagicPlus /> : null}
 
             {userId ? (
                 <>

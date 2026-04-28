@@ -3,7 +3,7 @@
 import { AnimatePresence } from "framer-motion";
 import { addDays, differenceInCalendarDays, parseISO } from "date-fns";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, CheckSquare2, Filter, Plus } from "lucide-react";
+import { Check, CheckSquare2, Filter } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -178,7 +178,7 @@ function TasksContent({
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
-    const { enterPrimaryActivity, openQuickAdd, registerPrimaryActivityReset } = useShellActions();
+    const { enterPrimaryActivity, registerPrimaryActivityReset } = useShellActions();
     const { profile } = useData();
     const { userId, tasks, taskLabels, lists, imagesByTodo, loading } = useTaskDataset();
     const { bufferedTasks, queueBufferedTask } = useTaskTransitionBuffer();
@@ -244,15 +244,9 @@ function TasksContent({
     const defaultListId = useMemo(
         () => {
             if (projectFilter !== "all") return projectFilter;
-
-            const firstProject = lists.find((list) => list.id !== inboxListId);
-            if (view === "anytime") {
-                return firstProject?.id ?? inboxListId ?? lists[0]?.id ?? null;
-            }
-
-            return inboxListId ?? lists[0]?.id ?? null;
+            return inboxListId;
         },
-        [inboxListId, lists, projectFilter, view],
+        [inboxListId, projectFilter],
     );
     const thingsViewKind = getThingsViewKind(view);
     const currentViewMeta = THINGS_VIEW_LABELS[thingsViewKind];
@@ -522,9 +516,6 @@ function TasksContent({
             : view === "inbox"
                 ? "Add to Inbox"
                 : "Add a task";
-    const openTaskCreation = useCallback(() => {
-        openQuickAdd(taskCreationDefaults);
-    }, [openQuickAdd, taskCreationDefaults]);
     const currentViewDescription = view === "today"
         ? hasTodayDisplayTasks
             ? `${overdueDisplayTasks.length} overdue / ${dueTodayDisplayTasks.length} due today`
@@ -830,12 +821,6 @@ function TasksContent({
                 title="No tasks"
                 description="Adjust filters or add one."
                 size="compact"
-                action={canCreateInCurrentView ? (
-                    <Button size="sm" onClick={openTaskCreation}>
-                        <Plus className="h-4 w-4" />
-                        Add
-                    </Button>
-                ) : undefined}
             />
         )
     ) : visibleDisplayTasks.length === 0 ? (
@@ -843,12 +828,6 @@ function TasksContent({
             title="No tasks"
             description="Adjust filters or add one."
             size="compact"
-            action={canCreateInCurrentView ? (
-                <Button size="sm" onClick={openTaskCreation}>
-                    <Plus className="h-4 w-4" />
-                    Add
-                </Button>
-            ) : undefined}
         />
     ) : view === "upcoming" ? (
         <div className="space-y-3">
@@ -1000,12 +979,6 @@ function TasksContent({
                                 <span className="sr-only">{selectionMode ? "Exit selection mode" : "Select tasks"}</span>
                             </Button>
 
-                            {!selectionMode && canCreateInCurrentView ? (
-                                <Button size="sm" className="rounded-full px-4" onClick={openTaskCreation}>
-                                    <Plus className="h-4 w-4" />
-                                    Add
-                                </Button>
-                            ) : null}
                         </div>
                     </header>
 

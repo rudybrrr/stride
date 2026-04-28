@@ -30,6 +30,7 @@ import {
     getQuickAddActiveSuggestionState,
     parseQuickAddInput,
 } from "~/lib/quick-add-parser";
+import { ensureDefaultInboxListId, getDefaultInboxListId } from "~/lib/default-inbox";
 import { formatTaskLabelInput, parseTaskLabelInput } from "~/lib/task-labels";
 import { getRecurrenceLabel, RECURRENCE_RULE_OPTIONS } from "~/lib/task-recurrence";
 import { calculateTotalSize, MAX_ATTACHMENT_SIZE_BYTES, MAX_ATTACHMENT_SIZE_MB } from "~/lib/task-attachments";
@@ -119,8 +120,7 @@ export function QuickAddDialog({
     const { applyTaskPatch, upsertTask, upsertTaskLabels, taskLabels } = useTaskDataset();
     const supabase = useSupabaseBrowserClient();
     const defaultListId = useMemo(() => {
-        const inbox = lists.find((list) => list.name.toLowerCase() === "inbox") ?? lists[0];
-        return defaults?.listId ?? inbox?.id ?? "";
+        return defaults?.listId ?? getDefaultInboxListId(lists);
     }, [defaults?.listId, lists]);
     const defaultDueDate = useMemo(
         () => defaults?.dueDate ? getDateInputValue(defaults.dueDate) : "",
@@ -298,8 +298,8 @@ export function QuickAddDialog({
             }
 
             if (!resolvedListId) {
-                toast.error("Choose a project before adding the task.");
-                return;
+                resolvedListId = await ensureDefaultInboxListId(supabase);
+                await refreshData();
             }
 
             const createdTask = await createTask(supabase, {
