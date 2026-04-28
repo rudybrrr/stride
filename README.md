@@ -1,80 +1,78 @@
 # Stride
 
-Stride is an execution-first student productivity web app that connects tasks, planning, focus sessions, and a weekly review loop.
+Stride is an execution-first student productivity web app that connects tasks, projects, planning, and focus sessions in one workspace.
 
 Live demo: https://stride.rudhresh.app
 
 ## What Stride Is
 
-Stride is built around one loop:
+Stride is built around one practical loop:
 
 1. Capture tasks quickly.
 2. Clarify what matters now.
 3. Plan realistic focus time.
 4. Execute in focused sessions.
-5. Review what happened and adjust.
+5. Adjust the next plan from what happened.
 
 ## Who It Is For
 
 Students who:
 
-- manage multiple classes/projects and deadlines
-- want one workflow that ties tasks → planned work → focus time → weekly review
+- manage multiple classes, projects, and deadlines
+- want one workflow that ties tasks -> planned work -> focus time
 - prefer a dense, keyboard-friendly workspace over a lightweight checklist
 
 ## Current Product Direction
 
-- Execution-first workflow: tighten the end-to-end loop instead of adding disconnected features.
-- Reliability and consistency: harden optimistic UI + realtime reconciliation and reduce cross-route UX drift.
-- Packaging/distribution is tracked separately (PWA → wrappers) and treated as a follow-up to reliability.
+- Execution-first workflow: tighten the end-to-end task, planning, and focus loop.
+- Reliability and consistency: harden optimistic UI, realtime reconciliation, and cross-route behavior.
+- Packaging/distribution: keep PWA or desktop packaging separate until the core workflow is dependable.
 
-## Implemented Features (Current Repo)
+## Implemented Features
 
-App surfaces (App Router routes):
+Current App Router surfaces:
 
 - Primary: `/tasks`, `/calendar`, `/focus`, `/projects`
-- Secondary: `/progress`, `/community`, `/settings`
+- Secondary: `/settings`
+- Auth: `/login`, `/sign-up`; `/sign-in` redirects to the login experience
 
 Auth and onboarding:
 
-- Email/password login + sign-up via Supabase Auth (`/login`)
-- Server-side route gating for authenticated pages (redirects unauthenticated users to `/login`)
-- Workspace bootstrap for new users (profile + Inbox provisioning)
+- Clerk login and sign-up, mounted through the app routes above
+- Server-side route gating for authenticated pages
+- Clerk identity tokens used with Supabase clients
+- Workspace bootstrap for new users: profile and default Inbox provisioning
 
 Tasks:
 
-- Smart views: Today, Upcoming, No Due Date, Completed
-- Saved task views (filter presets)
-- Quick Add parser (project, deadlines, priority, estimate, reminders, recurrence, labels)
+- Smart views: Inbox, Today, Upcoming, Anytime, Logbook
+- Anytime shows incomplete tasks with no due date
+- Saved task views and filter presets
+- Quick Add parser for projects, deadlines, priority, estimates, reminders, recurrence, and labels
 - Rich task detail: description, labels, priority, deadlines, reminders, recurrence, estimates
-- Steps (checklist), attachments, comments, assignee field (foundation)
-- Bulk selection + task actions
+- Steps, attachments, comments, assignee foundation, and bulk task actions
 
-Calendar / planning:
+Calendar and planning:
 
-- Persisted planned focus blocks (can be task-linked)
-- Planner filtering + saved planner filters
-- Week/month planning surfaces (currently built around persisted blocks + profile preferences)
+- Persisted planned focus blocks, optionally linked to tasks
+- Planner filtering and saved planner filters
+- Week and month planning surfaces built around persisted blocks and profile preferences
 
 Focus:
 
 - Dedicated focus/break timer surface
-- Focus sessions persisted and attributed to task / planned block when available
+- Focus sessions persisted and attributed to task or planned block context when available
 
 Projects:
 
-- Project (list) workspace with list + board views
-- Sections with reorder + cross-section task movement
-- Membership model in the database (shared lists); UI includes collaboration-aware fields (assignees/comments)
-
-Progress / community:
-
-- Weekly review (`/progress`) built from tasks + focus sessions + planned blocks (e.g. slips and estimate signals)
-- Weekly commitments (`/community`) backed by a `weekly_commitments` table; additional community insights are still WIP
+- Project workspace with list and board views
+- Sections with reorder and cross-section task movement
+- Membership model in the database for shared lists
+- Collaboration-aware fields such as assignees and comments
 
 Preferences:
 
-- Synced profile preferences (timezone, planner defaults, week start, compact mode, shell ordering/accent tokens)
+- Synced profile preferences: timezone, planner defaults, week start, compact mode, shell ordering, and accent tokens
 
 ## Gallery
 
@@ -82,30 +80,31 @@ Preferences:
 | :---: | :---: | :---: |
 | ![Tasks](screenshots/tasks.png) | ![Calendar](screenshots/planner.png) | ![Focus](screenshots/focus.png) |
 
-| Progress | Login |
-| :---: | :---: |
-| ![Progress](screenshots/insights.png) | ![Login](screenshots/auth.png) |
+| Login |
+| :---: |
+| ![Login](screenshots/auth.png) |
 
 ## Stack
 
-- Next.js (App Router)
+- Next.js App Router
 - React + TypeScript
 - Tailwind CSS + shadcn/ui + Framer Motion
-- Supabase: Postgres + Auth + Realtime + Storage + RLS (SQL migrations in `supabase/migrations/`)
+- Clerk for authentication and route protection
+- Supabase for Postgres, Realtime, Storage, and RLS-backed data access
 - Observability/analytics: Sentry, Vercel Speed Insights, PostHog (optional)
-- Tests: Vitest (focused on semantic utilities)
+- Tests: Vitest for semantic utilities and focused behavior coverage
 
 ## Setup / Environment
 
-Prereqs: Node.js + npm, a Supabase project, and (optionally) the Supabase CLI.
+Prereqs: Node.js + npm, a Clerk application, a Supabase project, and optionally the Supabase CLI.
 
-1) Install dependencies
+1. Install dependencies
 
 ```bash
 npm install
 ```
 
-2) Configure environment variables
+2. Configure environment variables
 
 Start from `.env.example`:
 
@@ -118,47 +117,57 @@ Required:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="YOUR_SUPABASE_ANON_KEY"
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_YOUR_CLERK_PUBLISHABLE_KEY"
+CLERK_SECRET_KEY="sk_test_YOUR_CLERK_SECRET_KEY"
 ```
 
-Optional (PostHog is only initialized when both are present):
+Optional:
 
 ```bash
 NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN="phc_your_project_token"
 NEXT_PUBLIC_POSTHOG_HOST="https://us.i.posthog.com"
 ```
 
-3) Apply database migrations
+PostHog is only initialized when both optional PostHog variables are present.
+
+3. Apply database migrations
 
 - Source of truth: `supabase/migrations/*.sql`
-- Recommended: `supabase db push` (Supabase CLI), or apply the SQL in timestamp order via the Supabase SQL editor.
+- Recommended: `supabase db push` with the Supabase CLI
+- Alternative: apply the SQL files in timestamp order through the Supabase SQL editor
 
-4) Create required Supabase Storage buckets
+4. Create required Supabase Storage buckets
 
-- `todo-images` (task attachments)
-- `profile-avatars` (profile images)
+- `todo-images` for task attachments
+- `profile-avatars` for profile images
 
-5) Run locally
+5. Run locally
 
 ```bash
 npm run dev
 ```
 
-If your PowerShell policy blocks `npm.ps1`, use `npm.cmd run dev`.
+If PowerShell blocks `npm.ps1`, use:
+
+```bash
+npm.cmd run dev
+```
 
 ## Current Status
 
-Ongoing work. The core routes and database-backed workflow are implemented, but the project is still in active iteration:
+Stride is in active iteration. The core task, project, calendar, and focus workflow is implemented, while reliability and polish remain the main near-term work:
 
-- The data model continues to evolve via SQL migrations.
-- Realtime + optimistic updates are used in several places and are being hardened.
+- The data model continues to evolve through SQL migrations.
+- Optimistic UI and realtime updates are used in several flows and are being hardened.
 - Offline-first behavior is not a product guarantee yet.
+- Distribution packaging is planned separately from the hosted web app.
 
 ## Next Steps
 
-Near-term priorities (see `docs/todo.md` for the full backlog):
+Near-term priorities are tracked in `docs/todo.md`:
 
-- Add interaction-level regression coverage for high-risk flows (planner blocks, quick add, task detail guard, focus persistence).
-- Improve rollback/error handling in optimistic mutations and tighten instrumentation in failure-prone flows.
-- UX consistency + mobile ergonomics pass across Tasks/Projects/Calendar.
-- Deepen shell actions (beyond navigation) without inflating global state.
-- Packaging track (PWA first) only after reliability milestones.
+- Add interaction-level regression coverage for high-risk flows.
+- Improve rollback and error handling in optimistic mutations.
+- Tighten UX consistency and mobile ergonomics across Tasks, Projects, and Calendar.
+- Deepen shell actions without inflating global state.
+- Revisit packaging only after reliability milestones.

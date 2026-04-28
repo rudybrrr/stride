@@ -112,9 +112,9 @@ function FocusMetricTile({
     meta?: string;
 }) {
     return (
-        <div className="px-1 py-2">
+        <div className="rounded-xl border border-border/35 bg-[color:var(--surface-hover)]/45 px-3 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">{label}</p>
-            <p className="mt-1.5 font-mono text-[1.2rem] font-semibold tracking-[-0.05em] text-foreground">
+            <p className="mt-1.5 font-mono text-[1.2rem] font-semibold tracking-normal text-foreground">
                 {value}
             </p>
             {meta ? <p className="mt-0.5 text-[11px] leading-5 text-muted-foreground/60">{meta}</p> : null}
@@ -134,7 +134,7 @@ function FocusSupportStat({
     valueClassName?: string;
 }) {
     return (
-        <div className="px-1 py-2">
+        <div className="px-1.5 py-2">
             <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-muted-foreground/55">{label}</p>
             <p className={cn("mt-1.5 text-[0.95rem] font-semibold tracking-[-0.03em] text-foreground", valueClassName)}>
                 {value}
@@ -158,10 +158,10 @@ function FocusLinkCard({
     return (
         <Link
             href={href}
-            className="group flex items-center justify-between gap-4 rounded-xl px-3 py-2.5 transition-colors duration-150 hover:bg-muted/40"
+            className="group flex items-center justify-between gap-4 rounded-xl px-3 py-2.5 transition-colors duration-150 hover:bg-[color:var(--surface-selected)]"
         >
             <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[0.9rem] border border-border/70 bg-background/80 text-muted-foreground transition-colors group-hover:text-foreground">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/45 bg-[color:var(--surface-hover)] text-muted-foreground transition-colors group-hover:text-foreground">
                     <Icon className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1 space-y-0.5">
@@ -222,7 +222,7 @@ function FocusScopeCard({
     setCurrentBlockId: (value: string | null) => void;
 }) {
     return (
-        <section className="surface-muted rounded-[1.3rem] p-4">
+        <section className="surface-muted rounded-xl p-4">
             <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                     <p className="eyebrow">Session scope</p>
@@ -235,7 +235,7 @@ function FocusScopeCard({
                             : "Leave focus open across every project and task."}
                     </p>
                 </div>
-                <span className="rounded-full border border-border/70 bg-background/76 px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+                <span className="rounded-full border border-border/45 bg-[color:var(--surface-hover)] px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
                     {selectedProjectId ? "Scoped" : "General"}
                 </span>
             </div>
@@ -249,7 +249,7 @@ function FocusScopeCard({
                         setCurrentBlockId(null);
                     }}
                 >
-                    <SelectTrigger className="h-10 border-border/60 bg-background/82 shadow-none">
+                    <SelectTrigger className="h-10 rounded-xl border-border/50 bg-[color:var(--surface-hover)] px-3 text-[13px] shadow-none transition-colors hover:bg-[color:var(--surface-selected)]">
                         <SelectValue placeholder="General" />
                     </SelectTrigger>
                     <SelectContent>
@@ -300,6 +300,7 @@ function FocusPageContent() {
     const focusProgress = clamp((todayFocusMinutes / Math.max(dailyGoal, 1)) * 100, 0, 100);
     const remainingMinutes = Math.max(dailyGoal - todayFocusMinutes, 0);
     const sessionMinutes = mode === "focus" && timeLeft < config.duration ? Math.ceil((config.duration - timeLeft) / 60) : 0;
+    const sessionProgress = clamp(((config.duration - timeLeft) / Math.max(config.duration, 1)) * 100, 0, 100);
     const selectedProjectId = orderedProjectSummaries.some((summary) => summary.list.id === currentListId) ? currentListId : null;
     const selectedProjectName = orderedProjectSummaries.find((summary) => summary.list.id === selectedProjectId)?.list.name ?? null;
     const listMap = useMemo(() => new Map(lists.map((list) => [list.id, list])), [lists]);
@@ -393,14 +394,25 @@ function FocusPageContent() {
     }, [currentBlockId, plannedBlocks, setCurrentBlockId]);
 
     return (
-        <div className="page-container gap-4">
-            <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-3 lg:gap-4">
-                <h1 className="section-heading">Focus</h1>
+        <div className="page-container gap-5">
+            <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-5">
+                <header className="flex flex-col gap-3 border-b border-border/35 pb-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                        <h1 className="view-heading">Focus</h1>
+                        <p className="max-w-[38rem] text-sm leading-6 text-muted-foreground">
+                            A quieter timer surface for the current block, next handoff, and today&apos;s focus goal.
+                        </p>
+                    </div>
+                    <div className={cn("inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em]", tone.status)}>
+                        <Brain className="h-3.5 w-3.5" />
+                        {isActive ? "Running" : mode === "focus" ? "Ready" : "Paused"}
+                    </div>
+                </header>
 
                 <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(20rem,22rem)]">
-                    <section className="surface-card overflow-hidden rounded-[1.6rem]">
-                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-background/68 px-4 py-3.5 sm:px-5">
-                            <div className="flex flex-wrap items-center gap-2">
+                    <section className="surface-card overflow-hidden rounded-xl border border-border/35">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/35 px-4 py-3 sm:px-5">
+                            <div className="inline-flex rounded-xl bg-[color:var(--surface-hover)] p-1">
                                 {MODE_OPTIONS.map((nextMode) => {
                                     const active = mode === nextMode;
                                     return (
@@ -409,10 +421,10 @@ function FocusPageContent() {
                                             type="button"
                                             onClick={() => handleModeChange(nextMode)}
                                             className={cn(
-                                                "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] transition-colors",
+                                                "inline-flex h-8 items-center rounded-lg border px-3 text-[11.5px] font-semibold uppercase tracking-[0.12em] transition-colors",
                                                 active
-                                                    ? tone.pill
-                                                    : "border-border/60 bg-background/78 text-muted-foreground hover:border-ring/25 hover:text-foreground",
+                                                    ? `${tone.pill} shadow-[var(--shadow-xs)]`
+                                                    : "border-transparent bg-transparent text-muted-foreground hover:bg-[color:var(--surface-selected)] hover:text-foreground",
                                             )}
                                         >
                                             {getModeLabel(nextMode)}
@@ -421,19 +433,19 @@ function FocusPageContent() {
                                 })}
                             </div>
 
-                            <span className={cn("inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em]", tone.status)}>
-                                {isActive ? "Running" : mode === "focus" ? "Ready" : "Paused"}
+                            <span className="rounded-full border border-border/45 bg-[color:var(--surface-hover)] px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                {selectedProjectName ?? "General scope"}
                             </span>
                         </div>
 
-                        <div className="px-4 py-5 sm:px-6 sm:py-7">
-                            <div className="mx-auto flex max-w-[35rem] flex-col items-center text-center">
-                                <div className={cn("flex h-14 w-14 items-center justify-center rounded-[1.2rem] border shadow-[var(--shadow-xs)]", tone.iconWrap)}>
+                        <div className="px-4 py-6 sm:px-6 sm:py-8">
+                            <div className="mx-auto flex max-w-[38rem] flex-col items-center text-center">
+                                <div className={cn("flex h-12 w-12 items-center justify-center rounded-xl border", tone.iconWrap)}>
                                     <config.icon className="h-6 w-6" />
                                 </div>
 
                                 <p className="mt-5 eyebrow">Session timer</p>
-                                <h2 className="mt-2 text-balance text-[1.76rem] font-semibold leading-tight tracking-[-0.05em] text-foreground sm:text-[2.18rem]">
+                                <h2 className="mt-2 text-balance text-[1.65rem] font-semibold leading-tight tracking-[-0.035em] text-foreground sm:text-[2rem]">
                                     {getModeHeading(mode)}
                                 </h2>
                                 <p className="mt-2 max-w-[31rem] text-sm leading-6 text-muted-foreground sm:text-[0.95rem]">
@@ -441,30 +453,37 @@ function FocusPageContent() {
                                 </p>
 
                                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-                                    <span className="rounded-full border border-border/65 bg-background/82 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                    <span className="rounded-full border border-border/45 bg-[color:var(--surface-hover)] px-3 py-1.5 text-xs font-medium text-muted-foreground">
                                         {config.label}
                                     </span>
-                                    <span className="rounded-full border border-border/65 bg-background/82 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                                        {selectedProjectName ?? "General scope"}
+                                    <span className={cn("rounded-full border px-3 py-1.5 text-xs font-medium", tone.status)}>
+                                        {isActive ? "In session" : "Ready to start"}
                                     </span>
                                 </div>
 
-                                <p className="mt-6 font-mono text-[clamp(4.7rem,10vw,8.2rem)] leading-none font-light tracking-[-0.05em] tabular-nums text-foreground">
+                                <p className="mt-6 font-mono text-[clamp(4.4rem,10vw,8rem)] leading-none font-light tracking-normal tabular-nums text-foreground">
                                     {formatTime(timeLeft)}
                                 </p>
 
-                                <div className="mt-4 rounded-full border border-border/65 bg-background/74 px-4 py-2 text-sm leading-6 text-muted-foreground">
+                                <div className="mt-5 h-2 w-full max-w-[26rem] overflow-hidden rounded-full bg-[color:var(--surface-hover)]">
+                                    <div
+                                        className="h-full rounded-full bg-primary transition-[width]"
+                                        style={{ width: `${sessionProgress}%` }}
+                                    />
+                                </div>
+
+                                <div className="mt-4 rounded-full border border-border/45 bg-[color:var(--surface-hover)] px-4 py-2 text-sm leading-6 text-muted-foreground">
                                     {selectedProjectId
                                         ? `Scoped to ${selectedProjectName}`
                                         : "Open focus session across all projects"}
                                 </div>
 
-                                <div className="mt-6 flex w-full flex-col gap-2.5 sm:flex-row">
-                                    <Button size="lg" className="w-full sm:min-w-[12rem] sm:flex-1" onClick={toggleTimer}>
+                                <div className="mt-6 flex w-full max-w-[31rem] flex-col gap-2.5 sm:flex-row">
+                                    <Button size="lg" className="w-full rounded-xl shadow-none sm:min-w-[12rem] sm:flex-1" onClick={toggleTimer}>
                                         {isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                                         {isActive ? "Pause" : mode === "focus" ? "Start focus" : "Start break"}
                                     </Button>
-                                    <Button size="lg" variant="outline" className="w-full sm:min-w-[9.5rem] sm:flex-1" onClick={resetTimer}>
+                                    <Button size="lg" variant="outline" className="w-full rounded-xl border-border/50 bg-[color:var(--surface-hover)] shadow-none hover:bg-[color:var(--surface-selected)] sm:min-w-[9.5rem] sm:flex-1" onClick={resetTimer}>
                                         <RotateCcw className="h-4 w-4" />
                                         Reset
                                     </Button>
@@ -501,8 +520,8 @@ function FocusPageContent() {
                             setCurrentBlockId={setCurrentBlockId}
                         />
 
-                        <section className="surface-card overflow-hidden rounded-[1.3rem]">
-                            <div className="flex items-start justify-between gap-3 border-b border-border/70 px-4 py-3.5">
+                        <section className="surface-card overflow-hidden rounded-xl border border-border/35">
+                            <div className="flex items-start justify-between gap-3 border-b border-border/35 px-4 py-3.5">
                                 <div className="space-y-1">
                                     <p className="eyebrow">Planner context</p>
                                     <p className="text-sm font-semibold tracking-[-0.03em] text-foreground">
@@ -516,7 +535,7 @@ function FocusPageContent() {
                                         Keep the active block and the next handoff visible without leaving focus mode.
                                     </p>
                                 </div>
-                                <Button asChild variant="outline" size="xs" className="rounded-full">
+                                <Button asChild variant="outline" size="xs" className="rounded-full border-border/50 bg-[color:var(--surface-hover)] shadow-none hover:bg-[color:var(--surface-selected)]">
                                     <Link href={plannerHref}>
                                         <CalendarRange className="h-3.5 w-3.5" />
                                         Open calendar
@@ -524,7 +543,7 @@ function FocusPageContent() {
                                 </Button>
                             </div>
 
-                            <div className="divide-y divide-border/70">
+                            <div className="divide-y divide-border/35">
                                 <FocusPlannerBlockCard
                                     label="Current block"
                                     emptyLabel="Nothing running now"
@@ -541,7 +560,7 @@ function FocusPageContent() {
                                 />
                             </div>
 
-                            <div className="grid gap-2 border-t border-border/70 p-4 sm:grid-cols-2 xl:grid-cols-1">
+                            <div className="grid gap-2 border-t border-border/35 p-4 sm:grid-cols-2 xl:grid-cols-1">
                                 <FocusSupportStat
                                     label="Planned left"
                                     value={formatMinutesCompact(remainingPlannedMinutes)}
@@ -556,7 +575,7 @@ function FocusPageContent() {
                             </div>
                         </section>
 
-                        <section className="surface-muted rounded-[1.3rem] p-4">
+                        <section className="surface-muted rounded-xl p-4">
                             <div className="flex items-start justify-between gap-4">
                                 <div className="space-y-1">
                                     <p className="eyebrow">Daily goal</p>
@@ -576,7 +595,7 @@ function FocusPageContent() {
                             </div>
 
                             <div className="mt-3 space-y-2">
-                                <div className="h-2 overflow-hidden rounded-full bg-muted">
+                                <div className="h-2 overflow-hidden rounded-full bg-[color:var(--surface-hover)]">
                                     <div
                                         className="h-full rounded-full bg-primary transition-[width]"
                                         style={{ width: `${focusProgress}%` }}
@@ -610,7 +629,7 @@ function FocusPageContent() {
                             </div>
                         </section>
 
-                        <section className="surface-muted rounded-[1.3rem] p-2">
+                        <section className="surface-muted rounded-xl p-2">
                             <div className="px-2 py-1.5">
                                 <p className="eyebrow">Related routes</p>
                             </div>

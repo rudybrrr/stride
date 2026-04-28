@@ -61,11 +61,10 @@ export function selectUpcomingView<T extends TaskRecord>(tasks: T[], ctx: Things
         .sort(compareDeterministicTasks);
 }
 
-export function selectAnytimeView<T extends TaskRecord>(tasks: T[], ctx: ThingsViewContext): T[] {
+export function selectAnytimeView<T extends TaskRecord>(tasks: T[]): T[] {
     return tasks
         .filter((task) =>
             !task.is_done &&
-            task.list_id !== ctx.inboxListId &&
             !hasTaskDeadline(task),
         )
         .sort(compareDeterministicTasks);
@@ -94,7 +93,7 @@ export function selectThingsView<T extends TaskRecord>(
         case "upcoming":
             return selectUpcomingView(tasks, ctx);
         case "anytime":
-            return selectAnytimeView(tasks, ctx);
+            return selectAnytimeView(tasks);
         case "logbook":
             return selectLogbookView(tasks);
         default:
@@ -106,6 +105,6 @@ export const THINGS_VIEW_LABELS: Record<ThingsViewKind, { title: string; subtitl
     inbox: { title: "Inbox", subtitle: "Capture without commitment" },
     today: { title: "Today", subtitle: "Plus what's overdue" },
     upcoming: { title: "Upcoming", subtitle: "Coming up next" },
-    anytime: { title: "Anytime", subtitle: "Pick from your projects" },
+    anytime: { title: "Anytime", subtitle: "Tasks with no due date" },
     logbook: { title: "Logbook", subtitle: "Recently completed" },
 };

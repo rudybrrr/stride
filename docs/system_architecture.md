@@ -1,91 +1,87 @@
 # Stride: System Architecture
 
-Status: Ongoing (the codebase and data model are actively evolving).
+Status: living technical overview. The codebase and data model are still evolving.
 
 ## High-Level Architecture
 
-- Frontend: Next.js App Router application (React + TypeScript).
-- Backend: Supabase (Postgres + Auth + Realtime + Storage) with RLS-heavy authorization.
-- Pattern: client-heavy interaction surfaces with optimistic updates, plus selective realtime subscriptions to reduce stale collaboration state.
+- Frontend: Next.js App Router application with React and TypeScript.
+- Auth: Clerk handles login, sign-up, route protection, and user identity.
+- Data platform: Supabase provides Postgres, Realtime, Storage, and RLS-backed data access.
+- Pattern: client-heavy interaction surfaces with optimistic updates, selective realtime subscriptions, and server-side route gating.
 
 ## Frontend Structure
 
-- Routing: `src/app/*` (App Router).
-  - Auth entry: `/login`
-  - Authenticated surfaces: `/tasks`, `/calendar`, `/focus`, `/projects`, `/progress`, `/community`, `/settings`
-- Layout: `src/app/layout.tsx` mounts global providers and Vercel Speed Insights.
-- “Shell” UI: pages render inside a shared `AppShell` (navigation + global actions).
-- State layers (high-level):
-  - `DataProvider`: authenticated user context + profile/preferences + list membership + top-level stats.
-  - `useTaskDataset` and related hooks: route-focused task/planning datasets, optimistic helpers, and realtime wiring.
-  - `FocusProvider`: timer state + focus session lifecycle persistence.
+- Routing lives under `src/app/*`.
+- Public auth routes: `/login`, `/sign-up`; `/sign-in` redirects to `/login`.
+- Authenticated surfaces: `/tasks`, `/calendar`, `/focus`, `/projects`, `/projects/[projectId]`, `/settings`.
+- `src/app/layout.tsx` mounts global providers, Clerk, Sentry integration, analytics hooks, and Speed Insights.
+- Pages render inside a shared `AppShell` for navigation, command-style actions, user controls, and project access.
 
-## Backend / Data Layer
+Main state layers:
+
+- `DataProvider`: Clerk user context, Supabase-backed profile/preferences, list membership, and top-level counts.
+- `useTaskDataset`: route-focused task/planning datasets, optimistic helpers, and realtime wiring.
+- `FocusProvider`: timer state plus focus session lifecycle persistence.
+
+## Backend and Data Layer
 
 Schema management:
 
-- SQL-first migrations live in `supabase/migrations/*.sql` and define tables, indexes, triggers, and policies.
+- SQL-first migrations live in `supabase/migrations/*.sql`.
+- Migrations define tables, indexes, triggers, helper functions, and RLS policies.
 
-Key entities (representative, not exhaustive):
+Representative entities:
 
-- `profiles`: user preferences (timezone, week start, compact mode, planner defaults, shell ordering/accent tokens).
-- `todo_lists` + `todo_list_members`: projects and membership.
-- `todos`: tasks (including deadlines, recurrence, reminders, estimates, assignee foundation, stable ordering).
-- `todo_sections`: project sections for grouping and board organization.
+- `profiles`: user preferences and profile metadata synced from Clerk where useful.
+- `todo_lists` and `todo_list_members`: projects, Inbox, and membership.
+- `todos`: tasks, deadlines, recurrence, reminders, estimates, assignee foundation, and ordering.
+- `todo_sections`: project sections for list and board organization.
 - `planned_focus_blocks`: calendar/planner blocks.
-- `focus_sessions`: execution sessions (optionally attributed to a task and/or planned block).
+- `focus_sessions`: execution sessions, optionally attributed to a task or planned block.
 - `task_saved_views` and `planner_saved_filters`: persisted filter presets.
-- `task_labels` + `todo_label_links`: labels.
+- `task_labels` and `todo_label_links`: labels.
 - `todo_steps`: checklist steps.
 - `todo_comments`: task comments.
-- `weekly_commitments`: community commitments.
 
 Storage:
 
-- Buckets are expected for attachments and avatars (see `../README.md` for names).
-- Attachment metadata is stored in tables alongside Storage objects.
+- `todo-images` stores task attachments.
+- `profile-avatars` stores profile images.
+- Attachment metadata is tracked in database rows alongside Storage objects.
 
-## Authentication
+## Authentication and Authorization
 
-- Supabase Auth (email/password) is used for login and session management.
-- Server-side gating: authenticated routes call a helper that redirects unauthenticated users to `/login`.
-- Client-side usage: browser Supabase client is used for queries/mutations and realtime subscriptions.
-- New-user bootstrap: on first login, the app attempts to provision a usable workspace (profile + Inbox).
+- Clerk protects authenticated routes through `src/middleware.ts`.
+- `requireUser()` guards server-rendered authenticated pages and redirects unauthenticated users to `/login`.
+- Supabase browser and server clients request Clerk tokens and pass them as access tokens.
+- New-user bootstrap creates or syncs a profile and ensures a default Inbox.
+- Supabase RLS remains the data authorization boundary for database access.
 
-## Analytics / Observability
+## Main App Surfaces
 
-- Sentry is integrated via `@sentry/nextjs` (client/server/edge config + App Router global error boundary).
-- PostHog is initialized client-side only when `NEXT_PUBLIC_POSTHOG_*` env vars are present.
-- Vercel Speed Insights is mounted at the root layout.
-
-## Main App Surfaces / Routing
-
-- `/tasks`: execution workspace (smart views, saved views, bulk actions, deep task detail editing).
-- `/calendar`: planning surface around persisted focus blocks + filters.
-- `/focus`: timer surface that persists focus sessions and ties them back to planned work when possible.
-- `/projects`: per-project workspace with list/board views, sections, and ordering.
-- `/progress`: weekly review computed from tasks + planned blocks + focus sessions.
-- `/community`: commitments and early accountability/peer visibility (additional insights are still WIP).
-- `/settings`: profile + preference management.
+- `/tasks`: execution workspace with smart views, saved views, filters, bulk actions, and task detail editing.
+- `/calendar`: planning surface around persisted focus blocks, planner filters, and scheduling.
+- `/focus`: focus/break timer that can carry task or planned-block context.
+- `/projects`: project overview.
+- `/projects/[projectId]`: per-project workspace with list/board views, sections, comments, attachments, and member-aware task fields.
+- `/settings`: profile, preferences, appearance, and account settings.
 
 ## Realtime, Mutations, and Consistency
 
-- Primary approach: optimistic local patching for responsive UI.
-- Realtime is used selectively (channels scoped by user/list/task) for freshness in collaboration-sensitive areas (e.g., task lists, steps, comments, sections).
-- Fallback behavior is defensive: when a table is missing (e.g., during partial migration rollout), some surfaces treat it as “feature unavailable” instead of hard failing.
+- The UI favors optimistic updates for responsiveness.
+- Realtime is scoped selectively by user, list, task, or related resource to reduce stale collaboration state.
+- Some flows degrade defensively when optional tables or feature data are unavailable during migration rollout.
+- Near-term hardening is focused on rollback behavior, mutation error reporting, and interaction-level regression tests.
 
-## Deployment (Inferred)
+## Observability and Analytics
 
-- The repository is structured like a standard Next.js deployment and includes Vercel Speed Insights integration.
-- The live demo URL is documented in `../README.md`, but the repo does not enforce a single deployment target in code.
+- Sentry is integrated through `@sentry/nextjs`.
+- Vercel Speed Insights is mounted at the root layout.
+- PostHog initializes only when the public PostHog environment variables are configured.
 
-## Limitations / Future Work
+## Current Limitations
 
-Grounded in `./todo.md` (kept intentionally conservative here):
-
-- Add interaction-level regression protection for high-risk flows (planner blocks, quick add, task detail leave-guard, focus persistence).
-- Harden rollback/error paths for optimistic updates and improve failure instrumentation.
-- Reduce UX drift across core routes (especially dense mobile interactions).
-- Deepen shell actions beyond navigation while keeping state manageable.
-- Distribution packaging (PWA → wrappers) is tracked as a parallel path after reliability.
-- Offline-first behavior is not yet a guaranteed contract.
+- Offline-first behavior is not guaranteed.
+- Collaboration foundations exist, but the UI is still being refined.
+- Optimistic updates and realtime reconciliation need more regression coverage.
+- Packaging and desktop distribution are tracked separately in `local-desktop-plan.md`.
