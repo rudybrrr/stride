@@ -43,6 +43,8 @@ import type { TaskDatasetRecord } from "~/hooks/use-task-dataset";
 import { useTaskDataset } from "~/hooks/use-task-dataset";
 import { dedupeTasks, useTaskSelectionActions } from "~/hooks/use-task-selection-actions";
 import { mergeBufferedTasks, useTaskTransitionBuffer } from "~/hooks/use-task-transition-buffer";
+import { normalizeDayOverviewPayload, type DayOverviewPayload } from "~/lib/day-overview";
+import { formatBlockTimeRange, getDurationMinutes } from "~/lib/planning";
 import { useSupabaseBrowserClient } from "~/lib/supabase/browser";
 import { getTaskDeadlineDateKey, toDateKeyInTimeZone } from "~/lib/task-deadlines";
 import { normalizeTaskSavedViewLabelIds } from "~/lib/task-labels";
@@ -66,6 +68,7 @@ import {
     type TaskViewFilterState,
 } from "~/lib/task-filters";
 import {
+    formatTaskDueLabel,
     isTaskDueToday,
     isTaskOverdue,
     type SmartView,
@@ -77,6 +80,7 @@ import {
     type ThingsViewKind,
 } from "~/lib/things-views";
 import type { TaskLabel, TaskSavedViewRow } from "~/lib/types";
+import { AiDayOverviewCard } from "./_components/ai-day-overview-card";
 import { TaskSavedViewBar } from "./_components/task-saved-view-bar";
 
 interface PendingTaskLeaveAction {
@@ -191,8 +195,8 @@ function TasksContent({
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { enterPrimaryActivity, registerPrimaryActivityReset } = useShellActions();
-    const { profile } = useData();
-    const { userId, tasks, taskLabels, lists, imagesByTodo, loading } = useTaskDataset();
+    const { profile, stats } = useData();
+    const { userId, tasks, taskLabels, lists, imagesByTodo, plannedBlocks, todayFocusMinutes, loading } = useTaskDataset();
     const { bufferedTasks, queueBufferedTask } = useTaskTransitionBuffer();
     const supabase = useSupabaseBrowserClient();
 
@@ -231,6 +235,7 @@ function TasksContent({
     }), [deadlineScope, planningStatusFilter, priorityFilter, projectFilter, selectedLabelIds, view]);
     const labelMap = useMemo(() => new Map(taskLabels.map((label) => [label.id, label])), [taskLabels]);
     const listMap = useMemo(() => new Map(lists.map((list) => [list.id, list])), [lists]);
+    const taskMap = useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
     const filteredTasks = useMemo(
         () => applyTaskViewFilters(tasks, currentFilterState, profile?.timezone),
         [currentFilterState, profile?.timezone, tasks],
@@ -503,6 +508,93 @@ function TasksContent({
         [bufferedTasks, view, visibleTasks],
     );
     const hasTodayDisplayTasks = overdueDisplayTasks.length > 0 || dueTodayDisplayTasks.length > 0;
+    const todayDateKey = useMemo(
+        () => toDateKeyInTimeZone(new Date(), profile?.timezone),
+        [profile?.timezone],
+    );
+    const dayOverviewPayload = useMemo<DayOverviewPayload | null>(() => {
+        if (view !== "today" || loading) return null;
+
+        const now = new Date();
+        const overviewTasks: DayOverviewPayload["tasks"] = [
+            ...overdueDisplayTasks.map((task) => ({
+                title: task.title,
+                timing: "overdue" as const,
+                description: task.description ?? null,
+                projectName: listMap.get(task.list_id)?.name ?? null,
+                priority: task.priority ?? null,
+                dueLabel: formatTaskDueLabel(task, now, profile?.timezone),
+                labels: task.labels.map((label) => label.name),
+                estimatedMinutes: task.estimated_minutes ?? null,
+                plannedMinutes: task.planned_minutes,
+                remainingEstimatedMinutes: task.remaining_estimated_minutes,
+                planningStatus: task.planning_status,
+            })),
+            ...dueTodayDisplayTasks.map((task) => ({
+                title: task.title,
+                timing: "due_today" as const,
+                description: task.description ?? null,
+                projectName: listMap.get(task.list_id)?.name ?? null,
+                priority: task.priority ?? null,
+                dueLabel: formatTaskDueLabel(task, now, profile?.timezone),
+                labels: task.labels.map((label) => label.name),
+                estimatedMinutes: task.estimated_minutes ?? null,
+                plannedMinutes: task.planned_minutes,
+                remainingEstimatedMinutes: task.remaining_estimated_minutes,
+                planningStatus: task.planning_status,
+            })),
+        ];
+        const overviewBlocks = plannedBlocks
+            .filter((block) => {
+                if (projectFilter !== "all" && block.list_id !== projectFilter) return false;
+                return toDateKeyInTimeZone(block.scheduled_start, profile?.timezone) === todayDateKey;
+            })
+            .sort((a, b) => a.scheduled_start.localeCompare(b.scheduled_start))
+            .map((block) => {
+                const linkedTask = block.todo_id ? taskMap.get(block.todo_id) ?? null : null;
+
+                return {
+                    title: block.title,
+                    projectName: listMap.get(block.list_id)?.name ?? null,
+                    taskTitle: linkedTask?.title ?? null,
+                    timeRange: formatBlockTimeRange(block.scheduled_start, block.scheduled_end),
+                    durationMinutes: getDurationMinutes(block.scheduled_start, block.scheduled_end),
+                };
+            });
+
+        return normalizeDayOverviewPayload({
+            todayDate: todayDateKey,
+            timezone: profile?.timezone ?? null,
+            counts: {
+                overdue: overdueDisplayTasks.length,
+                dueToday: dueTodayDisplayTasks.length,
+                totalVisible: overdueDisplayTasks.length + dueTodayDisplayTasks.length,
+            },
+            focus: {
+                todayMinutes: todayFocusMinutes,
+                dailyGoalMinutes: profile?.daily_focus_goal_minutes ?? 120,
+                streak: stats?.streak ?? 0,
+                averageSession: stats?.avgSession ?? null,
+            },
+            tasks: overviewTasks,
+            plannedBlocks: overviewBlocks,
+        });
+    }, [
+        dueTodayDisplayTasks,
+        listMap,
+        loading,
+        overdueDisplayTasks,
+        plannedBlocks,
+        profile?.daily_focus_goal_minutes,
+        profile?.timezone,
+        projectFilter,
+        stats?.avgSession,
+        stats?.streak,
+        taskMap,
+        todayDateKey,
+        todayFocusMinutes,
+        view,
+    ]);
     const upcomingGroups = useMemo(
         () => view === "upcoming" ? groupUpcomingTasks(visibleDisplayTasks, new Date(), profile?.timezone) : [],
         [profile?.timezone, view, visibleDisplayTasks],
@@ -867,6 +959,12 @@ function TasksContent({
                 ) : null}
 
                 <div>
+                    {dueTodayDisplayTasks.length > 0 ? (
+                        <div className="flex items-baseline gap-3 px-1 pb-1 pt-5">
+                            <h2 className="text-[1.05rem] font-semibold tracking-[-0.025em] text-foreground/80">Today</h2>
+                            <span className="text-[13px] text-muted-foreground/50">{dueTodayTasks.length}</span>
+                        </div>
+                    ) : null}
                     <TaskListView
                         tasks={dueTodayDisplayTasks}
                         lists={lists}
@@ -1083,6 +1181,9 @@ function TasksContent({
 
                 <div className="grid gap-5 lg:flex lg:items-start lg:gap-0">
                     <div className="mx-auto w-full max-w-[44rem] min-w-0 flex-1">
+                        {view === "today" ? (
+                            <AiDayOverviewCard payload={dayOverviewPayload} />
+                        ) : null}
                         {canCreateInCurrentView && !loading && !selectionMode ? (
                             <QuickAddInlineComposer
                                 className="mb-2"

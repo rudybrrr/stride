@@ -9,6 +9,8 @@ export const env = createEnv({
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]),
     CLERK_SECRET_KEY: z.string().min(1),
+    OPENAI_API_KEY: z.string().min(1).optional(),
+    OPENAI_DAY_OVERVIEW_MODEL: z.string().min(1).optional(),
   },
 
   /**
@@ -31,6 +33,8 @@ export const env = createEnv({
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     CLERK_SECRET_KEY: process.env.CLERK_SECRET_KEY,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_DAY_OVERVIEW_MODEL: process.env.OPENAI_DAY_OVERVIEW_MODEL,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,

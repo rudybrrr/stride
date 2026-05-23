@@ -46,6 +46,7 @@ Auth and onboarding:
 Tasks:
 
 - Smart views: Inbox, Today, Upcoming, Anytime, Logbook
+- AI Day Overview on Today, generated server-side from visible tasks, descriptions, planning, and focus context
 - Anytime shows incomplete tasks with no due date
 - Saved task views and filter presets
 - Quick Add parser for projects, deadlines, priority, estimates, reminders, recurrence, and labels
@@ -91,8 +92,11 @@ Preferences:
 - Tailwind CSS + shadcn/ui + Framer Motion
 - Clerk for authentication and route protection
 - Supabase for Postgres, Realtime, Storage, and RLS-backed data access
+- OpenAI Responses API for the AI Day Overview
 - Observability/analytics: Sentry, Vercel Speed Insights, PostHog (optional)
 - Tests: Vitest for semantic utilities and focused behavior coverage
+
+> Note that the OpenAI env variables have not been created in Vercel deployment. 
 
 ## Setup / Environment
 
@@ -124,10 +128,13 @@ CLERK_SECRET_KEY="sk_test_YOUR_CLERK_SECRET_KEY"
 Optional:
 
 ```bash
+OPENAI_API_KEY="your_openai_key"
+OPENAI_DAY_OVERVIEW_MODEL="gpt-5.5"
 NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN="phc_your_project_token"
 NEXT_PUBLIC_POSTHOG_HOST="https://us.i.posthog.com"
 ```
 
+`OPENAI_API_KEY` enables the AI Day Overview card on Today. `OPENAI_DAY_OVERVIEW_MODEL` defaults to `gpt-5.5` when omitted.
 PostHog is only initialized when both optional PostHog variables are present.
 
 3. Apply database migrations
