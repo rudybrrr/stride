@@ -20,6 +20,7 @@ interface TaskListViewProps {
     onSelectionToggle?: (task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => void;
     showProject?: boolean;
     emptyMessage?: string;
+    renderTitleSlot?: (task: TaskDatasetRecord) => ReactNode;
     renderInlineDetail?: (task: TaskDatasetRecord) => ReactNode;
 }
 
@@ -46,6 +47,7 @@ export function TaskListView({
     onSelectionToggle,
     showProject = false,
     emptyMessage = "No tasks here yet.",
+    renderTitleSlot,
     renderInlineDetail,
 }: TaskListViewProps) {
     const { profile } = useData();
@@ -77,6 +79,7 @@ export function TaskListView({
                     ? assigneeDirectory.get(`${task.list_id}:${task.assignee_user_id}`) ?? null
                     : null;
                 const isSelected = task.id === selectedTaskId;
+                const titleSlot = isSelected && renderTitleSlot ? renderTitleSlot(task) : null;
                 const inlineDetail = isSelected && renderInlineDetail ? renderInlineDetail(task) : null;
 
                 return (
@@ -93,6 +96,7 @@ export function TaskListView({
                         onSelect={onSelect}
                         onToggle={onToggle}
                         onSelectionToggle={onSelectionToggle}
+                        titleSlot={titleSlot}
                         inlineDetail={inlineDetail}
                     />
                 );

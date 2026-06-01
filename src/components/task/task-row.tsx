@@ -33,6 +33,7 @@ export interface TaskRowProps {
     onSelect?: (task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => void;
     onToggle: (task: TaskDatasetRecord, nextIsDone: boolean) => void;
     onSelectionToggle?: (task: TaskDatasetRecord, options?: { shiftKey?: boolean }) => void;
+    titleSlot?: ReactNode;
     inlineDetail?: ReactNode;
 }
 
@@ -49,6 +50,7 @@ export const TaskRow = memo(function TaskRow({
     onSelect,
     onToggle,
     onSelectionToggle,
+    titleSlot,
     inlineDetail,
 }: TaskRowProps) {
     const now = new Date();
@@ -60,6 +62,7 @@ export const TaskRow = memo(function TaskRow({
     const visibleLabels = displayLabels.slice(0, 3);
     const remainingLabels = displayLabels.length - visibleLabels.length;
     const reminderActive = !task.is_done && hasTaskReminder(task);
+    const showDescriptionPreview = Boolean(task.description && !hasInlineDetail);
     const transition = {
         type: "spring" as const,
         stiffness: 420,
@@ -127,14 +130,16 @@ export const TaskRow = memo(function TaskRow({
 
                 <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-baseline gap-2">
-                        <span
-                            className={cn(
-                                "task-row-title min-w-0 flex-1 truncate text-[14px] leading-snug tracking-[-0.012em]",
-                                "text-foreground",
-                            )}
-                        >
-                            {task.title}
-                        </span>
+                        {titleSlot ?? (
+                            <span
+                                className={cn(
+                                    "task-row-title min-w-0 flex-1 truncate text-[14px] leading-snug tracking-[-0.012em]",
+                                    "text-foreground",
+                                )}
+                            >
+                                {task.title}
+                            </span>
+                        )}
 
                         {dueLabel ? (
                             <span
@@ -148,7 +153,7 @@ export const TaskRow = memo(function TaskRow({
                         ) : null}
                     </div>
 
-                    {(task.description ||
+                    {(showDescriptionPreview ||
                         showProject ||
                         displayLabels.length > 0 ||
                         task.priority ||
@@ -156,7 +161,7 @@ export const TaskRow = memo(function TaskRow({
                         reminderActive ||
                         assignee) ? (
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-                            {task.description ? (
+                            {showDescriptionPreview ? (
                                 <span className="line-clamp-1 max-w-full text-[12px] leading-tight text-muted-foreground/65">
                                     {task.description}
                                 </span>

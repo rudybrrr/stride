@@ -49,6 +49,11 @@ interface InlineTaskEditorProps {
     showProject?: boolean;
 }
 
+interface InlineTaskTitleEditorProps {
+    task: TaskDatasetRecord;
+    onDirtyChange?: (dirty: boolean) => void;
+}
+
 const PRIORITY_OPTIONS: Array<{
     value: "high" | "medium" | "low" | "";
     label: string;
@@ -59,6 +64,102 @@ const PRIORITY_OPTIONS: Array<{
     { value: "low", label: "P3", swatch: "var(--priority-p3)" },
     { value: "", label: "-", swatch: "transparent" },
 ];
+
+export function InlineTaskTitleEditor({
+    task,
+    onDirtyChange,
+}: InlineTaskTitleEditorProps) {
+    const supabase = useSupabaseBrowserClient();
+    const { profile } = useData();
+    const { applyTaskPatch } = useTaskDataset();
+    const timeZone = profile?.timezone ?? null;
+
+    const [title, setTitle] = useState(task.title);
+    const [saving, setSaving] = useState(false);
+    const lastTaskIdRef = useRef(task.id);
+    const normalizedTitle = title.trim();
+    const normalizedTaskTitle = task.title.trim();
+    const titleDirty = normalizedTitle !== normalizedTaskTitle;
+
+    useEffect(() => {
+        onDirtyChange?.(titleDirty);
+    }, [onDirtyChange, titleDirty]);
+
+    useEffect(() => {
+        return () => {
+            onDirtyChange?.(false);
+        };
+    }, [onDirtyChange]);
+
+    useEffect(() => {
+        if (lastTaskIdRef.current === task.id) return;
+        lastTaskIdRef.current = task.id;
+        setTitle(task.title);
+    }, [task.id, task.title]);
+
+    async function saveTitle() {
+        if (!titleDirty) return;
+        if (!normalizedTitle) {
+            toast.error("Task title is required");
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const updated = await updateTask(supabase, {
+                id: task.id,
+                title: normalizedTitle,
+                description: task.description ?? "",
+                dueDate: getDateInputValue(task, timeZone) || null,
+                dueTime: getTimeInputValue(task, timeZone) || null,
+                reminderOffsetMinutes: task.reminder_offset_minutes ?? null,
+                recurrenceRule: task.recurrence_rule ?? null,
+                priority: task.priority ?? null,
+                listId: task.list_id,
+                sectionId: task.section_id ?? null,
+                estimatedMinutes: task.estimated_minutes ?? null,
+                preferredTimeZone: timeZone,
+            });
+            applyTaskPatch(task.id, updated);
+            setTitle(normalizedTitle);
+        } catch (err) {
+            toast.error("Couldn't save task", {
+                description: err instanceof Error ? err.message : "Unknown error",
+            });
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    return (
+        <Input
+            aria-label="Task title"
+            value={title}
+            disabled={saving}
+            onClick={(event) => event.stopPropagation()}
+            onMouseDown={(event) => event.stopPropagation()}
+            onChange={(event) => setTitle(event.target.value)}
+            onBlur={() => {
+                if (titleDirty) {
+                    void saveTitle();
+                }
+            }}
+            onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                }
+                if (event.key === "Escape") {
+                    event.preventDefault();
+                    setTitle(task.title);
+                    event.currentTarget.blur();
+                }
+            }}
+            className="task-row-title h-auto min-w-0 flex-1 truncate border-none bg-transparent px-0 py-0 text-[14px] leading-snug tracking-[-0.012em] text-foreground shadow-none focus-visible:ring-0 disabled:opacity-70"
+        />
+    );
+}
 
 export function InlineTaskEditor({
     task,

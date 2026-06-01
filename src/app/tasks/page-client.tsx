@@ -12,7 +12,7 @@ import { EmptyState } from "~/components/app-primitives";
 import { useData } from "~/components/data-provider";
 import { TaskDetailPanel } from "~/components/task-detail-panel";
 import { TaskListView } from "~/components/task/task-list-view";
-import { InlineTaskEditor } from "~/components/task/inline-task-editor";
+import { InlineTaskEditor, InlineTaskTitleEditor } from "~/components/task/inline-task-editor";
 import { QuickAddInlineComposer, type QuickAddDefaults } from "~/components/task/quick-add";
 import { TaskSelectionBar } from "~/components/task-selection-bar";
 import { Button } from "~/components/ui/button";
@@ -218,6 +218,7 @@ function TasksContent({
     const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
     const [bulkDeletingOpen, setBulkDeletingOpen] = useState(false);
     const [detailDirty, setDetailDirty] = useState(false);
+    const [inlineTitleDirty, setInlineTitleDirty] = useState(false);
     const [inlineDetailDirty, setInlineDetailDirty] = useState(false);
     const [pendingTaskLeaveAction, setPendingTaskLeaveAction] = useState<PendingTaskLeaveAction | null>(null);
 
@@ -700,7 +701,7 @@ function TasksContent({
         setBulkDeletingOpen(false);
     }
 
-    const taskHasUnsavedEdits = detailDirty || inlineDetailDirty;
+    const taskHasUnsavedEdits = detailDirty || inlineTitleDirty || inlineDetailDirty;
 
     const requestTaskLeave = useCallback((action: () => void, options?: TaskLeaveOptions) => {
         if (taskHasUnsavedEdits && selectedTaskId) {
@@ -728,6 +729,7 @@ function TasksContent({
         const { run } = pendingTaskLeaveAction;
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineTitleDirty(false);
         setInlineDetailDirty(false);
         run();
     }, [pendingTaskLeaveAction]);
@@ -749,6 +751,7 @@ function TasksContent({
         requestTaskLeave(() => {
             setSelectedTaskId(null);
             setDetailDirty(false);
+            setInlineTitleDirty(false);
             setInlineDetailDirty(false);
             activateSelectionMode();
         });
@@ -759,6 +762,7 @@ function TasksContent({
             requestTaskLeave(() => {
                 setSelectedTaskId(null);
                 setDetailDirty(false);
+                setInlineTitleDirty(false);
                 setInlineDetailDirty(false);
                 enterPrimaryActivity("tasks:selection");
                 handleToggleTaskSelection(task, { shiftKey: true, enterSelectionMode: true });
@@ -773,6 +777,7 @@ function TasksContent({
             }
             setSelectedTaskId(nextTaskId);
             setDetailDirty(false);
+            setInlineTitleDirty(false);
             setInlineDetailDirty(false);
         });
     }, [enterPrimaryActivity, handleToggleTaskSelection, requestTaskLeave, selectedTaskId]);
@@ -784,6 +789,7 @@ function TasksContent({
             enterPrimaryActivity("tasks:detail");
             setSelectedTaskId(taskId);
             setDetailDirty(false);
+            setInlineTitleDirty(false);
             setInlineDetailDirty(false);
         });
     }, [enterPrimaryActivity, requestTaskLeave, selectedTaskId]);
@@ -796,6 +802,7 @@ function TasksContent({
         setBulkDeletingOpen(false);
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineTitleDirty(false);
         setInlineDetailDirty(false);
         handleCancelSelectionMode();
     }), [handleCancelSelectionMode, registerPrimaryActivityReset]);
@@ -803,6 +810,7 @@ function TasksContent({
     useEffect(() => registerPrimaryActivityReset("tasks:detail", () => {
         setPendingTaskLeaveAction(null);
         setDetailDirty(false);
+        setInlineTitleDirty(false);
         setInlineDetailDirty(false);
         setSelectedTaskId(null);
     }), [registerPrimaryActivityReset]);
@@ -819,17 +827,20 @@ function TasksContent({
         if (!selectionMode) return;
         setSelectedTaskId(null);
         setDetailDirty(false);
+        setInlineTitleDirty(false);
         setInlineDetailDirty(false);
     }, [selectionMode]);
 
     useEffect(() => {
         if (selectedTask) return;
         setDetailDirty(false);
+        setInlineTitleDirty(false);
         setInlineDetailDirty(false);
         setPendingTaskLeaveAction(null);
     }, [selectedTask]);
 
     useEffect(() => {
+        setInlineTitleDirty(false);
         setInlineDetailDirty(false);
     }, [selectedTaskId]);
 
@@ -844,6 +855,7 @@ function TasksContent({
             requestTaskLeave(() => {
                 setSelectedTaskId(null);
                 setDetailDirty(false);
+                setInlineTitleDirty(false);
                 setInlineDetailDirty(false);
             }, { requireSave: true });
         };
@@ -867,6 +879,7 @@ function TasksContent({
                 requestTaskLeave(() => {
                     setSelectedTaskId(null);
                     setDetailDirty(false);
+                    setInlineTitleDirty(false);
                     setInlineDetailDirty(false);
                 }, { requireSave: true });
                 return;
@@ -929,6 +942,13 @@ function TasksContent({
         />
     ), [projectFilter]);
 
+    const renderInlineTaskTitle = useCallback((task: TaskDatasetRecord) => (
+        <InlineTaskTitleEditor
+            task={task}
+            onDirtyChange={setInlineTitleDirty}
+        />
+    ), []);
+
     const canCreateInCurrentView = view !== "done";
 
     const taskContent = loading ? (
@@ -953,6 +973,7 @@ function TasksContent({
                             onSelect={handleTaskSelect}
                             onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
                             emptyMessage="Nothing overdue."
+                            renderTitleSlot={renderInlineTaskTitle}
                             renderInlineDetail={renderInlineTaskEditor}
                         />
                     </div>
@@ -976,6 +997,7 @@ function TasksContent({
                         onSelect={handleTaskSelect}
                         onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
                         emptyMessage="Nothing else due today."
+                        renderTitleSlot={renderInlineTaskTitle}
                         renderInlineDetail={renderInlineTaskEditor}
                     />
                 </div>
@@ -1009,6 +1031,7 @@ function TasksContent({
                         onSelectionToggle={handleTaskSelection}
                         onSelect={handleTaskSelect}
                         onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
+                        renderTitleSlot={renderInlineTaskTitle}
                         renderInlineDetail={renderInlineTaskEditor}
                     />
                 </div>
@@ -1025,6 +1048,7 @@ function TasksContent({
             onSelectionToggle={handleTaskSelection}
             onSelect={handleTaskSelect}
             onToggle={(task, nextIsDone) => void handleToggle(task.id, nextIsDone)}
+            renderTitleSlot={renderInlineTaskTitle}
             renderInlineDetail={renderInlineTaskEditor}
         />
     );
@@ -1208,6 +1232,7 @@ function TasksContent({
                                     requestTaskLeave(() => {
                                         setFullEditorOpen(false);
                                         setDetailDirty(false);
+                                        setInlineTitleDirty(false);
                                         setInlineDetailDirty(false);
                                     }, { requireSave: true });
                                 }
@@ -1216,6 +1241,7 @@ function TasksContent({
                                 requestTaskLeave(() => {
                                     setFullEditorOpen(false);
                                     setDetailDirty(false);
+                                    setInlineTitleDirty(false);
                                     setInlineDetailDirty(false);
                                 });
                             }}
@@ -1225,6 +1251,7 @@ function TasksContent({
                             onDeleted={() => {
                                 setPendingTaskLeaveAction(null);
                                 setDetailDirty(false);
+                                setInlineTitleDirty(false);
                                 setInlineDetailDirty(false);
                                 setSelectedTaskId(null);
                             }}
