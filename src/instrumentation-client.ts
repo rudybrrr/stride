@@ -9,7 +9,7 @@ const posthogProjectToken = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
 Sentry.init({
-  dsn: "https://0752816f456da9b8ffe1c41401c1d53f@o4511155004375040.ingest.us.sentry.io/4511155004571648",
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // Enable sending user PII (Personally Identifiable Information)
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii

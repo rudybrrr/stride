@@ -8,9 +8,12 @@ import { withSentryConfig } from "@sentry/nextjs";
 /** @type {import("next").NextConfig} */
 const nextConfig = {};
 
+const sentryOrg = process.env.SENTRY_ORG;
+const sentryProject = process.env.SENTRY_PROJECT;
+
 export default withSentryConfig(nextConfig, {
-  org: "rudhresh",
-  project: "javascript-nextjs",
+  ...(sentryOrg ? { org: sentryOrg } : {}),
+  ...(sentryProject ? { project: sentryProject } : {}),
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
