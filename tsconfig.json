@@ -8,21 +8,28 @@
     "moduleDetection": "force",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "checkJs": true,
-
-    "lib": ["dom", "dom.iterable", "ES2022"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "ES2022"
+    ],
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "jsx": "react-jsx",
-    "plugins": [{ "name": "next" }],
+    "jsx": "preserve",
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "incremental": true,
-
     "paths": {
-      "~/*": ["./src/*"]
+      "~/*": [
+        "./src/*"
+      ]
     }
   },
   "include": [
@@ -35,5 +42,8 @@
     ".next/dev/types/**/*.ts",
     "next.config.mjs"
   ],
-  "exclude": ["node_modules", "generated"]
+  "exclude": [
+    "node_modules",
+    "generated"
+  ]
 }
